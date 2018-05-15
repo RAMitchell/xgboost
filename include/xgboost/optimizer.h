@@ -17,20 +17,16 @@ class Optimizer {
       const std::vector<std::pair<std::string, std::string>>& cfg) {}
 
   /**
-   * \fn  virtual void Optimizer::OptimizeGradients(std::vector<bst_gpair>* gpair)
-   *
    * \brief Optimize gradients. Used for applying momentum or averaging to gradients based on gradient information from previous iterations.
    */
 
-  virtual void OptimizeGradients(std::vector<bst_gpair>* gpair) {}
+  virtual void OptimizeGradients(HostDeviceVector<GradientPair>* gpair) {}
 
   /**
-   * \fn  virtual void Optimizer::OptimizePredictions(std::vector<float>* predictions,GradientBooster *gbm, DMatrix *dmatrix)
-   *
    * \brief Modify predictions if necessary. Used for nesterov style optimizer that can look ahead.
    */
 
-  virtual void OptimizePredictions(std::vector<float>* predictions,GradientBooster *gbm, DMatrix *dmatrix) {}
+  virtual void OptimizePredictions(HostDeviceVector<float>* predictions, GradientBooster *gbm, DMatrix *dmatrix) {}
 };
 
 /*!

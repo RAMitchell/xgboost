@@ -4,8 +4,8 @@
 #define _USE_MATH_DEFINES
 
 #include <dmlc/parameter.h>
-#include <xgboost/optimizer.h>
 #include <math.h>
+#include <xgboost/optimizer.h>
 
 namespace xgboost {
 namespace optimizer {
@@ -13,7 +13,8 @@ namespace optimizer {
 DMLC_REGISTRY_FILE_TAG(power_sign_optimizer);
 
 /*! \brief Power Sign parameters */
-struct PowerSignOptimizerParam : public dmlc::Parameter<PowerSignOptimizerParam> {
+struct PowerSignOptimizerParam
+    : public dmlc::Parameter<PowerSignOptimizerParam> {
   float beta1;
   float base;
   float decay;
@@ -30,7 +31,9 @@ struct PowerSignOptimizerParam : public dmlc::Parameter<PowerSignOptimizerParam>
     DMLC_DECLARE_FIELD(decay)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)
-        .describe("Coefficent for calculating exponential decay, if 1 there is no decay.");
+        .describe(
+            "Coefficent for calculating exponential decay, if 1 there is no "
+            "decay.");
   }
 };
 DMLC_REGISTER_PARAMETER(PowerSignOptimizerParam);
@@ -42,40 +45,36 @@ class PowerSignOptimizer : public Optimizer {
     param.InitAllowUnknown(cfg);
   }
 
-  void OptimizeGradients(std::vector<bst_gpair>* gpair) override {
-	t++;
+  void OptimizeGradients(HostDeviceVector<GradientPair>* gpair) override {
+    auto& host_gpair = gpair->HostVector();
+    t++;
     if (!previous_gpair_.empty()) {
-       //apply power sign update
-      for (size_t i = 0; i < gpair->size(); i++) {
-	float g = (*gpair)[i].GetGrad();
-	m[i] = param.beta1 * m[i] + (1 - param.beta1) * g;
-	float newGrad = pow(param.base, (exponential(t) * sign(g) * sign(m[i]))) * g;
-        (*gpair)[i] = bst_gpair(newGrad, (*gpair)[i].GetHess());
+      // apply power sign update
+      for (size_t i = 0; i < host_gpair.size(); i++) {
+        float g = host_gpair[i].GetGrad();
+        m[i] = param.beta1 * m[i] + (1 - param.beta1) * g;
+        float newGrad =
+            pow(param.base, (exponential(t) * sign(g) * sign(m[i]))) * g;
+        host_gpair[i] = GradientPair(newGrad, host_gpair[i].GetHess());
+      }
+    } else {
+      m.resize(host_gpair.size());
+      for (size_t i = 0; i < host_gpair.size(); i++) {
+        m[i] = host_gpair[i].GetGrad();
       }
     }
-    else{
-	int len = gpair->size();
-	m = std::vector<float>(len);
-	for (size_t i = 0; i < gpair->size(); i++) {
-		m[i] = (*gpair)[i].GetGrad();
-      	}
-    }
-    previous_gpair_ = *gpair;
+    previous_gpair_ = host_gpair;
   }
 
-  int sign(float x){
-	return (x > 0) - (x < 0);
-  }
+  int sign(float x) { return (x > 0) - (x < 0); }
 
-  float exponential(float t){
-	return pow(param.decay,t);
-  }
+  float exponential(float t) { return pow(param.decay, t); }
 
  protected:
   PowerSignOptimizerParam param;
   int t = 0;
   std::vector<float> m;
-  std::vector<bst_gpair> previous_gpair_;
+  std::vector<GradientPair> previous_gpair_;
 };
 
 XGBOOST_REGISTER_OPTIMIZER(PowerSignOptimizer, "power_sign_optimizer")

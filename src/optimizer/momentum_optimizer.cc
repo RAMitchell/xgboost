@@ -29,24 +29,25 @@ class MomentumOptimizer : public Optimizer {
       const std::vector<std::pair<std::string, std::string>>& cfg) override {
     param.InitAllowUnknown(cfg);
   }
-  void OptimizeGradients(std::vector<bst_gpair>* gpair) override {
+  void OptimizeGradients(HostDeviceVector<GradientPair>* gpair) override {
+    auto &host_gpair = gpair->HostVector();
     if (param.momentum == 0.0f) {
       return;
     }
     if (!previous_gpair_.empty()) {
        //apply momentum
-      for (size_t i = 0; i < gpair->size(); i++) {
-        (*gpair)[i] =
-            (*gpair)[i] +
-            bst_gpair(previous_gpair_[i].GetGrad() * param.momentum, 0.0f);
+      for (size_t i = 0; i < host_gpair.size(); i++) {
+        host_gpair[i] =
+            host_gpair[i] +
+            GradientPair(previous_gpair_[i].GetGrad() * param.momentum, 0.0f);
       }
     }
-    previous_gpair_ = *gpair;
+    previous_gpair_ = host_gpair;
   }
 
  protected:
   MomentumOptimizerParam param;
-  std::vector<bst_gpair> previous_gpair_;
+  std::vector<GradientPair> previous_gpair_;
 };
 
 XGBOOST_REGISTER_OPTIMIZER(MomentumOptimizer, "momentum_optimizer")

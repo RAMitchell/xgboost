@@ -267,7 +267,7 @@ class LearnerImpl : public Learner {
       obj_->Configure(cfg_.begin(), cfg_.end());
     }
 
-    optimizer.reset(Optimizer::Create(tparam.optimizer));
+    optimizer.reset(Optimizer::Create(tparam_.optimizer));
     optimizer->Init(args);
   }
 
@@ -372,8 +372,8 @@ class LearnerImpl : public Learner {
     monitor_.Start("PredictRaw");
     this->PredictRaw(train, &preds_);
     optimizer->OptimizePredictions(&preds_, gbm_.get(), train);
-    monitor.Stop("PredictRaw");
-    monitor.Start("GetGradient");
+    monitor_.Stop("PredictRaw");
+    monitor_.Start("GetGradient");
     obj_->GetGradient(&preds_, train->Info(), iter, &gpair_);
     optimizer->OptimizeGradients(&gpair_);
     monitor_.Stop("GetGradient");

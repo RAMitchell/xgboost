@@ -93,7 +93,7 @@ class GradientBooster {
    */
 
   virtual void NesterovPredict(DMatrix* dmat,
-                       std::vector<bst_float>* out_preds){};
+                      HostDeviceVector<bst_float>* out_preds){};
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
