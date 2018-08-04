@@ -11,6 +11,7 @@
 
 namespace xgboost {
 namespace common {
+
 constexpr float kPi = 3.14159265358979f;
 using DCTCoefficient = float;
 
@@ -39,6 +40,7 @@ inline float InverseDCTSingle(const std::vector<DCTCoefficient> &x, int N, int k
   }
   return dct_k * (2.0f / N);
 }
+
 inline std::vector<float> InverseDCT(const std::vector<DCTCoefficient> &x, int N,
                               int K) {
   CHECK_EQ(x.size(), N);
