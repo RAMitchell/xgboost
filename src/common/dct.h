@@ -6,8 +6,8 @@
  */
 #ifndef XGBOOST_COMMON_DCT_H_
 #define XGBOOST_COMMON_DCT_H_
-#include <vector>
 #include <xgboost/logging.h>
+#include <vector>
 
 namespace xgboost {
 namespace common {
@@ -15,10 +15,9 @@ namespace common {
 constexpr float kPi = 3.14159265358979f;
 using DCTCoefficient = float;
 
-inline std::vector<DCTCoefficient> ForwardDCT(const std::vector<float> &x, int N,
-                                       int K) {
-  CHECK_EQ(x.size(), N);
-  CHECK_EQ(x.size(), K);
+inline std::vector<DCTCoefficient> ForwardDCT(const std::vector<float> &x) {
+  int N = x.size();
+  int K = x.size();
   std::vector<DCTCoefficient> X(K);
   for (auto k = 0; k < K; k++) {
     double dct_k = 0;
@@ -30,24 +29,17 @@ inline std::vector<DCTCoefficient> ForwardDCT(const std::vector<float> &x, int N
   return X;
 }
 
-inline float InverseDCTSingle(const std::vector<DCTCoefficient> &x, int N, int k) {
-  CHECK_EQ(x.size(), N);
-  CHECK_LE(k, x.size());
-  double dct_k = 0.5 * x[0];
-  for (auto n = 1; n < N; n++) {
-    auto x_n = x[n];
-    dct_k += x_n * cos((kPi / N) * n * (k + 0.5f));
-  }
-  return dct_k * (2.0f / N);
-}
-
-inline std::vector<float> InverseDCT(const std::vector<DCTCoefficient> &x, int N,
-                              int K) {
-  CHECK_EQ(x.size(), N);
-  CHECK_EQ(x.size(), K);
+inline std::vector<float> InverseDCT(const std::vector<DCTCoefficient> &x) {
+  int N = x.size();
+  int K = x.size();
   std::vector<float> X(K);
   for (auto k = 0; k < K; k++) {
-    X[k] = InverseDCTSingle(x, N, k);
+    double dct_k = 0.5 * x[0];
+    for (auto n = 1; n < N; n++) {
+      auto x_n = x[n];
+      dct_k += x_n * cos((kPi / N) * n * (k + 0.5f));
+    }
+    X[k] = dct_k * (2.0f / N);
   }
   return X;
 }

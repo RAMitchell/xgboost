@@ -16,7 +16,6 @@
 namespace xgboost {
 namespace common {
 
-
 /*! \brief column type */
 enum ColumnType {
   kDenseColumn,

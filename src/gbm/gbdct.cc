@@ -2,10 +2,10 @@
 #include <xgboost/gbm.h>
 #include <string>
 #include <vector>
+#include "../common/column_matrix.h"
 #include "../common/dct.h"
 #include "../common/hist_util.h"
 #include "../common/timer.h"
-#include "../common/column_matrix.h"
 
 namespace xgboost {
 namespace gbm {
@@ -50,11 +50,16 @@ class DCTModel {
   void Init(int max_coefficients, size_t num_columns,
             const common::HistCutMatrix &cuts) {
     this->max_coefficients_ = max_coefficients;
+    this->cuts = cuts;
     coefficients_.resize(num_columns);
     for (auto fidx = 0ull; fidx < num_columns; fidx++) {
       int column_bins = cuts.row_ptr[fidx + 1] - cuts.row_ptr[fidx];
       coefficients_[fidx].resize(column_bins);
     }
+    predicted_weights_.resize(cuts.row_ptr.back());
+  }
+  const std::vector<float> &GetWeights() {
+    return predicted_weights_;
   }
   void UpdateCoefficients(const std::vector<common::DCTCoefficient> &update,
                           int fidx, float learning_rate) {
@@ -63,14 +68,34 @@ class DCTModel {
     for (auto i = 0; i < num_coefficients; i++) {
       coefficients_[fidx][i] += update[i] * learning_rate;
     }
+    // Update inverse DCT
+    auto inverse =
+        common::InverseDCT(coefficients_[fidx]);
+    std::copy(inverse.begin(), inverse.end(), predicted_weights_.begin() + cuts.row_ptr[fidx]);
   }
   const std::vector<common::DCTCoefficient> &GetCoefficients(int fidx) {
     return coefficients_[fidx];
   }
 
+  std::string DumpModel() {
+    std::stringstream ss;
+    ss << "Max DCT coefficients per feature: " << max_coefficients_ << "\n";
+    for (auto fidx = 0ull; fidx < coefficients_.size(); fidx++) {
+      ss << "Feature " << fidx << ":\n";
+      for (auto c : coefficients_[fidx]) {
+        ss << c << " ";
+      }
+      ss << "\n";
+    }
+    return ss.str();
+  }
+
  private:
   std::vector<std::vector<common::DCTCoefficient>> coefficients_;
-  int max_bins_{0};
+  common::HistCutMatrix cuts;
+  std::vector<float>
+      predicted_weights_;  // The inverse DCT of the coefficients, keep this
+                           // cached for prediction. predicted_weights[i] gives the weight for bin index i
   int max_coefficients_{0};
 };
 
@@ -124,6 +149,7 @@ class GBDCT : public GradientBooster {
 
   void LazyInit(DMatrix *p_fmat) {
     if (initialized_) return;
+    training_matrix_ptr = p_fmat;
     quantile_matrix_.Init(p_fmat, param_.max_bin);
     column_matrix_.Init(quantile_matrix_, 0.2);
     models_.resize(param_.num_output_group);
@@ -132,30 +158,6 @@ class GBDCT : public GradientBooster {
              quantile_matrix_.cut);
     }
     initialized_ = true;
-  }
-  void UpdateGradients(DMatrix *p_fmat, std::vector<GradientPair> *gpair,
-                       int fidx,
-                       const std::vector<common::DCTCoefficient> &update,
-                       int group_idx, int num_group) {
-    auto delta_prediction =
-        common::InverseDCT(update, update.size(), update.size());
-    int bin_begin = quantile_matrix_.cut.row_ptr[fidx];
-    int bin_end = quantile_matrix_.cut.row_ptr[fidx + 1];
-    const auto nsize = static_cast<omp_ulong>(p_fmat->Info().num_row_);
-#pragma omp parallel for schedule(static)
-    for (omp_ulong ridx = 0; ridx < nsize; ++ridx) {
-      auto row_begin = quantile_matrix_.row_ptr[ridx];
-      auto row_end = quantile_matrix_.row_ptr[ridx + 1];
-      for (auto j = row_begin; j < row_end; j++) {
-        int bin_idx = quantile_matrix_.index[j];
-        if (bin_idx >= bin_begin && bin_idx < bin_end) {
-          int k = bin_idx - bin_begin;
-          float d = delta_prediction[k] * param_.learning_rate;
-          auto &g = (*gpair)[ridx * num_group + group_idx];
-          g += GradientPair(d * g.GetHess(), 0.0f);
-        }
-      }
-    }
   }
   void DoBoost(DMatrix *p_fmat, HostDeviceVector<GradientPair> *in_gpair,
                ObjFunction *obj) override {
@@ -169,28 +171,29 @@ class GBDCT : public GradientBooster {
       // Find coefficients for each feature
       for (auto fidx = 0ull; fidx < p_fmat->Info().num_col_; fidx++) {
         monitor_.Start("Histogram");
-        GradientHistogram histogram;
-        histogram.BuildHistogram(quantile_matrix_,column_matrix_.GetColumn(fidx) ,host_gpair, gidx,
-                                 param_.num_output_group);
-        monitor_.Stop("Histogram");
-        monitor_.Start("UpdateModel");
         int bin_begin = quantile_matrix_.cut.row_ptr[fidx];
         int bin_end = quantile_matrix_.cut.row_ptr[fidx + 1];
         int N = bin_end - bin_begin;  // NOLINT
+        std::vector<GradientPairPrecise> histogram =
+            this->BuildFeatureHistogram(N, column_matrix_.GetColumn(fidx),
+                                        host_gpair, gidx,
+                                        param_.num_output_group);
+        monitor_.Stop("Histogram");
+        monitor_.Start("UpdateModel");
         std::vector<float> x(N);
         for (auto i = 0; i < N; i++) {
-          auto g = histogram.histogram[bin_begin + i];
+          auto g = histogram[i];
           x[i] = -g.GetGrad() / g.GetHess();
         }
-        auto update = common::ForwardDCT(x, x.size(), x.size());
+        auto update = common::ForwardDCT(x);
         // Truncate the new coefficients
         update.resize(param_.max_coefficients);
         update.resize(N, 0.0f);
         models_[gidx].UpdateCoefficients(update, fidx, param_.learning_rate);
         monitor_.Stop("UpdateModel");
         monitor_.Start("UpdateGradients");
-        this->UpdateGradients(p_fmat, &host_gpair, fidx, update, gidx,
-                              param_.num_output_group);
+        this->UpdateGradients(column_matrix_.GetColumn(fidx), &host_gpair, fidx,
+                              update, gidx, param_.num_output_group);
         monitor_.Stop("UpdateGradients");
       }
     }
@@ -202,6 +205,13 @@ class GBDCT : public GradientBooster {
     monitor_.Start("PredictBatch");
     out_preds->Resize(p_fmat->Info().num_row_ * param_.num_output_group);
     auto &host_preds = out_preds->HostVector();
+    const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_.HostVector();
+    if(p_fmat == training_matrix_ptr)
+    {
+      // If predicting from the training matrix take a shortcut
+      this->PredictBatchTraining(&host_preds,base_margin);
+      return;
+    }
     auto iter = p_fmat->RowIterator();
     while (iter->Next()) {
       auto &batch = iter->Value();
@@ -209,11 +219,16 @@ class GBDCT : public GradientBooster {
 #pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;
-        std::vector<float> pred(param_.num_output_group);
-        this->PredictInstance(batch[i], &pred, 0, 0);
-        for (auto gidx = 0; gidx < param_.num_output_group; gidx++) {
-          host_preds[ridx * param_.num_output_group + gidx] = pred[gidx];
+        // Initialise margin
+        for (auto gidx = 0ull; gidx < param_.num_output_group; gidx++) {
+          bst_float margin =
+              (base_margin.size() != 0)
+                  ? base_margin[ridx * param_.num_output_group + gidx]
+                  : base_margin_;
+          host_preds[ridx * param_.num_output_group + gidx] = margin;
         }
+        this->PredictInternal(
+            batch[i], host_preds.data() + ridx * param_.num_output_group);
       }
     }
     monitor_.Stop("PredictBatch");
@@ -221,20 +236,12 @@ class GBDCT : public GradientBooster {
 
   void PredictInstance(const SparsePage::Inst &inst,
                        std::vector<bst_float> *out_preds, unsigned ntree_limit,
-                       unsigned root_index) override {
+                       unsigned root_index) override
+  {
     for (auto gidx = 0ull; gidx < param_.num_output_group; gidx++) {
       (*out_preds)[gidx] = base_margin_;
     }
-    if (!initialized_) return;
-    for (auto &elem : inst) {
-      auto bin_idx = quantile_matrix_.cut.GetBinIdx(elem);
-      int k = bin_idx - quantile_matrix_.cut.row_ptr[elem.index];
-      for (auto gidx = 0ull; gidx < param_.num_output_group; gidx++) {
-        (*out_preds)[gidx] += common::InverseDCTSingle(
-            models_[gidx].GetCoefficients(elem.index),
-            models_[gidx].GetCoefficients(elem.index).size(), k);
-      }
-    }
+    this->PredictInternal(inst, out_preds->data());
   }
 
   void PredictLeaf(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
@@ -259,16 +266,102 @@ class GBDCT : public GradientBooster {
   }
 
  private:
-  void PredictInternal(const SparsePage::Inst &inst,
-                       std::vector<bst_float> *out_preds, unsigned ntree_limit,
-                       unsigned root_index) {}
+  // If we are predicting from the training matrix take advantage of the fact
+  // that we have an already quantised version
+  void PredictBatchTraining(std::vector<bst_float> *out_preds,
+                            const std::vector<float> &base_margin) {
+    const auto nsize =
+        static_cast<omp_ulong>(quantile_matrix_.row_ptr.size() - 1);
+#pragma omp parallel for schedule(static)
+    for (omp_ulong ridx = 0; ridx < nsize; ++ridx) {
+      // Initialise margin
+      for (auto gidx = 0; gidx < param_.num_output_group; gidx++) {
+        bst_float margin =
+          (base_margin.size() != 0)
+          ? base_margin[ridx * param_.num_output_group + gidx]
+          : base_margin_;
+        (*out_preds)[ridx * param_.num_output_group + gidx] = margin;
+      }
+
+      for (auto gidx = 0; gidx < param_.num_output_group; gidx++) {
+        float pred = 0;
+        size_t row_begin = quantile_matrix_.row_ptr[ridx];
+        size_t row_end = quantile_matrix_.row_ptr[ridx + 1];
+        for(auto elem_idx = row_begin; elem_idx < row_end; elem_idx++)
+        {
+          int k = quantile_matrix_.index[elem_idx];
+          pred += models_[gidx].GetWeights()[k];
+        }
+        (*out_preds)[ridx * param_.num_output_group + gidx]  += pred;
+      }
+    }
+  }
+  void PredictInternal(const SparsePage::Inst &inst, bst_float *out_preds) {
+    if (!initialized_) return;
+    for (const auto &elem : inst) {
+      auto bin_idx = quantile_matrix_.cut.GetBinIdx(elem);
+      for (auto gidx = 0ull; gidx < param_.num_output_group; gidx++) {
+        out_preds[gidx] += models_[gidx].GetWeights()[bin_idx];
+      }
+    }
+  }
+  std::vector<GradientPairPrecise> BuildFeatureHistogram(
+      int feature_bins, const common::Column&column,
+      const std::vector<GradientPair> &gradients, int group_idx,
+      int num_group) {
+    // Prepare thread local histograms
+    std::vector<std::vector<GradientPairPrecise>> thread_histograms(
+        omp_get_max_threads());
+    for (auto &histogram : thread_histograms) {
+      histogram.resize(feature_bins);
+    }
+    // Build histogram for each thread
+    const auto nsize = static_cast<omp_ulong>(column.Size());
+#pragma omp parallel for schedule(static)
+    for (omp_ulong i = 0; i < nsize; ++i) {
+      auto feature_bin_idx = column.GetFeatureBinIdx(i);
+      if (column.IsMissing(i)) continue;
+      auto ridx = column.GetRowIdx(i);
+      auto thread_idx = omp_get_thread_num();
+      thread_histograms[thread_idx][feature_bin_idx] +=
+          GradientPairPrecise(gradients[ridx * num_group + group_idx]);
+    }
+    std::vector<GradientPairPrecise> result(feature_bins);
+    // Sum histograms back together
+    for (const auto &local_histogram : thread_histograms) {
+      for (auto i = 0; i < feature_bins; i++) {
+        result[i] += local_histogram[i];
+      }
+    }
+    return result;
+  }
+  void UpdateGradients(const common::Column&column,
+                       std::vector<GradientPair> *gpair, int fidx,
+                       const std::vector<common::DCTCoefficient> &update,
+                       int group_idx, int num_group) {
+    auto delta_prediction =
+      common::InverseDCT(update);
+    const auto nsize = static_cast<omp_ulong>(column.Size());
+#pragma omp parallel for schedule(static)
+    for (omp_ulong i = 0; i < nsize; ++i) {
+      auto feature_bin_idx = column.GetRowIdx(i);
+      if ( column.IsMissing(i)) continue;
+      auto ridx = column.GetRowIdx(i);
+      float d = delta_prediction[feature_bin_idx] * param_.learning_rate;
+      auto &g = (*gpair)[ridx * num_group + group_idx];
+      g += GradientPair(d * g.GetHess(), 0.0f);
+    }
+  }
   bool initialized_{false};
   GBDCTTrainParam param_;
   common::GHistIndexMatrix quantile_matrix_;
   common::ColumnMatrix column_matrix_;  // Quantised matrix in column format
-  std::vector<DCTModel> models_;  // One model for each class
+  std::vector<DCTModel> models_;        // One model for each class
   bst_float base_margin_;
   common::Monitor monitor_;
+  DMatrix *training_matrix_ptr{
+      nullptr};  // Remember the training matrix so we can reuse some
+                 // information at prediction time
 };
 
 // register the objective functions
