@@ -51,30 +51,25 @@ class DCTModel {
             const common::HistCutMatrix &cuts) {
     this->max_coefficients_ = max_coefficients;
     this->cuts = cuts;
-    coefficients_.resize(num_columns);
-    for (auto fidx = 0ull; fidx < num_columns; fidx++) {
-      int column_bins = cuts.row_ptr[fidx + 1] - cuts.row_ptr[fidx];
-      coefficients_[fidx].resize(column_bins);
-    }
+    coefficients_.resize(cuts.row_ptr.back());
     predicted_weights_.resize(cuts.row_ptr.back());
   }
-  const std::vector<float> &GetWeights() {
-    return predicted_weights_;
-  }
+  float GetWeight(int bin_idx) { return predicted_weights_[bin_idx]; }
   void UpdateCoefficients(const std::vector<common::DCTCoefficient> &update,
                           int fidx, float learning_rate) {
+    int begin_bin_idx = cuts.row_ptr[fidx];
+    int end_bin_idx = cuts.row_ptr[fidx + 1];
     int num_coefficients =
-        std::min(size_t(max_coefficients_), coefficients_[fidx].size());
+        std::min(max_coefficients_, end_bin_idx - begin_bin_idx);
     for (auto i = 0; i < num_coefficients; i++) {
-      coefficients_[fidx][i] += update[i] * learning_rate;
+      coefficients_[begin_bin_idx + i] += update[i] * learning_rate;
     }
     // Update inverse DCT
-    auto inverse =
-        common::InverseDCT(coefficients_[fidx]);
-    std::copy(inverse.begin(), inverse.end(), predicted_weights_.begin() + cuts.row_ptr[fidx]);
-  }
-  const std::vector<common::DCTCoefficient> &GetCoefficients(int fidx) {
-    return coefficients_[fidx];
+    auto inverse = common::InverseDCT(std::vector<common::DCTCoefficient>(
+        coefficients_.begin() + begin_bin_idx,
+        coefficients_.begin() + end_bin_idx));
+    std::copy(inverse.begin(), inverse.end(),
+              predicted_weights_.begin() + cuts.row_ptr[fidx]);
   }
 
   std::string DumpModel() {
@@ -82,8 +77,10 @@ class DCTModel {
     ss << "Max DCT coefficients per feature: " << max_coefficients_ << "\n";
     for (auto fidx = 0ull; fidx < coefficients_.size(); fidx++) {
       ss << "Feature " << fidx << ":\n";
-      for (auto c : coefficients_[fidx]) {
-        ss << c << " ";
+      int begin_bin_idx = cuts.row_ptr[fidx];
+      int end_bin_idx = cuts.row_ptr[fidx + 1];
+      for (auto i = begin_bin_idx; i < end_bin_idx; i++) {
+        ss << coefficients_[i] << " ";
       }
       ss << "\n";
     }
@@ -91,11 +88,12 @@ class DCTModel {
   }
 
  private:
-  std::vector<std::vector<common::DCTCoefficient>> coefficients_;
+  std::vector<common::DCTCoefficient> coefficients_;
   common::HistCutMatrix cuts;
   std::vector<float>
       predicted_weights_;  // The inverse DCT of the coefficients, keep this
-                           // cached for prediction. predicted_weights[i] gives the weight for bin index i
+                           // cached for prediction. predicted_weights[i] gives
+                           // the weight for bin index i
   int max_coefficients_{0};
 };
 
@@ -205,11 +203,10 @@ class GBDCT : public GradientBooster {
     monitor_.Start("PredictBatch");
     out_preds->Resize(p_fmat->Info().num_row_ * param_.num_output_group);
     auto &host_preds = out_preds->HostVector();
-    const std::vector<bst_float>& base_margin = p_fmat->Info().base_margin_.HostVector();
-    if(p_fmat == training_matrix_ptr)
-    {
+    const std::vector<bst_float> &base_margin = p_fmat->Info().base_margin_.HostVector();
+    if (p_fmat == training_matrix_ptr) {
       // If predicting from the training matrix take a shortcut
-      this->PredictBatchTraining(&host_preds,base_margin);
+      this->PredictBatchTraining(&host_preds, base_margin);
       return;
     }
     auto iter = p_fmat->RowIterator();
@@ -236,8 +233,7 @@ class GBDCT : public GradientBooster {
 
   void PredictInstance(const SparsePage::Inst &inst,
                        std::vector<bst_float> *out_preds, unsigned ntree_limit,
-                       unsigned root_index) override
-  {
+                       unsigned root_index) override {
     for (auto gidx = 0ull; gidx < param_.num_output_group; gidx++) {
       (*out_preds)[gidx] = base_margin_;
     }
@@ -277,9 +273,9 @@ class GBDCT : public GradientBooster {
       // Initialise margin
       for (auto gidx = 0; gidx < param_.num_output_group; gidx++) {
         bst_float margin =
-          (base_margin.size() != 0)
-          ? base_margin[ridx * param_.num_output_group + gidx]
-          : base_margin_;
+            (base_margin.size() != 0)
+                ? base_margin[ridx * param_.num_output_group + gidx]
+                : base_margin_;
         (*out_preds)[ridx * param_.num_output_group + gidx] = margin;
       }
 
@@ -287,12 +283,11 @@ class GBDCT : public GradientBooster {
         float pred = 0;
         size_t row_begin = quantile_matrix_.row_ptr[ridx];
         size_t row_end = quantile_matrix_.row_ptr[ridx + 1];
-        for(auto elem_idx = row_begin; elem_idx < row_end; elem_idx++)
-        {
+        for (auto elem_idx = row_begin; elem_idx < row_end; elem_idx++) {
           int k = quantile_matrix_.index[elem_idx];
-          pred += models_[gidx].GetWeights()[k];
+          pred += models_[gidx].GetWeight(k);
         }
-        (*out_preds)[ridx * param_.num_output_group + gidx]  += pred;
+        (*out_preds)[ridx * param_.num_output_group + gidx] += pred;
       }
     }
   }
@@ -301,7 +296,7 @@ class GBDCT : public GradientBooster {
     for (const auto &elem : inst) {
       auto bin_idx = quantile_matrix_.cut.GetBinIdx(elem);
       for (auto gidx = 0ull; gidx < param_.num_output_group; gidx++) {
-        out_preds[gidx] += models_[gidx].GetWeights()[bin_idx];
+        out_preds[gidx] += models_[gidx].GetWeight(bin_idx);
       }
     }
   }
