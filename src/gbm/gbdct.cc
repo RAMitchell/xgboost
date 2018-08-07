@@ -32,7 +32,7 @@ struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
         .set_lower_bound(0)
         .set_default(0)
         .describe("flag to print out detailed breakdown of runtime");
-    DMLC_DECLARE_FIELD(max_bin).set_lower_bound(2).set_default(256).describe(
+    DMLC_DECLARE_FIELD(max_bin).set_lower_bound(2).set_default(64).describe(
         "if using histogram-based algorithm, maximum number of bins per "
         "feature");
     DMLC_DECLARE_FIELD(max_coefficients)
