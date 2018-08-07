@@ -15,6 +15,18 @@ namespace common {
 constexpr float kPi = 3.14159265358979f;
 using DCTCoefficient = float;
 
+/**
+ * \brief   Compute the type II discrete cosine transform. Uses naive n^2
+ * algorithm. Not recommended for large input sizes.
+ *
+ * \author  Rory
+ * \date    7/08/2018
+ *
+ * \param   x   A std::vector&lt;float&gt; to process.
+ *
+ * \return  A std::vector&lt;DCTCoefficient&gt of length x.size();
+ */
+
 inline std::vector<DCTCoefficient> ForwardDCT(const std::vector<float> &x) {
   int N = x.size();
   int K = x.size();
@@ -28,6 +40,39 @@ inline std::vector<DCTCoefficient> ForwardDCT(const std::vector<float> &x) {
   }
   return X;
 }
+
+/**
+ * \brief   Truncated version of forward dct. Sets all coefficients after
+ * max_coefficients to zero.
+ *
+ * \author  Rory
+ * \date    7/08/2018
+ *
+ * \param   x                   A std::vector&lt;float&gt; to process.
+ * \param   max_coefficients    The maximum coefficients.
+ *
+ * \return  A std::vector&lt;DCTCoefficient&gt;
+ */
+
+inline std::vector<DCTCoefficient> TruncatedForwardDCT(
+    const std::vector<float> &x, int max_coefficients) {
+  auto X = ForwardDCT(x);
+  X.resize(max_coefficients);
+  X.resize(x.size(), 0.0f);
+  return X;
+}
+
+/**
+ * \brief   Inverse dct. Also known as the inverse to the type II dct, or type
+ * III dct
+ *
+ * \author  Rory
+ * \date    7/08/2018
+ *
+ * \param   x   A std::vector&lt;DCTCoefficient&gt; to process.
+ *
+ * \return  A std::vector&lt;float&gt;
+ */
 
 inline std::vector<float> InverseDCT(const std::vector<DCTCoefficient> &x) {
   int N = x.size();

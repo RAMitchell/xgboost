@@ -1,3 +1,9 @@
+/*!
+ * Copyright 2018 by Contributors
+ * \file gbdct.cc
+ * \brief Learns by building DCT approximations for each feature
+ * \author Rory Mitchell
+ */
 #include <dmlc/parameter.h>
 #include <xgboost/gbm.h>
 #include <string>
@@ -178,15 +184,9 @@ class GBDCT : public GradientBooster {
                                         param_.num_output_group);
         monitor_.Stop("Histogram");
         monitor_.Start("UpdateModel");
-        std::vector<float> x(N);
-        for (auto i = 0; i < N; i++) {
-          auto g = histogram[i];
-          x[i] = -g.GetGrad() / g.GetHess();
-        }
-        auto update = common::ForwardDCT(x);
-        // Truncate the new coefficients
-        update.resize(param_.max_coefficients);
-        update.resize(N, 0.0f);
+        auto feature_weights = this->GetFeatureWeights(histogram);
+        auto update = common::TruncatedForwardDCT(feature_weights,
+                                                  param_.max_coefficients);
         models_[gidx].UpdateCoefficients(update, fidx, param_.learning_rate);
         monitor_.Stop("UpdateModel");
         monitor_.Start("UpdateGradients");
@@ -249,12 +249,16 @@ class GBDCT : public GradientBooster {
                            std::vector<bst_float> *out_contribs,
                            unsigned ntree_limit, bool approximate,
                            int condition = 0,
-                           unsigned condition_feature = 0) override {}
+                           unsigned condition_feature = 0) override {
+    LOG(FATAL) << "gbdct does not support prediction contributions";
+  }
 
   void PredictInteractionContributions(DMatrix *p_fmat,
                                        std::vector<bst_float> *out_contribs,
                                        unsigned ntree_limit,
-                                       bool approximate) override {}
+                                       bool approximate) override {
+    LOG(FATAL) << "gbdct does not support prediction interaction contributions";
+  }
 
   std::vector<std::string> DumpModel(const FeatureMap &fmap, bool with_stats,
                                      std::string format) const override {
@@ -262,6 +266,16 @@ class GBDCT : public GradientBooster {
   }
 
  private:
+  // Calculate the optimal weight update for each quantile
+  std::vector<float> GetFeatureWeights(
+      const std::vector<GradientPairPrecise> &histogram) {
+    std::vector<float> x(histogram.size());
+    for (auto i = 0; i < x.size(); i++) {
+      auto g = histogram[i];
+      x[i] = -g.GetGrad() / g.GetHess();
+    }
+    return x;
+  }
   // If we are predicting from the training matrix take advantage of the fact
   // that we have an already quantised version
   void PredictBatchTraining(std::vector<bst_float> *out_preds,
@@ -351,7 +365,7 @@ class GBDCT : public GradientBooster {
   GBDCTTrainParam param_;
   common::GHistIndexMatrix quantile_matrix_;
   common::ColumnMatrix column_matrix_;  // Quantised matrix in column format
-  std::vector<DCTModel> models_;        // One model for each class
+  std::vector<DCTModel> models_;        // One model for each output class
   bst_float base_margin_;
   common::Monitor monitor_;
   DMatrix *training_matrix_ptr{

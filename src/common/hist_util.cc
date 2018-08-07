@@ -183,7 +183,6 @@ static size_t GetConflictCount(const std::vector<bool>& mark,
   if (column.GetType() == xgboost::common::kDenseColumn) {
     for (size_t i = 0; i < column.Size(); ++i) {
       if (column.GetFeatureBinIdx(i) != std::numeric_limits<uint32_t>::max() && mark[i]) {
-        ++ret;
         if (ret > max_cnt) {
           return max_cnt + 1;
         }
