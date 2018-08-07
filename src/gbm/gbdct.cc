@@ -328,6 +328,7 @@ class GBDCT : public GradientBooster {
     const auto nsize = static_cast<omp_ulong>(column.Size());
 #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < nsize; ++i) {
+      if (column.IsMissing(i)) continue;
       auto feature_bin_idx = column.GetFeatureBinIdx(i);
       if (column.IsMissing(i)) continue;
       auto ridx = column.GetRowIdx(i);
@@ -353,8 +354,8 @@ class GBDCT : public GradientBooster {
     const auto nsize = static_cast<omp_ulong>(column.Size());
 #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < nsize; ++i) {
-      auto feature_bin_idx = column.GetRowIdx(i);
-      if ( column.IsMissing(i)) continue;
+      if (column.IsMissing(i)) continue;
+      auto feature_bin_idx = column.GetFeatureBinIdx(i);
       auto ridx = column.GetRowIdx(i);
       float d = delta_prediction[feature_bin_idx] * param_.learning_rate;
       auto &g = (*gpair)[ridx * num_group + group_idx];
