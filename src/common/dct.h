@@ -6,7 +6,6 @@
  */
 #ifndef XGBOOST_COMMON_DCT_H_
 #define XGBOOST_COMMON_DCT_H_
-#include <xgboost/logging.h>
 #include <vector>
 
 namespace xgboost {
@@ -36,7 +35,9 @@ inline std::vector<DCTCoefficient> ForwardDCT(const std::vector<float> &x) {
     for (auto n = 0; n < N; n++) {
       dct_k += x[n] * cos((kPi / N) * (n + 0.5f) * k);
     }
-    X[k] = dct_k;
+    // Coefficient to enforce orthogonality
+    double a_k = k == 0 ? sqrt(1.0 / K) : sqrt(2.0 / K);
+    X[k] = dct_k * a_k;
   }
   return X;
 }
@@ -79,12 +80,13 @@ inline std::vector<float> InverseDCT(const std::vector<DCTCoefficient> &x) {
   int K = x.size();
   std::vector<float> X(K);
   for (auto k = 0; k < K; k++) {
-    double dct_k = 0.5 * x[0];
-    for (auto n = 1; n < N; n++) {
+    double dct_k = 0;
+    for (auto n = 0; n < N; n++) {
       auto x_n = x[n];
-      dct_k += x_n * cos((kPi / N) * n * (k + 0.5f));
+      double a_n = n == 0 ? sqrt(1.0 / N) : sqrt(2.0 / N);
+      dct_k += a_n * x_n * cos((kPi / N) * n * (k + 0.5f));
     }
-    X[k] = dct_k * (2.0f / N);
+    X[k] = dct_k;
   }
   return X;
 }

@@ -4,12 +4,6 @@
 #include "../helpers.h"
 
 namespace xgboost {
-void Print(const std::vector<float> &v) {
-  for (auto e : v) {
-    printf("%f ", e);
-  }
-  printf("\n");
-}
 TEST(dct, Test) {
   std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
   auto X = common::ForwardDCT(x);
