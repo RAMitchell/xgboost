@@ -12,7 +12,6 @@
 #include "../common/dct.h"
 #include "../common/hist_util.h"
 #include "../common/timer.h"
-#include <Eigen/Dense>
 
 namespace xgboost {
 namespace gbm {
@@ -69,21 +68,20 @@ class Matrix {
   T *Data() { return data_.data(); }
   size_t Rows() const { return m_; }
   size_t Columns() const { return n_; }
+  T &operator()(size_t i, size_t j) { return data_[i * n_ + j]; }
   void Print() const {
     for (auto i = 0ull; i < m_; i++) {
-      for(auto j = 0ull; j < n_; j++)
-      {
-        printf("%f ", data_[i*n_ + j]);
+      for (auto j = 0ull; j < n_; j++) {
+        printf("%f ", data_[i * n_ + j]);
       }
       printf("\n");
     }
   }
 
-  static Matrix<T> Diagonal(const std::vector<float >&x) {
+  static Matrix<T> Diagonal(const std::vector<float> &x) {
     Matrix<T> m(x.size(), x.size());
-    for(auto i = 0ull; i < x.size(); i++)
-    {
-      m.data_[i * x.size() + i] = x[i];
+    for (auto i = 0ull; i < x.size(); i++) {
+      m(i, i) = x[i];
     }
     return m;
   }
@@ -129,21 +127,69 @@ class Matrix {
   std::vector<T> operator*(const std::vector<T> &x) {
     CHECK_EQ(Columns(), x.size());
     std::vector<T> result(Rows());
-    for(auto i = 0ull; i < Rows(); i++)
-    {
-      for(auto j = 0ull; j < Columns(); j++)
-      {
+    for (auto i = 0ull; i < Rows(); i++) {
+      for (auto j = 0ull; j < Columns(); j++) {
         result[i] += data_[i * Columns() + j] * x[j];
       }
     }
     return result;
   }
+
+  static std::vector<T> CholeskySolve(const Matrix<T> &A,
+                                    const std::vector<T> &b) {
+    CHECK_EQ(A.Columns(), A.Rows()) << "Matrix must be square.";
+    CHECK_EQ(A.Rows(), b.size());
+    size_t n = A.Rows();
+
+    // Calculate cholesky decomposition LLt = A
+    Matrix<T> L = A;
+    for (auto i = 0ull; i < n; i++) {
+      for (auto j = i; j < n; j++) {
+        double sum = L(i, j);
+        for (int64_t k = i - 1; k >= 0; k--) {
+          sum = sum - L(i, k) * L(j, k);
+        }
+
+        if (i == j) {
+          CHECK_GT(sum, 0.0);
+          L(i, i) = sqrt(sum);
+        } else {
+          L(j, i) = sum / L(i, i);
+        }
+      }
+    }
+
+    for (auto i = 0ull; i < n; i++) {
+      for (auto j = 0ull; j < i; j++) {
+        L(j, i) = 0.0;
+      }
+    }
+
+    // Solve linear equations
+    std::vector<float> x(n);
+    for (auto i = 0ull; i < n; i++) {
+      double sum = b[i];
+      for (int64_t k = i - 1; k >= 0; k--) {
+        sum = sum - L(i, k) * x[k];
+      }
+      x[i] = sum / L(i, i);
+    }
+
+    for (int64_t i = n - 1; i >= 0; i--) {
+      double sum = x[i];
+      for (auto k = i + 1; k < n; k++) {
+        sum = sum - L(k, i) * x[k];
+      }
+      x[i] = sum / L(i, i);
+    }
+
+    return x;
+  }
 };
 
 class DCTModel {
  public:
-  void Init(int max_coefficients, size_t num_columns,
-            const common::HistCutMatrix &cuts) {
+  void Init(int max_coefficients, const common::HistCutMatrix &cuts) {
     this->max_coefficients_ = max_coefficients;
     this->cuts = cuts;
     coefficients_.resize(cuts.row_ptr.back());
@@ -151,29 +197,28 @@ class DCTModel {
   }
   float GetWeight(int bin_idx) { return predicted_weights_[bin_idx]; }
 
-  std::vector<float > UpdateCoefficients(const std::vector<GradientPairPrecise> &train_histogram,
-                          int fidx, float learning_rate) {
-
+  std::vector<float> UpdateCoefficients(
+      const std::vector<GradientPairPrecise> &train_histogram, int fidx,
+      float learning_rate) {
     int begin_bin_idx = cuts.row_ptr[fidx];
     int end_bin_idx = cuts.row_ptr[fidx + 1];
     int num_coefficients =
         std::min(end_bin_idx - begin_bin_idx, this->max_coefficients_);
-    auto DCT =
+    auto Tt =
         Matrix<float>::ForwardDCT(num_coefficients, train_histogram.size());
-    auto inverse_DCT = DCT.Transpose();
+    auto T = Tt.Transpose();
     Matrix<float> H(train_histogram.size(), train_histogram.size());
     std::vector<float> grad(train_histogram.size());
     for (auto i = 0ull; i < train_histogram.size(); i++) {
-      H.Data()[i * train_histogram.size() + i] = train_histogram[i].GetHess();
+      // Don't allow the hessian values to become too small, otherwise numerical
+      // precision issues
+      H.Data()[i * train_histogram.size() + i] =
+          std::max(train_histogram[i].GetHess(), 1e-5f);
       grad[i] = train_histogram[i].GetGrad();
     }
-    grad = DCT * grad;
-    auto TtHT_inv = DCT * H * inverse_DCT;
-    Eigen::Map<Eigen::MatrixXf> tmp(TtHT_inv.Data(), TtHT_inv.Rows(),
-                                    TtHT_inv.Columns());
-    tmp = tmp.inverse();
-
-    auto update = TtHT_inv * grad;
+    grad = Tt * grad;
+    auto TtHT = Tt * H * T;
+    auto update = Matrix<float>::CholeskySolve(TtHT, grad);
     for (auto &coefficient : update) {
       coefficient *= -learning_rate;
     }
@@ -183,13 +228,14 @@ class DCTModel {
     }
 
     // Update inverse DCT
-    auto inverse = inverse_DCT * std::vector<common::DCTCoefficient>(
-                                     coefficients_.begin() + begin_bin_idx,
-                                     coefficients_.begin() + begin_bin_idx + num_coefficients);
+    auto inverse =
+        T * std::vector<common::DCTCoefficient>(
+                coefficients_.begin() + begin_bin_idx,
+                coefficients_.begin() + begin_bin_idx + num_coefficients);
     CHECK_EQ(inverse.size(), end_bin_idx - begin_bin_idx);
     std::copy(inverse.begin(), inverse.end(),
               predicted_weights_.begin() + cuts.row_ptr[fidx]);
-    return inverse_DCT * update;
+    return T * update;
   }
 
   std::string DumpModel() {
@@ -237,8 +283,7 @@ class GBDCT : public GradientBooster {
     column_matrix_.Init(quantile_matrix_, 0.2);
     models_.resize(param_.num_output_group);
     for (auto &m : models_) {
-      m.Init(param_.max_coefficients, p_fmat->Info().num_col_,
-             quantile_matrix_.cut);
+      m.Init(param_.max_coefficients, quantile_matrix_.cut);
     }
     initialized_ = true;
   }
@@ -259,8 +304,8 @@ class GBDCT : public GradientBooster {
         int N = bin_end - bin_begin;  // NOLINT
         std::vector<GradientPairPrecise> train_histogram;
         this->BuildFeatureHistograms(N, column_matrix_.GetColumn(fidx),
-                                    host_gpair, gidx, param_.num_output_group,
-                                    &train_histogram);
+                                     host_gpair, gidx, param_.num_output_group,
+                                     &train_histogram);
         monitor_.Stop("Histogram");
         monitor_.Start("UpdateModel");
         auto update = models_[gidx].UpdateCoefficients(train_histogram, fidx,
@@ -280,7 +325,8 @@ class GBDCT : public GradientBooster {
     monitor_.Start("PredictBatch");
     out_preds->Resize(p_fmat->Info().num_row_ * param_.num_output_group);
     auto &host_preds = out_preds->HostVector();
-    const std::vector<bst_float> &base_margin = p_fmat->Info().base_margin_.HostVector();
+    const std::vector<bst_float> &base_margin =
+        p_fmat->Info().base_margin_.HostVector();
     if (p_fmat == training_matrix_ptr) {
       // If predicting from the training matrix take a shortcut
       this->PredictBatchTraining(&host_preds, base_margin);
@@ -382,9 +428,9 @@ class GBDCT : public GradientBooster {
     }
   }
   void BuildFeatureHistograms(
-      int feature_bins, const common::Column&column,
-      const std::vector<GradientPair> &gradients, int group_idx,
-      int num_group, std::vector<GradientPairPrecise>* train_histogram){
+      int feature_bins, const common::Column &column,
+      const std::vector<GradientPair> &gradients, int group_idx, int num_group,
+      std::vector<GradientPairPrecise> *train_histogram) {
     // Prepare thread local histograms
     std::vector<std::vector<GradientPairPrecise>> thread_train_histograms(
         omp_get_max_threads());

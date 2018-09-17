@@ -45,4 +45,18 @@ TEST(rectangular_matrix_multiply, Test) {
      EXPECT_FLOAT_EQ(I.Data()[i * m + i], 1.0f);
   }
 }
+
+TEST(linear_solve, Test) {
+  int n = 8;
+  int m = 5;
+  auto Tt = gbm::Matrix<float>::ForwardDCT(m, n);
+  auto A = Tt * gbm::Matrix<float>::Diagonal({4, 5, 4, 5, 4, 3, 2, 7}) *
+           Tt.Transpose();
+  std::vector<float> x = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
+  auto b = A * x;
+  auto result = gbm::Matrix<float>::LinearSolve(A, b);
+  for (auto i = 0ull; i < m; i++) {
+    EXPECT_NEAR(result[i], x[i], 1e-5f);
+  }
+}
 }  // namespace xgboost
