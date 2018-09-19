@@ -6,6 +6,7 @@
  */
 #include <dmlc/parameter.h>
 #include <xgboost/gbm.h>
+#include <Eigen/Dense>
 #include <string>
 #include <vector>
 #include "../common/column_matrix.h"
@@ -19,6 +20,12 @@ namespace gbm {
 DMLC_REGISTRY_FILE_TAG(gbdct);
 #endif
 
+enum RegularisingTransformType {
+  kDCT,
+  kHaar,
+  kIdentity
+};
+
 // training parameters
 struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
   int debug_verbose;
@@ -28,6 +35,7 @@ struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
   int max_coefficients;
   float learning_rate;
   int num_output_group;
+  int regularising_transform;
   DMLC_DECLARE_PARAMETER(GBDCTTrainParam) {
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
@@ -48,14 +56,15 @@ struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
         .set_lower_bound(1)
         .set_default(1)
         .describe("Number of output groups in the setting.");
+    DMLC_DECLARE_FIELD(regularising_transform)
+        .set_default(kDCT)
+        .add_enum("dct", kDCT)
+        .add_enum("haar", kHaar)
+        .add_enum("identity", kIdentity)
+        .describe("Transform type to use.");
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
 };
-
-template <typename T>
-int Sign(T val) {
-  return (T(0) < val) - (val < T(0));
-}
 
 template <typename T>
 class Matrix {
@@ -65,7 +74,6 @@ class Matrix {
 
  public:
   Matrix(size_t m, size_t n) : m_(m), n_(n) { data_.resize(m * n); }
-  T *Data() { return data_.data(); }
   size_t Rows() const { return m_; }
   size_t Columns() const { return n_; }
   T &operator()(size_t i, size_t j) { return data_[i * n_ + j]; }
@@ -86,21 +94,56 @@ class Matrix {
     return m;
   }
 
-  // http://fourier.eng.hmc.edu/e161/lectures/dct/node1.html
-  static Matrix<T> ForwardDCT(size_t m, size_t n) {
-    Matrix<T> DCT(m, n);
-    auto data = DCT.data_.data();
-    for (auto i = 0ull; i < m; i++) {
-      for (auto j = 0ull; j < n; j++) {
-        float a = i == 0 ? sqrt(1.0f / n) : sqrt(2.0f / n);
-        data[i * n + j] =
-            a * cos(((2.0f * j + 1.0f) * i * common::kPi) / (2.0f * n));
+  static Matrix<T> Identity(size_t m, size_t n) {
+    Matrix<T> I(m, n);
+    for (auto i = 0ull; i < I.Rows(); i++) {
+      if (i < I.Columns()) {
+        I(i, i) = 1.0f;
       }
     }
-    return DCT;
+    return I;
   }
 
-  Matrix<T> Transpose() {
+  // http://fourier.eng.hmc.edu/e161/lectures/dct/node1.html
+  static Matrix<T> InverseDCT(size_t m, size_t n) {
+    Matrix<T> T(m, n);
+    for (auto j = 0ull; j < n; j++) {
+      for (auto i = 0ull; i < m; i++) {
+        float a = j == 0 ? sqrt(1.0f / m) : sqrt(2.0f / m);
+        T(i, j) = a * cos(((2.0f * i + 1.0f) * j * common::kPi) / (2.0f * m));
+      }
+    }
+    return T;
+  }
+
+  // http://fourier.eng.hmc.edu/e161/lectures/Haar/index.html
+  static Matrix<T> InverseHaar(size_t m, size_t n) {
+    Matrix<T> haar(m, n);
+    const double kScaleFactor = 1.0 / std::sqrt(m);
+    for (auto j = 0ull; j < n; j++) {
+      double p = std::floor(std::log2(static_cast<double>(j)));
+      double exp_p = std::pow(2.0, p);
+      double exp_half_p = std::pow(2.0, p/2);
+      double q = (j - std::pow(2.0, p)) + 1.0;
+      for (auto i = 0ull; i < m; i++) {
+        double t = static_cast<double>(i) / m;
+        if (j == 0) {
+          haar(i, j) = kScaleFactor;
+        } else if ((q - 1.0) / exp_p <= t && t < (q - 0.5) / exp_p) {
+          haar(i, j) = kScaleFactor*exp_half_p;
+        } else if ((q - 0.5) / exp_p <= t && t < q / exp_p) {
+          haar(i, j) = kScaleFactor* - exp_half_p;
+        }
+        else
+        {
+          haar(i, j) = 0.0;
+        }
+      }
+    }
+    return haar;
+  }
+
+  Matrix<T> Transpose() const {
     Matrix<T> AT(n_, m_);
     for (auto i = 0ull; i < AT.m_; i++) {
       for (auto j = 0ull; j < AT.n_; j++) {
@@ -110,7 +153,7 @@ class Matrix {
     return AT;
   }
 
-  Matrix<T> operator*(const Matrix<T> &B) {
+  Matrix<T> operator*(const Matrix<T> &B) const {
     CHECK_EQ(n_, B.Rows());
     Matrix<T> C(this->Rows(), B.Columns());
     for (auto i = 0ull; i < m_; i++) {
@@ -124,7 +167,7 @@ class Matrix {
     return C;
   }
 
-  std::vector<T> operator*(const std::vector<T> &x) {
+  std::vector<T> operator*(const std::vector<T> &x) const {
     CHECK_EQ(Columns(), x.size());
     std::vector<T> result(Rows());
     for (auto i = 0ull; i < Rows(); i++) {
@@ -151,7 +194,7 @@ class Matrix {
         }
 
         if (i == j) {
-          CHECK_GT(sum, 0.0);
+          if (sum <= 0.0) sum = 1e-5;
           L(i, i) = sqrt(sum);
         } else {
           L(j, i) = sum / L(i, i);
@@ -187,15 +230,29 @@ class Matrix {
   }
 };
 
-class DCTModel {
+class RTLModel {
  public:
-  void Init(int max_coefficients, const common::HistCutMatrix &cuts) {
+  void Init(int max_coefficients, const common::HistCutMatrix &cuts,
+            RegularisingTransformType regularising_transform) {
     this->max_coefficients_ = max_coefficients;
     this->cuts = cuts;
+    this->regularising_transform = regularising_transform;
     coefficients_.resize(cuts.row_ptr.back());
     predicted_weights_.resize(cuts.row_ptr.back());
   }
   float GetWeight(int bin_idx) { return predicted_weights_[bin_idx]; }
+
+  Matrix<float> GetTransform(size_t m, size_t n) {
+    if (regularising_transform == kDCT) {
+      return Matrix<float>::InverseDCT(m, n);
+    } else if (regularising_transform ==kHaar) {
+      return Matrix<float>::InverseHaar(m, n);
+    } else if (regularising_transform == kIdentity) {
+      return Matrix<float>::Identity(m, n);
+    }
+    LOG(FATAL) << "Unknown regularising transform: " << regularising_transform;
+    return Matrix<float>::Identity(m, n);
+  }
 
   std::vector<float> UpdateCoefficients(
       const std::vector<GradientPairPrecise> &train_histogram, int fidx,
@@ -204,16 +261,14 @@ class DCTModel {
     int end_bin_idx = cuts.row_ptr[fidx + 1];
     int num_coefficients =
         std::min(end_bin_idx - begin_bin_idx, this->max_coefficients_);
-    auto Tt =
-        Matrix<float>::ForwardDCT(num_coefficients, train_histogram.size());
-    auto T = Tt.Transpose();
+    auto T = this->GetTransform(train_histogram.size(), num_coefficients);
+    auto Tt = T.Transpose();
     Matrix<float> H(train_histogram.size(), train_histogram.size());
     std::vector<float> grad(train_histogram.size());
     for (auto i = 0ull; i < train_histogram.size(); i++) {
       // Don't allow the hessian values to become too small, otherwise numerical
       // precision issues
-      H.Data()[i * train_histogram.size() + i] =
-          std::max(train_histogram[i].GetHess(), 1e-5f);
+      H(i, i) = std::max(train_histogram[i].GetHess(), 1e-5f);
       grad[i] = train_histogram[i].GetGrad();
     }
     grad = Tt * grad;
@@ -261,6 +316,7 @@ class DCTModel {
                            // cached for prediction. predicted_weights[i] gives
                            // the weight for bin index i
   int max_coefficients_{0};
+  RegularisingTransformType regularising_transform{kDCT};
 };
 
 class GBDCT : public GradientBooster {
@@ -283,7 +339,7 @@ class GBDCT : public GradientBooster {
     column_matrix_.Init(quantile_matrix_, 0.2);
     models_.resize(param_.num_output_group);
     for (auto &m : models_) {
-      m.Init(param_.max_coefficients, quantile_matrix_.cut);
+      m.Init(param_.max_coefficients, quantile_matrix_.cut, static_cast<RegularisingTransformType>(param_.regularising_transform));
     }
     initialized_ = true;
   }
@@ -480,7 +536,7 @@ class GBDCT : public GradientBooster {
   GBDCTTrainParam param_;
   common::GHistIndexMatrix quantile_matrix_;
   common::ColumnMatrix column_matrix_;  // Quantised matrix in column format
-  std::vector<DCTModel> models_;        // One model for each output class
+  std::vector<RTLModel> models_;        // One model for each output class
   bst_float base_margin_;
   common::Monitor monitor_;
   DMatrix *training_matrix_ptr{
