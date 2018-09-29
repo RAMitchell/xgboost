@@ -10,8 +10,8 @@
 #include <string>
 #include <vector>
 #include "../common/column_matrix.h"
-#include "../common/dct.h"
 #include "../common/hist_util.h"
+#include "../common/random.h"
 #include "../common/timer.h"
 
 namespace xgboost {
@@ -20,11 +20,10 @@ namespace gbm {
 DMLC_REGISTRY_FILE_TAG(gbdct);
 #endif
 
-enum RegularisingTransformType {
-  kDCT,
-  kHaar,
-  kIdentity
-};
+constexpr float kPi = 3.14159265358979f;
+using DCTCoefficient = double;
+
+enum RegularisingTransformType { kDCT, kHaar, kIdentity,kRandomProjection };
 
 // training parameters
 struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
@@ -36,6 +35,7 @@ struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
   float learning_rate;
   int num_output_group;
   int regularising_transform;
+  int random_projection_seed;
   DMLC_DECLARE_PARAMETER(GBDCTTrainParam) {
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
@@ -46,7 +46,7 @@ struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
         "feature");
     DMLC_DECLARE_FIELD(max_coefficients)
         .set_lower_bound(1)
-        .set_default(8)
+        .set_default(64)
         .describe("Maximum number of DCT coefficients for each feature");
     DMLC_DECLARE_FIELD(learning_rate)
         .set_lower_bound(0.0f)
@@ -56,11 +56,16 @@ struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
         .set_lower_bound(1)
         .set_default(1)
         .describe("Number of output groups in the setting.");
+    DMLC_DECLARE_FIELD(random_projection_seed)
+        .set_lower_bound(0)
+        .set_default(0)
+        .describe("Seed for random projection transform.");
     DMLC_DECLARE_FIELD(regularising_transform)
         .set_default(kDCT)
         .add_enum("dct", kDCT)
         .add_enum("haar", kHaar)
         .add_enum("identity", kIdentity)
+        .add_enum("rp", kRandomProjection)
         .describe("Transform type to use.");
     DMLC_DECLARE_ALIAS(learning_rate, eta);
   }
@@ -104,16 +109,60 @@ class Matrix {
     return I;
   }
 
-  // http://fourier.eng.hmc.edu/e161/lectures/dct/node1.html
-  static Matrix<T> InverseDCT(size_t m, size_t n) {
-    Matrix<T> T(m, n);
+  static Matrix<T> RandomProjection(size_t m, size_t n, int seed) {
+    common::RandomEngine re(seed);
+    std::uniform_real_distribution<T> distribution(-1.0, 1.0);
+    Matrix<T> RP(m, n);
     for (auto j = 0ull; j < n; j++) {
+      // Generate random vector
       for (auto i = 0ull; i < m; i++) {
-        float a = j == 0 ? sqrt(1.0f / m) : sqrt(2.0f / m);
-        T(i, j) = a * cos(((2.0f * i + 1.0f) * j * common::kPi) / (2.0f * m));
+        RP(i, j) = distribution(re);
+      }
+      // Normalise j
+      double length = 0.0;
+      for (auto i = 0ull; i < m; i++) {
+        length += RP(i, j) * RP(i, j);
+      }
+      length = std::sqrt(length);
+      for (auto i = 0ull; i < m; i++) {
+        RP(i, j) /= length;
+      }
+
+      // Orthogonalise
+      for (auto jj = 0ull; jj < j; jj++) {
+        // Project j onto jj
+        double projection = 0.0;
+        for (auto i = 0ull; i < m; i++) {
+          projection += RP(i, j) * RP(i, jj);
+        }
+        // Remove projection on j
+        for (auto i = 0ull; i < m; i++) {
+          RP(i, j) -= projection * RP(i, jj);
+        }
+        // Normalise j
+        double length = 0.0;
+        for (auto i = 0ull; i < m; i++) {
+          length += RP(i, j) * RP(i, j);
+        }
+        length = std::sqrt(length);
+        for (auto i = 0ull; i < m; i++) {
+          RP(i, j) /= length;
+        }
       }
     }
-    return T;
+    return RP;
+  }
+
+  // http://fourier.eng.hmc.edu/e161/lectures/dct/node1.html
+  static Matrix<T> InverseDCT(size_t m, size_t n) {
+    Matrix<T> inv_DCT(m, n);
+    for (auto j = 0ull; j < n; j++) {
+      for (auto i = 0ull; i < m; i++) {
+        T a = j == 0 ? sqrt(1.0 / m) : sqrt(2.0 / m);
+        inv_DCT(i, j) = a * cos(((2.0 * i + 1.0) * j * kPi) / (2.0 * m));
+      }
+    }
+    return inv_DCT;
   }
 
   // http://fourier.eng.hmc.edu/e161/lectures/Haar/index.html
@@ -123,19 +172,17 @@ class Matrix {
     for (auto j = 0ull; j < n; j++) {
       double p = std::floor(std::log2(static_cast<double>(j)));
       double exp_p = std::pow(2.0, p);
-      double exp_half_p = std::pow(2.0, p/2);
+      double exp_half_p = std::pow(2.0, p / 2);
       double q = (j - std::pow(2.0, p)) + 1.0;
       for (auto i = 0ull; i < m; i++) {
         double t = static_cast<double>(i) / m;
         if (j == 0) {
           haar(i, j) = kScaleFactor;
         } else if ((q - 1.0) / exp_p <= t && t < (q - 0.5) / exp_p) {
-          haar(i, j) = kScaleFactor*exp_half_p;
+          haar(i, j) = kScaleFactor * exp_half_p;
         } else if ((q - 0.5) / exp_p <= t && t < q / exp_p) {
-          haar(i, j) = kScaleFactor* - exp_half_p;
-        }
-        else
-        {
+          haar(i, j) = kScaleFactor * -exp_half_p;
+        } else {
           haar(i, j) = 0.0;
         }
       }
@@ -179,7 +226,7 @@ class Matrix {
   }
 
   static std::vector<T> CholeskySolve(const Matrix<T> &A,
-                                    const std::vector<T> &b) {
+                                      const std::vector<T> &b) {
     CHECK_EQ(A.Columns(), A.Rows()) << "Matrix must be square.";
     CHECK_EQ(A.Rows(), b.size());
     size_t n = A.Rows();
@@ -209,7 +256,7 @@ class Matrix {
     }
 
     // Solve linear equations
-    std::vector<float> x(n);
+    std::vector<T> x(n);
     for (auto i = 0ull; i < n; i++) {
       double sum = b[i];
       for (int64_t k = i - 1; k >= 0; k--) {
@@ -232,29 +279,31 @@ class Matrix {
 
 class RTLModel {
  public:
-  void Init(int max_coefficients, const common::HistCutMatrix &cuts,
-            RegularisingTransformType regularising_transform) {
-    this->max_coefficients_ = max_coefficients;
+  void Init(const GBDCTTrainParam &param, const common::HistCutMatrix &cuts) {
+    this->max_coefficients_ = param.max_coefficients;
     this->cuts = cuts;
-    this->regularising_transform = regularising_transform;
+    this->regularising_transform = static_cast<RegularisingTransformType>(param.regularising_transform);
+    this->seed_ = param.random_projection_seed;
     coefficients_.resize(cuts.row_ptr.back());
     predicted_weights_.resize(cuts.row_ptr.back());
   }
   float GetWeight(int bin_idx) { return predicted_weights_[bin_idx]; }
 
-  Matrix<float> GetTransform(size_t m, size_t n) {
+  Matrix<double> GetTransform(size_t m, size_t n) {
     if (regularising_transform == kDCT) {
-      return Matrix<float>::InverseDCT(m, n);
-    } else if (regularising_transform ==kHaar) {
-      return Matrix<float>::InverseHaar(m, n);
+      return Matrix<double>::InverseDCT(m, n);
+    } else if (regularising_transform == kHaar) {
+      return Matrix<double>::InverseHaar(m, n);
     } else if (regularising_transform == kIdentity) {
-      return Matrix<float>::Identity(m, n);
+      return Matrix<double>::Identity(m, n);
+    } else if (regularising_transform == kRandomProjection) {
+      return Matrix<double>::RandomProjection(m, n, seed_);
     }
     LOG(FATAL) << "Unknown regularising transform: " << regularising_transform;
-    return Matrix<float>::Identity(m, n);
+    return Matrix<double>::Identity(m, n);
   }
 
-  std::vector<float> UpdateCoefficients(
+  std::vector<double> UpdateCoefficients(
       const std::vector<GradientPairPrecise> &train_histogram, int fidx,
       float learning_rate) {
     int begin_bin_idx = cuts.row_ptr[fidx];
@@ -263,8 +312,8 @@ class RTLModel {
         std::min(end_bin_idx - begin_bin_idx, this->max_coefficients_);
     auto T = this->GetTransform(train_histogram.size(), num_coefficients);
     auto Tt = T.Transpose();
-    Matrix<float> H(train_histogram.size(), train_histogram.size());
-    std::vector<float> grad(train_histogram.size());
+    Matrix<double> H(train_histogram.size(), train_histogram.size());
+    std::vector<double> grad(train_histogram.size());
     for (auto i = 0ull; i < train_histogram.size(); i++) {
       // Don't allow the hessian values to become too small, otherwise numerical
       // precision issues
@@ -273,7 +322,7 @@ class RTLModel {
     }
     grad = Tt * grad;
     auto TtHT = Tt * H * T;
-    auto update = Matrix<float>::CholeskySolve(TtHT, grad);
+    auto update = Matrix<double>::CholeskySolve(TtHT, grad);
     for (auto &coefficient : update) {
       coefficient *= -learning_rate;
     }
@@ -281,10 +330,9 @@ class RTLModel {
     for (auto i = 0ull; i < update.size(); i++) {
       coefficients_[begin_bin_idx + i] += update[i];
     }
-
     // Update inverse DCT
     auto inverse =
-        T * std::vector<common::DCTCoefficient>(
+        T * std::vector<DCTCoefficient>(
                 coefficients_.begin() + begin_bin_idx,
                 coefficients_.begin() + begin_bin_idx + num_coefficients);
     CHECK_EQ(inverse.size(), end_bin_idx - begin_bin_idx);
@@ -309,7 +357,7 @@ class RTLModel {
   }
 
  private:
-  std::vector<common::DCTCoefficient> coefficients_;
+  std::vector<DCTCoefficient> coefficients_;
   common::HistCutMatrix cuts;
   std::vector<float>
       predicted_weights_;  // The inverse DCT of the coefficients, keep this
@@ -317,6 +365,7 @@ class RTLModel {
                            // the weight for bin index i
   int max_coefficients_{0};
   RegularisingTransformType regularising_transform{kDCT};
+  int seed_{0}; // Used if random projection
 };
 
 class GBDCT : public GradientBooster {
@@ -339,7 +388,7 @@ class GBDCT : public GradientBooster {
     column_matrix_.Init(quantile_matrix_, 0.2);
     models_.resize(param_.num_output_group);
     for (auto &m : models_) {
-      m.Init(param_.max_coefficients, quantile_matrix_.cut, static_cast<RegularisingTransformType>(param_.regularising_transform));
+      m.Init(param_, quantile_matrix_.cut);
     }
     initialized_ = true;
   }
@@ -519,7 +568,7 @@ class GBDCT : public GradientBooster {
   }
   void UpdateGradients(const common::Column &column,
                        std::vector<GradientPair> *gpair, int fidx,
-                       const std::vector<float> &weight_updates, int group_idx,
+                       const std::vector<double> &weight_updates, int group_idx,
                        int num_group) {
     const auto nsize = static_cast<omp_ulong>(column.Size());
 #pragma omp parallel for schedule(static)
