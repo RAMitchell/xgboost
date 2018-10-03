@@ -1,12 +1,11 @@
 /*!
  * Copyright 2018 by Contributors
- * \file gbdct.cc
- * \brief Learns by building DCT approximations for each feature
- * \author Rory Mitchell
+ * \file gbdtl.cc
+ * \brief Discrete Transform Learner, learns nonlinear models in discrete
+ * transformed space \author Rory Mitchell
  */
 #include <dmlc/parameter.h>
 #include <xgboost/gbm.h>
-#include <Eigen/Dense>
 #include <string>
 #include <vector>
 #include "../common/column_matrix.h"
@@ -17,26 +16,25 @@
 namespace xgboost {
 namespace gbm {
 #ifndef GTEST_INCLUDE_GTEST_GTEST_H_
-DMLC_REGISTRY_FILE_TAG(gbdct);
+DMLC_REGISTRY_FILE_TAG(gbdtl);
 #endif
 
 constexpr float kPi = 3.14159265358979f;
-using DCTCoefficient = double;
 
-enum RegularisingTransformType { kDCT, kHaar, kIdentity,kRandomProjection };
+enum DiscreteTransformType { kDCT, kHaar, kIdentity, kRandomProjection };
 
 // training parameters
-struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
+struct GBDTLTrainParam : public dmlc::Parameter<GBDTLTrainParam> {
   int debug_verbose;
   // Maximum number of histogram bins per feature
   int max_bin;
-  // Maximum number of DCT coefficients per feature
+  // Maximum number of coefficients per feature
   int max_coefficients;
   float learning_rate;
   int num_output_group;
-  int regularising_transform;
+  int discrete_transform;
   int random_projection_seed;
-  DMLC_DECLARE_PARAMETER(GBDCTTrainParam) {
+  DMLC_DECLARE_PARAMETER(GBDTLTrainParam) {
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
         .set_default(0)
@@ -47,7 +45,7 @@ struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
     DMLC_DECLARE_FIELD(max_coefficients)
         .set_lower_bound(1)
         .set_default(64)
-        .describe("Maximum number of DCT coefficients for each feature");
+        .describe("Maximum number of coefficients for each feature");
     DMLC_DECLARE_FIELD(learning_rate)
         .set_lower_bound(0.0f)
         .set_default(0.5f)
@@ -60,7 +58,7 @@ struct GBDCTTrainParam : public dmlc::Parameter<GBDCTTrainParam> {
         .set_lower_bound(0)
         .set_default(0)
         .describe("Seed for random projection transform.");
-    DMLC_DECLARE_FIELD(regularising_transform)
+    DMLC_DECLARE_FIELD(discrete_transform)
         .set_default(kDCT)
         .add_enum("dct", kDCT)
         .add_enum("haar", kHaar)
@@ -277,12 +275,13 @@ class Matrix {
   }
 };
 
-class RTLModel {
+class DTLModel {
  public:
-  void Init(const GBDCTTrainParam &param, const common::HistCutMatrix &cuts) {
+  void Init(const GBDTLTrainParam &param, const common::HistCutMatrix &cuts) {
     this->max_coefficients_ = param.max_coefficients;
     this->cuts = cuts;
-    this->regularising_transform = static_cast<RegularisingTransformType>(param.regularising_transform);
+    this->regularising_transform =
+        static_cast<DiscreteTransformType>(param.discrete_transform);
     this->seed_ = param.random_projection_seed;
     coefficients_.resize(cuts.row_ptr.back());
     predicted_weights_.resize(cuts.row_ptr.back());
@@ -310,6 +309,7 @@ class RTLModel {
     int end_bin_idx = cuts.row_ptr[fidx + 1];
     int num_coefficients =
         std::min(end_bin_idx - begin_bin_idx, this->max_coefficients_);
+
     auto T = this->GetTransform(train_histogram.size(), num_coefficients);
     auto Tt = T.Transpose();
     Matrix<double> H(train_histogram.size(), train_histogram.size());
@@ -330,9 +330,9 @@ class RTLModel {
     for (auto i = 0ull; i < update.size(); i++) {
       coefficients_[begin_bin_idx + i] += update[i];
     }
-    // Update inverse DCT
+    // Update inverse T
     auto inverse =
-        T * std::vector<DCTCoefficient>(
+        T * std::vector<double>(
                 coefficients_.begin() + begin_bin_idx,
                 coefficients_.begin() + begin_bin_idx + num_coefficients);
     CHECK_EQ(inverse.size(), end_bin_idx - begin_bin_idx);
@@ -343,7 +343,7 @@ class RTLModel {
 
   std::string DumpModel() {
     std::stringstream ss;
-    ss << "Max DCT coefficients per feature: " << max_coefficients_ << "\n";
+    ss << "Max coefficients per feature: " << max_coefficients_ << "\n";
     for (auto fidx = 0ull; fidx < coefficients_.size(); fidx++) {
       ss << "Feature " << fidx << ":\n";
       int begin_bin_idx = cuts.row_ptr[fidx];
@@ -357,15 +357,15 @@ class RTLModel {
   }
 
  private:
-  std::vector<DCTCoefficient> coefficients_;
+  std::vector<double> coefficients_;
   common::HistCutMatrix cuts;
   std::vector<float>
-      predicted_weights_;  // The inverse DCT of the coefficients, keep this
+      predicted_weights_;  // Keep this
                            // cached for prediction. predicted_weights[i] gives
                            // the weight for bin index i
   int max_coefficients_{0};
-  RegularisingTransformType regularising_transform{kDCT};
-  int seed_{0}; // Used if random projection
+  DiscreteTransformType regularising_transform{kDCT};
+  int seed_{0};  // Used if random projection
 };
 
 class GBDCT : public GradientBooster {
@@ -470,7 +470,7 @@ class GBDCT : public GradientBooster {
 
   void PredictLeaf(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
                    unsigned ntree_limit) override {
-    LOG(FATAL) << "gbdct does not support prediction of leaf index";
+    LOG(FATAL) << "gbdtl does not support prediction of leaf index";
   }
 
   void PredictContribution(DMatrix *p_fmat,
@@ -478,14 +478,14 @@ class GBDCT : public GradientBooster {
                            unsigned ntree_limit, bool approximate,
                            int condition = 0,
                            unsigned condition_feature = 0) override {
-    LOG(FATAL) << "gbdct does not support prediction contributions";
+    LOG(FATAL) << "gbdtl does not support prediction contributions";
   }
 
   void PredictInteractionContributions(DMatrix *p_fmat,
                                        std::vector<bst_float> *out_contribs,
                                        unsigned ntree_limit,
                                        bool approximate) override {
-    LOG(FATAL) << "gbdct does not support prediction interaction contributions";
+    LOG(FATAL) << "gbdtl does not support prediction interaction contributions";
   }
 
   std::vector<std::string> DumpModel(const FeatureMap &fmap, bool with_stats,
@@ -557,6 +557,8 @@ class GBDCT : public GradientBooster {
       thread_train_histograms[thread_idx][feature_bin_idx] +=
           GradientPairPrecise(gradients[ridx * num_group + group_idx]);
     }
+
+    train_histogram->clear();
     train_histogram->resize(feature_bins);
 
     // Sum histograms back together
@@ -582,10 +584,10 @@ class GBDCT : public GradientBooster {
     }
   }
   bool initialized_{false};
-  GBDCTTrainParam param_;
+  GBDTLTrainParam param_;
   common::GHistIndexMatrix quantile_matrix_;
   common::ColumnMatrix column_matrix_;  // Quantised matrix in column format
-  std::vector<RTLModel> models_;        // One model for each output class
+  std::vector<DTLModel> models_;        // One model for each output class
   bst_float base_margin_;
   common::Monitor monitor_;
   DMatrix *training_matrix_ptr{
@@ -595,10 +597,10 @@ class GBDCT : public GradientBooster {
 
 // register the objective functions
 #ifndef GTEST_INCLUDE_GTEST_GTEST_H_
-DMLC_REGISTER_PARAMETER(GBDCTTrainParam);
+DMLC_REGISTER_PARAMETER(GBDTLTrainParam);
 
-XGBOOST_REGISTER_GBM(GBDCT, "gbdct")
-    .describe("Discrete cosine transform booster")
+XGBOOST_REGISTER_GBM(GBDCT, "gbdtl")
+    .describe("Discrete Transform Learner booster")
     .set_body([](const std::vector<std::shared_ptr<DMatrix>> &cache,
                  bst_float base_margin) {
       return new GBDCT(cache, base_margin);
