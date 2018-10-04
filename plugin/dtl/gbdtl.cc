@@ -8,10 +8,10 @@
 #include <xgboost/gbm.h>
 #include <string>
 #include <vector>
-#include "../common/column_matrix.h"
-#include "../common/hist_util.h"
-#include "../common/random.h"
-#include "../common/timer.h"
+#include "../../src/common/column_matrix.h"
+#include "../../src/common/hist_util.h"
+#include "../../src/common/random.h"
+#include "../../src/common/timer.h"
 
 namespace xgboost {
 namespace gbm {
@@ -280,7 +280,7 @@ class DTLModel {
   void Init(const GBDTLTrainParam &param, const common::HistCutMatrix &cuts) {
     this->max_coefficients_ = param.max_coefficients;
     this->cuts = cuts;
-    this->regularising_transform =
+    this->discrete_transform =
         static_cast<DiscreteTransformType>(param.discrete_transform);
     this->seed_ = param.random_projection_seed;
     coefficients_.resize(cuts.row_ptr.back());
@@ -289,16 +289,16 @@ class DTLModel {
   float GetWeight(int bin_idx) { return predicted_weights_[bin_idx]; }
 
   Matrix<double> GetTransform(size_t m, size_t n) {
-    if (regularising_transform == kDCT) {
+    if (discrete_transform == kDCT) {
       return Matrix<double>::InverseDCT(m, n);
-    } else if (regularising_transform == kHaar) {
+    } else if (discrete_transform == kHaar) {
       return Matrix<double>::InverseHaar(m, n);
-    } else if (regularising_transform == kIdentity) {
+    } else if (discrete_transform == kIdentity) {
       return Matrix<double>::Identity(m, n);
-    } else if (regularising_transform == kRandomProjection) {
+    } else if (discrete_transform == kRandomProjection) {
       return Matrix<double>::RandomProjection(m, n, seed_);
     }
-    LOG(FATAL) << "Unknown regularising transform: " << regularising_transform;
+    LOG(FATAL) << "Unknown regularising transform: " << discrete_transform;
     return Matrix<double>::Identity(m, n);
   }
 
@@ -364,19 +364,19 @@ class DTLModel {
                            // cached for prediction. predicted_weights[i] gives
                            // the weight for bin index i
   int max_coefficients_{0};
-  DiscreteTransformType regularising_transform{kDCT};
+  DiscreteTransformType discrete_transform{kDCT};
   int seed_{0};  // Used if random projection
 };
 
-class GBDCT : public GradientBooster {
+class GBDTL : public GradientBooster {
  public:
-  explicit GBDCT(const std::vector<std::shared_ptr<DMatrix>> &cache,
+  explicit GBDTL(const std::vector<std::shared_ptr<DMatrix>> &cache,
                  bst_float base_margin)
       : base_margin_(base_margin) {}
   void Configure(
       const std::vector<std::pair<std::string, std::string>> &cfg) override {
     param_.InitAllowUnknown(cfg);
-    monitor_.Init("GBDCT", param_.debug_verbose);
+    monitor_.Init("GBDTL", param_.debug_verbose);
   }
   void Load(dmlc::Stream *fi) override {}
   void Save(dmlc::Stream *fo) const override {}
@@ -599,11 +599,11 @@ class GBDCT : public GradientBooster {
 #ifndef GTEST_INCLUDE_GTEST_GTEST_H_
 DMLC_REGISTER_PARAMETER(GBDTLTrainParam);
 
-XGBOOST_REGISTER_GBM(GBDCT, "gbdtl")
+XGBOOST_REGISTER_GBM(GBDTL, "gbdtl")
     .describe("Discrete Transform Learner booster")
     .set_body([](const std::vector<std::shared_ptr<DMatrix>> &cache,
                  bst_float base_margin) {
-      return new GBDCT(cache, base_margin);
+      return new GBDTL(cache, base_margin);
     });
 #endif
 }  // namespace gbm

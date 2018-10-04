@@ -1,7 +1,7 @@
 // Copyright by Contributors
 #include <gtest/gtest.h>
-#include "../../src/gbm/gbdct.cc"
-#include "../helpers.h"
+#include "gbdtl.cc"
+#include "../tests/cpp/helpers.h"
 
 namespace xgboost {
 namespace gbm {
