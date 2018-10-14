@@ -87,5 +87,28 @@ TEST(linear_solve, Test) {
     EXPECT_NEAR(result[i], x[i], 1e-5f);
   }
 }
+
+typedef std::pair<std::string, std::string> arg;
+TEST(l1, Test) {
+  auto dmat = CreateDMatrix(1,1,0);
+  GBDTL dtl({}, 0.0f);
+  dtl.Configure({arg("reg_alpha","1.0"),arg("eta","1.0")});
+  HostDeviceVector<GradientPair> gpair = { { - 5.0,1.0} };
+  dtl.DoBoost(dmat->get(),&gpair ,nullptr);
+  HostDeviceVector<float > preds;
+  dtl.PredictBatch(dmat->get(), &preds,0);
+  EXPECT_FLOAT_EQ(preds.HostVector()[0], 4.0);
+}
+
+TEST(l2, Test) {
+  auto dmat = CreateDMatrix(1,1,0);
+  GBDTL dtl({}, 0.0f);
+  dtl.Configure({arg("reg_lambda","1.0"),arg("eta","1.0")});
+  HostDeviceVector<GradientPair> gpair = { { -5.0,1.0} };
+  dtl.DoBoost(dmat->get(),&gpair ,nullptr);
+  HostDeviceVector<float > preds;
+  dtl.PredictBatch(dmat->get(), &preds,0);
+  EXPECT_FLOAT_EQ(preds.HostVector()[0], 2.5);
+}
 }  // namespace gbm
 }  // namespace xgboost

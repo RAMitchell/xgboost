@@ -34,6 +34,10 @@ struct GBDTLTrainParam : public dmlc::Parameter<GBDTLTrainParam> {
   int num_output_group;
   int discrete_transform;
   int random_projection_seed;
+  /*! \brief regularization weight for L2 norm */
+  float reg_lambda;
+  /*! \brief regularization weight for L1 norm */
+  float reg_alpha;
   DMLC_DECLARE_PARAMETER(GBDTLTrainParam) {
     DMLC_DECLARE_FIELD(debug_verbose)
         .set_lower_bound(0)
@@ -65,8 +69,25 @@ struct GBDTLTrainParam : public dmlc::Parameter<GBDTLTrainParam> {
         .add_enum("identity", kIdentity)
         .add_enum("rp", kRandomProjection)
         .describe("Transform type to use.");
+    DMLC_DECLARE_FIELD(reg_lambda)
+        .set_lower_bound(0.0f)
+        .set_default(0.0f)
+        .describe("L2 regularization on weights.");
+    DMLC_DECLARE_FIELD(reg_alpha)
+        .set_lower_bound(0.0f)
+        .set_default(0.0f)
+        .describe("L1 regularization on weights.");
     DMLC_DECLARE_ALIAS(learning_rate, eta);
+    DMLC_DECLARE_ALIAS(reg_lambda, lambda);
+    DMLC_DECLARE_ALIAS(reg_alpha, alpha);
   }
+  void DenormalizePenalties(double sum_instance_weight) {
+    reg_lambda_denorm = reg_lambda * sum_instance_weight;
+    reg_alpha_denorm = reg_alpha * sum_instance_weight;
+  }
+  // denormalizated regularization penalties
+  float reg_lambda_denorm;
+  float reg_alpha_denorm;
 };
 
 template <typename T>
@@ -304,7 +325,7 @@ class DTLModel {
 
   std::vector<double> UpdateCoefficients(
       const std::vector<GradientPairPrecise> &train_histogram, int fidx,
-      float learning_rate) {
+      GBDTLTrainParam param) {
     int begin_bin_idx = cuts.row_ptr[fidx];
     int end_bin_idx = cuts.row_ptr[fidx + 1];
     int num_coefficients =
@@ -317,18 +338,30 @@ class DTLModel {
     for (auto i = 0ull; i < train_histogram.size(); i++) {
       // Don't allow the hessian values to become too small, otherwise numerical
       // precision issues
-      H(i, i) = std::max(train_histogram[i].GetHess(), 1e-5f);
-      grad[i] = train_histogram[i].GetGrad();
+      H(i, i) = std::max(train_histogram[i].GetHess() + param.reg_lambda_denorm,
+                         1e-5f);
+      grad[i] = train_histogram[i].GetGrad() +
+                param.reg_lambda_denorm * coefficients_[begin_bin_idx + i];
     }
     grad = Tt * grad;
     auto TtHT = Tt * H * T;
     auto update = Matrix<double>::CholeskySolve(TtHT, grad);
     for (auto &coefficient : update) {
-      coefficient *= -learning_rate;
+      coefficient *= -param.learning_rate;
     }
 
     for (auto i = 0ull; i < update.size(); i++) {
-      coefficients_[begin_bin_idx + i] += update[i];
+      auto &w = coefficients_[begin_bin_idx + i];
+      w += update[i];
+      // Threshold coefficients for l1 penalty
+      const double alpha = param.reg_alpha_denorm * param.learning_rate;
+      if (w > alpha) {
+        w -= alpha;
+      } else if (w < -alpha) {
+        w += alpha;
+      } else {
+        w = 0;
+      }
     }
     // Update inverse T
     auto inverse =
@@ -390,8 +423,16 @@ class GBDTL : public GradientBooster {
     for (auto &m : models_) {
       m.Init(param_, quantile_matrix_.cut);
     }
+    // Normalisation scaling
+    double sum_weight = 0;
+    for(auto i = 0ull; i < p_fmat->Info().num_row_; i++)
+    {
+      sum_weight += p_fmat->Info().GetWeight(i);
+    }
+    param_.DenormalizePenalties(sum_weight);
     initialized_ = true;
   }
+
   void DoBoost(DMatrix *p_fmat, HostDeviceVector<GradientPair> *in_gpair,
                ObjFunction *obj) override {
     monitor_.Start("Init");
@@ -414,7 +455,7 @@ class GBDTL : public GradientBooster {
         monitor_.Stop("Histogram");
         monitor_.Start("UpdateModel");
         auto update = models_[gidx].UpdateCoefficients(train_histogram, fidx,
-                                                       param_.learning_rate);
+                                                       param_);
         monitor_.Stop("UpdateModel");
         monitor_.Start("UpdateGradients");
         this->UpdateGradients(column_matrix_.GetColumn(fidx), &host_gpair, fidx,
