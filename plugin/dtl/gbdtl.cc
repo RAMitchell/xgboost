@@ -328,8 +328,8 @@ class DTLModel {
       GBDTLTrainParam param) {
     int begin_bin_idx = cuts.row_ptr[fidx];
     int end_bin_idx = cuts.row_ptr[fidx + 1];
-    int num_coefficients =
-        std::min(end_bin_idx - begin_bin_idx, this->max_coefficients_);
+    int feature_bins = end_bin_idx - begin_bin_idx;
+    int num_coefficients = std::min(feature_bins, this->max_coefficients_);
 
     auto T = this->GetTransform(train_histogram.size(), num_coefficients);
     auto Tt = T.Transpose();
@@ -343,16 +343,26 @@ class DTLModel {
       grad[i] = train_histogram[i].GetGrad() +
                 param.reg_lambda_denorm * coefficients_[begin_bin_idx + i];
     }
-    grad = Tt * grad;
-    auto TtHT = Tt * H * T;
-    auto update = Matrix<double>::CholeskySolve(TtHT, grad);
-    for (auto &coefficient : update) {
-      coefficient *= -param.learning_rate;
+
+    std::vector<double> update;
+    // T is orthogonal, Hessian easy to invert
+    if (T.Rows() == T.Columns()) {
+      for (auto i = 0ull; i < H.Rows(); i++) {
+        H(i, i) = 1.0 / H(i, i);
+      }
+      update = Tt * H * grad;
+    } else {
+      // Need to invert with linear solver
+      grad = Tt * grad;
+      auto TtHT = Tt * H * T;
+      update = Matrix<double>::CholeskySolve(TtHT, grad);
     }
+    std::vector<double> delta_coefficients(update.size());
 
     for (auto i = 0ull; i < update.size(); i++) {
       auto &w = coefficients_[begin_bin_idx + i];
-      w += update[i];
+      auto old_coefficient = w;
+      w -= update[i] * param.learning_rate;
       // Threshold coefficients for l1 penalty
       const double alpha = param.reg_alpha_denorm * param.learning_rate;
       if (w > alpha) {
@@ -362,6 +372,7 @@ class DTLModel {
       } else {
         w = 0;
       }
+      delta_coefficients[i] = w - old_coefficient;
     }
     // Update inverse T
     auto inverse =
@@ -371,13 +382,13 @@ class DTLModel {
     CHECK_EQ(inverse.size(), end_bin_idx - begin_bin_idx);
     std::copy(inverse.begin(), inverse.end(),
               predicted_weights_.begin() + cuts.row_ptr[fidx]);
-    return T * update;
+    return T * delta_coefficients;
   }
 
-  std::string DumpModel() {
+  std::string DumpModel() const {
     std::stringstream ss;
     ss << "Max coefficients per feature: " << max_coefficients_ << "\n";
-    for (auto fidx = 0ull; fidx < coefficients_.size(); fidx++) {
+    for (auto fidx = 0ull; fidx < cuts.row_ptr.size() - 1; fidx++) {
       ss << "Feature " << fidx << ":\n";
       int begin_bin_idx = cuts.row_ptr[fidx];
       int end_bin_idx = cuts.row_ptr[fidx + 1];
@@ -425,8 +436,7 @@ class GBDTL : public GradientBooster {
     }
     // Normalisation scaling
     double sum_weight = 0;
-    for(auto i = 0ull; i < p_fmat->Info().num_row_; i++)
-    {
+    for (auto i = 0ull; i < p_fmat->Info().num_row_; i++) {
       sum_weight += p_fmat->Info().GetWeight(i);
     }
     param_.DenormalizePenalties(sum_weight);
@@ -454,8 +464,8 @@ class GBDTL : public GradientBooster {
                                      &train_histogram);
         monitor_.Stop("Histogram");
         monitor_.Start("UpdateModel");
-        auto update = models_[gidx].UpdateCoefficients(train_histogram, fidx,
-                                                       param_);
+        auto update =
+            models_[gidx].UpdateCoefficients(train_histogram, fidx, param_);
         monitor_.Stop("UpdateModel");
         monitor_.Start("UpdateGradients");
         this->UpdateGradients(column_matrix_.GetColumn(fidx), &host_gpair, fidx,
@@ -531,7 +541,11 @@ class GBDTL : public GradientBooster {
 
   std::vector<std::string> DumpModel(const FeatureMap &fmap, bool with_stats,
                                      std::string format) const override {
-    return {""};
+    std::stringstream ss;
+    for (const auto &model : models_) {
+      ss << model.DumpModel() << std::endl;
+    }
+    return {ss.str()};
   }
 
  private:

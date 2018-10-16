@@ -1,5 +1,8 @@
 import xgboost as xgb
 import numpy as np
+import sys
+
+sys.path.append("tests/python")
 import testing as tm
 import unittest
 from sklearn import datasets
@@ -11,22 +14,22 @@ except ImportError:
     None
 
 
-class TestDCT:
+class TestDTL:
     def test_dct_basic(self):
         # Check DCT can learn to predict ones
         X = [[1], [1], [1]]
         y = np.ones(3)
         metric = "rmse"
-        param = {"eta": 1.0, "eval_metric": metric, "booster": "gbdct", "max_bin": 2, "max_coefficients": 2}
+        param = {"eta": 1.0, "eval_metric": metric, "booster": "gbdtl", "max_bin": 2, "max_coefficients": 2}
         dtrain = xgb.DMatrix(X, y)
         bst = xgb.train(param, dtrain, 1)
         preds = bst.predict(dtrain)
         assert preds.all() == 1.0
 
-    def test_dct(self):
+    def test_dtl(self):
         tm._skip_if_no_sklearn()
-        variable_param = {'booster': ['gbdct'], 'eta': [0.5],
-                          'nthread': [2], 'max_bin': [64, 256], 'max_coefficients': [8, 64]
+        variable_param = {'booster': ['gbdtl'], 'eta': [0.5], 'discrete_transform': ['dct', 'haar', 'identity', 'rp'],
+                          'nthread': [2], 'max_bin': [16, 64], 'max_coefficients': [8, 64]
                           }
         datasets = ["Boston", "Digits", "Cancer", "Sparse regression",
                     "Boston External Memory"]
@@ -35,9 +38,9 @@ class TestDCT:
             results = run_suite(param, 25, datasets, scale_features=False)
             assert_results_non_increasing(results, 1e-2)
 
-    def test_dct_consistency(self):
+    def test_dtl_consistency(self):
         X, y = datasets.load_boston(True)
-        param = {"eta": 1.0, "booster": "gbdct", "max_bin": 16, "max_coefficients": 4}
+        param = {"eta": 1.0, "booster": "gbdtl", "max_bin": 16, "max_coefficients": 4}
         dtrain = xgb.DMatrix(X, y)
         bst = xgb.train(param, dtrain)
         bst2 = xgb.train(param, dtrain)
