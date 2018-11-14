@@ -385,5 +385,27 @@ inline void SubsampleGradientPair(dh::DVec<GradientPair>* p_gpair, float subsamp
   });
 }
 
+// Select feature using parallel voting
+// Similar to
+// http://papers.nips.cc/paper/6381-a-communication-efficient-parallel-algorithm-for-decision-tree
+// With k = 1
+inline int SelectFeatureFromLocalProposals(
+    const std::vector<DeviceSplitCandidate>& local_proposals) {
+  std::map<int, int> feature_counts;
+  for (const auto& candidate : local_proposals) {
+    feature_counts[candidate.findex]++;
+  }
+  int max_count = 0;
+  int best_feature = 0;
+  for (const auto& pair : feature_counts) {
+    // Do not consider fidx -1, this indicates no viable split
+    if (pair.second > max_count && pair.first > 0) {
+      max_count = pair.second;
+      best_feature = pair.first;
+    }
+  }
+  return best_feature;
+}
+
 }  // namespace tree
 }  // namespace xgboost

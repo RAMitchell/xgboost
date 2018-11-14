@@ -256,7 +256,7 @@ TEST(GpuHist, EvaluateSplits) {
                                    param.monotone_constraints.end());
 
   // Initialize DeviceShard::hist
-  shard->hist.Init(0, (max_bins - 1) * n_cols);
+  shard->hist.Init(0, cmat);
   shard->hist.AllocateHistogram(0);
   // Each row of hist_gpair represents gpairs for one feature.
   // Each entry represents a bin.
@@ -289,13 +289,13 @@ TEST(GpuHist, EvaluateSplits) {
   info.num_col_ = n_cols;
 
   hist_maker.info_ = &info;
+  hist_maker.dist_ = GPUDistribution(GPUSet(0, 1));
   hist_maker.node_value_constraints_.resize(1);
   hist_maker.node_value_constraints_[0].lower_bound = -1.0;
   hist_maker.node_value_constraints_[0].upper_bound = 1.0;
 
   DeviceSplitCandidate res =
       hist_maker.EvaluateSplit(0, &tree);
-
   ASSERT_EQ(res.findex, 7);
   ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
 }

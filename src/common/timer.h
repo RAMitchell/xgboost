@@ -70,8 +70,11 @@ struct Monitor {
   void Start(const std::string &name, GPUSet devices) {
     if (debug_verbose) {
 #ifdef __CUDACC__
-#include "device_helpers.cuh"
-      dh::SynchronizeNDevices(devices);
+      for(auto device: devices)
+      {
+        cudaSetDevice(device);
+        cudaDeviceSynchronize();
+      }
 #endif
     }
     timer_map[name].Start();
@@ -80,8 +83,11 @@ struct Monitor {
   void Stop(const std::string &name, GPUSet devices) {
     if (debug_verbose) {
 #ifdef __CUDACC__
-#include "device_helpers.cuh"
-      dh::SynchronizeNDevices(devices);
+      for(auto device: devices)
+      {
+        cudaSetDevice(device);
+        cudaDeviceSynchronize();
+      }
 #endif
     }
     timer_map[name].Stop();
