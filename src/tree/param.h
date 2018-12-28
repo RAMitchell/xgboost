@@ -68,8 +68,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
   int parallel_option;
   // option to open cacheline optimization
   bool cache_opt;
-  // whether refresh updater needs to update the leaf values
-  bool refresh_leaf;
   // auxiliary data structure
   std::vector<int> monotone_constraints;
   // gpu to use for single gpu algorithms
@@ -185,9 +183,6 @@ struct TrainParam : public dmlc::Parameter<TrainParam> {
     DMLC_DECLARE_FIELD(cache_opt)
         .set_default(true)
         .describe("EXP Param: Cache aware optimization.");
-    DMLC_DECLARE_FIELD(refresh_leaf)
-        .set_default(true)
-        .describe("Whether the refresh updater needs to update leaf values.");
     DMLC_DECLARE_FIELD(monotone_constraints)
         .set_default(std::vector<int>())
         .describe("Constraint of variable monotonicity");

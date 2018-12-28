@@ -18,12 +18,35 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_refresh);
 
+enum RefreshType {
+  kDontUpdateLeaf = 0,  // Only update tree summary statistics
+  kRefreshLeaf = 1,     // Replace leaf values using new statistics
+  kUpdateLeaf = 2       // Perform Newton update on leaf using new statistics
+};
+
+/*! \brief training parameters for regression tree */
+struct RefreshParam : public dmlc::Parameter<RefreshParam> {
+  // whether refresh updater needs to update the leaf values
+  int refresh_leaf;
+  DMLC_DECLARE_PARAMETER(RefreshParam) {
+    DMLC_DECLARE_FIELD(refresh_leaf)
+        .set_default(kRefreshLeaf)
+        .set_range(0, 3)
+        .describe(
+            "0 to update summary statistics only, 1 to replace leaf weights, 2 "
+            "to perform Newton update on leaf weights");
+  };
+};
+
+DMLC_REGISTER_PARAMETER(RefreshParam);
+
 /*! \brief pruner that prunes a tree after growing finishs */
 template<typename TStats>
 class TreeRefresher: public TreeUpdater {
  public:
   void Init(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    tparam_.InitAllowUnknown(args);
+    refresh_param_.InitAllowUnknown(args);
   }
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,
@@ -46,8 +69,8 @@ class TreeRefresher: public TreeUpdater {
       for (auto tree : trees) {
         num_nodes += tree->param.num_nodes;
       }
-      stemp[tid].resize(num_nodes, TStats(param_));
-      std::fill(stemp[tid].begin(), stemp[tid].end(), TStats(param_));
+      stemp[tid].resize(num_nodes, TStats(tparam_));
+      std::fill(stemp[tid].begin(), stemp[tid].end(), TStats(tparam_));
       fvec_temp[tid].Init(trees[0]->param.num_feature);
     }
     // if it is C++11, use lazy evaluation for Allreduce,
@@ -92,8 +115,8 @@ class TreeRefresher: public TreeUpdater {
     reducer_.Allreduce(dmlc::BeginPtr(stemp[0]), stemp[0].size());
 #endif
     // rescale learning rate according to size of trees
-    float lr = param_.learning_rate;
-    param_.learning_rate = lr / trees.size();
+    float lr = tparam_.learning_rate;
+    tparam_.learning_rate = lr / trees.size();
     int offset = 0;
     for (auto tree : trees) {
       for (int rid = 0; rid < tree->param.num_roots; ++rid) {
@@ -102,7 +125,7 @@ class TreeRefresher: public TreeUpdater {
       offset += tree->param.num_nodes;
     }
     // set learning rate back
-    param_.learning_rate = lr;
+    tparam_.learning_rate = lr;
   }
 
  private:
@@ -125,23 +148,27 @@ class TreeRefresher: public TreeUpdater {
   inline void Refresh(const TStats *gstats,
                       int nid, RegTree *p_tree) {
     RegTree &tree = *p_tree;
-    tree.Stat(nid).base_weight = static_cast<bst_float>(gstats[nid].CalcWeight(param_));
+    tree.Stat(nid).base_weight = static_cast<bst_float>(gstats[nid].CalcWeight(tparam_));
     tree.Stat(nid).sum_hess = static_cast<bst_float>(gstats[nid].sum_hess);
     if (tree[nid].IsLeaf()) {
-      if (param_.refresh_leaf) {
-        tree[nid].SetLeaf(tree.Stat(nid).base_weight * param_.learning_rate);
+      if (refresh_param_.refresh_leaf == 1) {
+        tree[nid].SetLeaf(tree.Stat(nid).base_weight * tparam_.learning_rate);
+      }
+      else if (refresh_param_.refresh_leaf == 2) {
+        tree[nid].SetLeaf(tree[nid].LeafValue() + tree.Stat(nid).base_weight * tparam_.learning_rate);
       }
     } else {
       tree.Stat(nid).loss_chg = static_cast<bst_float>(
-          gstats[tree[nid].LeftChild()].CalcGain(param_) +
-          gstats[tree[nid].RightChild()].CalcGain(param_) -
-          gstats[nid].CalcGain(param_));
+          gstats[tree[nid].LeftChild()].CalcGain(tparam_) +
+          gstats[tree[nid].RightChild()].CalcGain(tparam_) -
+          gstats[nid].CalcGain(tparam_));
       this->Refresh(gstats, tree[nid].LeftChild(), p_tree);
       this->Refresh(gstats, tree[nid].RightChild(), p_tree);
     }
   }
   // training parameter
-  TrainParam param_;
+  TrainParam tparam_;
+  RefreshParam refresh_param_;
   // reducer
   rabit::Reducer<TStats, TStats::Reduce> reducer_;
 };
