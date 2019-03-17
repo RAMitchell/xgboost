@@ -1143,8 +1143,9 @@ class GPUHistMakerSpecialised{
   }
 
   DeviceSplitCandidate EvaluateSplit(int nidx, RegTree* p_tree) {
+    auto p_feature_set = column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx));
     return shards_.front()->EvaluateSplit(
-        nidx, *column_sampler_.GetFeatureSet(p_tree->GetDepth(nidx)),
+        nidx, p_feature_set->HostVector(),
         node_value_constraints_[nidx]);
   }
 
