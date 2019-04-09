@@ -811,25 +811,22 @@ class AllReducer {
       device_counts.at(i) = dev_count;
     }
 
-    int nccl_rank = 0;
     int nccl_rank_offset = std::accumulate(device_counts.begin(),
                              device_counts.begin() + rabit::GetRank(), 0);
     int nccl_nranks = std::accumulate(device_counts.begin(),
                         device_counts.end(), 0);
-    nccl_rank += nccl_rank_offset;
 
-    GroupStart();
-    for (size_t i = 0; i < device_ordinals.size(); i++) {
+    const long devices_size = static_cast<long>(device_ordinals.size());
+#pragma omp parallel for schedule(static, 1) if (device_ordinals.size() > 1)
+    for (long i = 0; i < devices_size; ++i) {
+      int nccl_rank = nccl_rank_offset + i;
       int dev = device_ordinals.at(i);
       dh::safe_cuda(cudaSetDevice(dev));
       dh::safe_nccl(ncclCommInitRank(
         &comms.at(i),
         nccl_nranks, id,
         nccl_rank));
-
-      nccl_rank++;
     }
-    GroupEnd();
 
     for (size_t i = 0; i < device_ordinals.size(); i++) {
       safe_cuda(cudaSetDevice(device_ordinals.at(i)));

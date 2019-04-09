@@ -1399,8 +1399,9 @@ class GPUHistMakerSpecialised{
       int device_id = dist_.Devices().DeviceId(index);
       device_list_[index] = device_id;
     }
-
+    monitor_.StartCuda("nccl init");
     reducer_.Init(device_list_);
+    monitor_.StopCuda("nccl init");
 
     auto batch_iter = dmat->GetRowBatches().begin();
     const SparsePage& batch = *batch_iter;
