@@ -124,38 +124,3 @@ TEST(DeviceHelpers, BitonicSortFloat) {
 
   EXPECT_TRUE(thrust::is_sorted(x.begin(), x.end()));
 }
-
-void TestBitonicSortPerformance()
-{
-  size_t sizes[] = {1<<15,1<<20,1<<25,1<<28};
-  int iterations_per_size = 10;
-  for (auto size : sizes) {
-    thrust::device_vector<int> x(size);
-    auto counting = thrust::make_counting_iterator(0ll);
-    thrust::transform(counting, counting + size, x.begin(),
-                      [=] __device__(size_t idx) {
-                        thrust::default_random_engine rng;
-                        thrust::uniform_int_distribution<int> dist;
-                        rng.discard(idx);
-                        return dist(rng);
-                      });
-    double bitonic_time = 0;
-    double thrust_time = 0;
-    for (auto i = 0ull; i < iterations_per_size; i++) {
-      auto x_copy = x;
-      xgboost::common::Timer t;
-      dh::BitonicSort(x_copy.begin(), x_copy.end(), x_copy.begin(), thrust::greater<int>());
-      dh::safe_cuda(cudaDeviceSynchronize());
-      t.Stop();
-      bitonic_time  += t.ElapsedSeconds();
-      t.Reset();
-      thrust::sort(x.begin(), x.end(), [=] __device__(int a, int b) { return a > b; });
-      dh::safe_cuda(cudaDeviceSynchronize());
-      t.Stop();
-      thrust_time  += t.ElapsedSeconds();
-    }
-
-      printf("n: %llu bitonic: %f thrust: %f\n", size, bitonic_time/iterations_per_size, thrust_time/iterations_per_size);
-  }
-}
-TEST(DeviceHelpers, BitonicSortPerformance) { TestBitonicSortPerformance(); }
