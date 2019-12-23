@@ -1276,4 +1276,296 @@ DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
             static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
 
+// Bitonic sort implementation
+namespace detail {
+template <typename PointerT, typename ComparisonOpT>
+__device__ void CompareExchange(PointerT a, PointerT b, ComparisonOpT op) {
+  using ValueT = typename std::iterator_traits<PointerT>::value_type;
+  if (op(*a, *b)) {
+    ValueT temp = *a;
+    *a = *b;
+    *b = temp;
+  }
+}
+
+template <typename PointerT, typename ComparisonOpT>
+__device__ void CompareExchange(PointerT a, PointerT b, bool a_valid,
+                                bool b_valid, ComparisonOpT op) {
+  if (a_valid && b_valid) {
+    CompareExchange(a, b, op);
+  }
+}
+
+// Uses template recursion to perform bitonic sort over 2^DEGREE elements in a
+// single thread
+template <int DEGREE>
+struct CompareExchangeMulti {
+  template <typename PointerT, typename ComparisonOpT>
+  __device__ void operator()(PointerT values, bool *valid, ComparisonOpT op) {
+    constexpr int stride = 1 << (DEGREE - 1);
+    for (auto i = 0ull; i < 1 << (DEGREE - 1); i++) {
+      CompareExchange(values + i, values + i + stride, valid[i],
+                      valid[i + stride], op);
+    }
+    CompareExchangeMulti<DEGREE - 1> comp;
+    comp(values, valid, op);
+    comp(values + stride, valid + stride, op);
+  }
+};
+
+template <>
+struct CompareExchangeMulti<0> {
+  template <typename PointerT, typename ComparisonOpT>
+  __device__ void operator()(PointerT values, bool *valid, ComparisonOpT op) {}
+};
+
+template <typename T, typename ValueT = std::iterator_traits<T>::value_type>
+class BitonicSequence {
+ public:
+  XGBOOST_DEVICE BitonicSequence(const T &iter, size_t n, int phase, int step)
+      : iter(iter), n(n), phase(phase), step(step) {}
+  // Number of independent GPU threads needed at this step
+  size_t NumThreadsRequired(int multistep_degree) {
+    size_t n_next_power = std::pow(2, std::ceil(std::log2(n)));
+    size_t elements_per_thread = 1 << multistep_degree;
+    return n_next_power / elements_per_thread;
+  }
+
+  // Perform compare/exchange over two elements for a given thread, if this is
+  // the first step in a phase every second sorted sequence is mirrored
+  template <typename ComparisonOpT>
+  XGBOOST_DEVICE void NormalisedCompareExchange(size_t tidx, ComparisonOpT op) {
+    size_t sorted_subsequence_length = SortedSequenceLength();
+    size_t bitonic_subsequence_length = BitonicSequenceLength();
+    size_t b_idx = 0;
+    size_t a_idx =
+        (tidx % sorted_subsequence_length) +
+        sorted_subsequence_length * ((tidx / sorted_subsequence_length) * 2);
+    if (step == phase) {
+      // The second index is mirrored in the first step
+      // This deals with inputs not an exact power of two
+      b_idx = a_idx ^ (bitonic_subsequence_length - 1);
+    } else {
+      b_idx = a_idx + sorted_subsequence_length;
+    }
+    if (a_idx < n && b_idx < n) {
+      CompareExchange(&iter[a_idx], &iter[b_idx], op);
+    }
+  }
+
+  template <int DEGREE, typename ComparisonOpT>
+  XGBOOST_DEVICE void CompareExchangeMultiStep(size_t tidx, ComparisonOpT op) {
+    size_t stride = 1 << (step - DEGREE);
+    constexpr size_t elements_per_thread = 1 << DEGREE;
+    size_t sub_block_idx = tidx / stride;
+    size_t thread_start_position =
+        (sub_block_idx * stride * elements_per_thread) + tidx % stride;
+
+    // Read in values
+    ValueT values[elements_per_thread];
+    bool valid[elements_per_thread];
+    for (auto i = 0ull; i < elements_per_thread; i++) {
+      size_t src_idx = thread_start_position + stride * i;
+      if (src_idx < n) {
+        values[i] = iter[src_idx];
+        valid[i] = true;
+      } else {
+        valid[i] = false;
+      }
+    }
+    CompareExchangeMulti<DEGREE> comp;
+    comp(values, valid, op);
+
+    // Write back results
+    for (auto i = 0ull; i < elements_per_thread; i++) {
+      size_t dst_idx = thread_start_position + stride * i;
+      if (dst_idx < n) {
+        iter[dst_idx] = values[i];
+      }
+    }
+  }
+
+  // The size of sorted subsequences at this step
+  XGBOOST_DEVICE size_t SortedSequenceLength() { return 1 << (step - 1); }
+  // The size of bitonic (ascending/descending) subsequences at this step
+  XGBOOST_DEVICE size_t BitonicSequenceLength() { return 1 << step; }
+
+ private:
+  T iter;
+  size_t n;
+  int phase;
+  int step;
+};
+
+template <int TILE_SIZE, typename InputIteratorT, typename OutputIteratorT,
+          typename ComparisonOpT>
+__global__ void BitonicSortSharedKernel(InputIteratorT input_begin,
+                                        InputIteratorT input_end,
+                                        OutputIteratorT output_begin,
+                                        ComparisonOpT op, int begin_phase,
+                                        int begin_step) {
+  size_t n = input_end - input_begin;
+  using ValueT = typename std::iterator_traits<OutputIteratorT>::value_type;
+  __shared__ ValueT s_values[TILE_SIZE];
+  size_t block_base_offset = blockIdx.x * TILE_SIZE;
+  // Copy values in
+  for (auto i : dh::BlockStrideRange(size_t(0), size_t(TILE_SIZE))) {
+    if (block_base_offset + i < n) {
+      s_values[i] = input_begin[block_base_offset + i];
+    }
+  }
+  __syncthreads();
+  const int kMaxPhases = std::ceil(std::log2(double(n)));
+  bool finished = false;  // Indicates we cannot go further in this kernel
+  for (int phase = begin_phase; phase <= kMaxPhases; phase++) {
+    for (int step = phase == begin_phase ? begin_step : phase; step > 0;
+         step--) {
+      BitonicSequence<ValueT *> bitonic(s_values, n - block_base_offset, phase,
+                                        step);
+
+      if (bitonic.BitonicSequenceLength() > TILE_SIZE) {
+        // Subsequence length to large
+        finished = true;
+        break;
+      }
+
+      bitonic.NormalisedCompareExchange(threadIdx.x, op);
+      if (bitonic.BitonicSequenceLength() > 32) {
+        __syncthreads();
+      }
+    }
+
+    if (finished) {
+      break;
+    }
+  }
+  // Write values back
+  __syncthreads();
+  for (auto i : dh::BlockStrideRange(size_t(0), size_t(TILE_SIZE))) {
+    if (block_base_offset + i < n) {
+      output_begin[block_base_offset + i] = s_values[i];
+    }
+  }
+}
+
+// Subsequences are small enough to be processed in shared memory
+template <int TILE_SIZE, typename InputIteratorT, typename OutputIteratorT,
+          typename ComparisonOpT>
+void BitonicShared(InputIteratorT input_begin, InputIteratorT input_end,
+                   OutputIteratorT output_begin, ComparisonOpT op, int phase,
+                   int step) {
+  size_t n = input_end - input_begin;
+  constexpr int kBlockSize = TILE_SIZE / 2;
+  auto grid_size = xgboost::common::DivRoundUp(n, TILE_SIZE);
+  BitonicSortSharedKernel<TILE_SIZE><<<grid_size, kBlockSize>>>(
+      input_begin, input_end, output_begin, op, phase, step);
+}
+
+// Subsequences must be processed in global memory
+template <typename InputIteratorT, typename OutputIteratorT,
+          typename ComparisonOpT>
+void BitonicGlobal(InputIteratorT input_begin, InputIteratorT input_end,
+                   OutputIteratorT output_begin, ComparisonOpT op, int phase,
+                   int step) {
+  BitonicSequence<OutputIteratorT> bitonic(
+      output_begin, input_end - input_begin, phase, step);
+  dh::LaunchN(0, bitonic.NumThreadsRequired(1), [=] __device__(size_t idx) {
+    BitonicSequence<OutputIteratorT> d_bitonic = bitonic;
+    d_bitonic.NormalisedCompareExchange(idx, op);
+  });
+}
+
+template <int DEGREE, typename InputIteratorT, typename OutputIteratorT,
+          typename ComparisonOpT>
+__global__ void BitonicSortMultiStepKernel(InputIteratorT input_begin,
+                                           InputIteratorT input_end,
+                                           OutputIteratorT output_begin,
+                                           ComparisonOpT op, int phase,
+                                           int step) {
+  size_t tidx = threadIdx.x + blockIdx.x * blockDim.x;
+  BitonicSequence<OutputIteratorT> bitonic(
+      output_begin, input_end - input_begin, phase, step);
+  bitonic.CompareExchangeMultiStep<DEGREE>(tidx, op);
+}
+
+template <int DEGREE, typename InputIteratorT, typename OutputIteratorT,
+          typename ComparisonOpT>
+void BitonicGlobalMultiStep(InputIteratorT input_begin,
+                            InputIteratorT input_end,
+                            OutputIteratorT output_begin, ComparisonOpT op,
+                            int phase, int step) {
+  BitonicSequence<OutputIteratorT> bitonic(
+      output_begin, input_end - input_begin, phase, step);
+  constexpr int kBlockSize = 512;
+  auto grid_size =
+      xgboost::common::DivRoundUp(bitonic.NumThreadsRequired(3), kBlockSize);
+  BitonicSortMultiStepKernel<DEGREE><<<grid_size, kBlockSize>>>(
+      input_begin, input_end, output_begin, op, phase, step);
+}
+}  // namespace detail
+
+/**
+ * \brief In-place bitonic sort.
+ *
+ * This is a minimal implementation of a multistep bitonic sorting algorithm.
+ * Normally we would avoid implementing core algorithms, in this case
+ * in-place sorting is not available in thrust or cub. Its purpose here is for
+ * minimal memory matrix transposes, where existing sorting algorithms utilise
+ * double buffers and use significantly more memory. Its complexity is
+ * O(nlog(n)log(n)) and its performance is competitive for small sequences but
+ * less competitive for longer sequences.
+ *
+ * Some basic benchmarks against thrust comparison based sort with int32_t
+ * keys, time in seconds: n: 32768 bitonic: 0.000237 thrust: 0.000139 n:
+ * 1048576 bitonic: 0.003350 thrust: 0.001104 n: 33554432 bitonic: 0.128996
+ * thrust: 0.020940 n: 268435456 bitonic: 1.204131 thrust: 0.171978
+ *
+ * References:
+ * Peters, Hagen, Ole Schulz-Hildebrandt, and Norbert Luttenberger. "Fast
+ * in-place sorting with cuda based on bitonic sort." International Conference
+ * on Parallel Processing and Applied Mathematics. Springer, Berlin,
+ * Heidelberg, 2009. Bozidar, Darko, and Tomaz Dobravec. "Comparison of
+ * parallel sorting algorithms." arXiv preprint arXiv:1511.03404 (2015).
+ *
+ * \tparam  InputIteratorT
+ * \tparam  OutputIteratorT
+ * \tparam  ComparisonOpT
+ * \param input_begin
+ * \param input_end
+ * \param output_begin
+ * \param op            Comparison operator
+ */
+template <typename InputIteratorT, typename OutputIteratorT,
+          typename ComparisonOpT>
+void BitonicSort(InputIteratorT input_begin, InputIteratorT input_end,
+                 OutputIteratorT output_begin, ComparisonOpT op) {
+  using ValueT = typename std::iterator_traits<OutputIteratorT>::value_type;
+
+  size_t n = input_end - input_begin;
+  int num_phases = std::ceil(std::log2(n));
+  constexpr int kSharedTileSize = 1024;  // Each thread handles two elements
+  detail::BitonicShared<kSharedTileSize>(input_begin, input_end, output_begin,
+                                         op, 1, 1);
+  int num_phases_shared = std::ceil(std::log2(kSharedTileSize));
+  for (int phase = num_phases_shared + 1; phase <= num_phases; phase++) {
+    for (int step = phase; step > 0; step--) {
+      size_t bitonic_subsequence_length = std::pow(2, step);
+      const int kMultiStepDegree = 4;
+      if (bitonic_subsequence_length > kSharedTileSize) {
+        if (step >= kMultiStepDegree && step != phase) {
+          detail::BitonicGlobalMultiStep<kMultiStepDegree>(
+              input_begin, input_end, output_begin, op, phase, step);
+          step -= kMultiStepDegree - 1;
+        } else {
+          detail::BitonicGlobal(input_begin, input_end, output_begin, op, phase,
+                                step);
+        }
+      } else {
+        detail::BitonicShared<kSharedTileSize>(input_begin, input_end,
+                                               output_begin, op, phase, step);
+        break;
+      }
+    }
+  }
+}
 }  // namespace dh
