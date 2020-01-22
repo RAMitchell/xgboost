@@ -24,6 +24,7 @@ class DeviceDMatrix : public DMatrix {
   explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
     SimpleDMatrix dmat(adapter, missing, nthread);
     ellpack_page_.reset(new EllpackPage(&dmat, {0, 256, 0, 0}));
+    info = dmat.Info();
   }
   
   explicit DeviceDMatrix(DMatrix*dmat)

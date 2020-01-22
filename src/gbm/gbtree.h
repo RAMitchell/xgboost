@@ -28,6 +28,7 @@
 #include "gbtree_model.h"
 #include "../common/common.h"
 #include "../common/timer.h"
+#include "../data/device_dmatrix.h"
 
 namespace xgboost {
 enum class TreeMethod : int {

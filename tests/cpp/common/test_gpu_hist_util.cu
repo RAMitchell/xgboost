@@ -14,6 +14,10 @@
 #include "../../../src/common/hist_util.h"
 
 #include "../helpers.h"
+#include <xgboost/data.h>
+#include "../../../src/data/device_adapter.cuh"
+#include "../data/test_array_interface.h"
+#include "../../../src/common/math.h"
 
 namespace xgboost {
 namespace common {
@@ -84,8 +88,117 @@ TEST(gpu_hist_util, DeviceSketch) {
 }
 
 TEST(gpu_hist_util, DeviceSketch_ExternalMemory) {
-  TestDeviceSketch(true);
+  TestDeviceSketch(true); }
+
+struct SketchContainer {
+  std::vector<DenseCuts::WXQSketch> sketches_;  // NOLINT
+  std::vector<std::mutex> col_locks_; // NOLINT
+  static constexpr int kOmpNumColsParallelizeLimit = 1000;
+
+  SketchContainer(int max_bin,size_t num_columns,size_t num_rows ) : col_locks_(num_columns) {
+    // Initialize Sketches for this dmatrix
+    sketches_.resize(num_columns);
+#pragma omp parallel for default(none) shared(max_bin) schedule(static) \
+if (num_columns> kOmpNumColsParallelizeLimit)  // NOLINT
+    for (int icol = 0; icol < num_columns; ++icol) {  // NOLINT
+      sketches_[icol].Init(num_rows, 1.0 / (8 * max_bin));
+    }
+  }
+
+  // Prevent copying/assigning/moving this as its internals can't be assigned/copied/moved
+  SketchContainer(const SketchContainer &) = delete;
+  SketchContainer(const SketchContainer &&) = delete;
+  SketchContainer &operator=(const SketchContainer &) = delete;
+  SketchContainer &operator=(const SketchContainer &&) = delete;
+};
+
+
+struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
+  explicit IsValidFunctor(float missing) : missing(missing) {}
+
+  float missing;
+  __device__ bool operator()(const data::COOTuple& e) const {
+    if (common::CheckNAN(e.value) || e.value == missing) {
+      return false;
+    }
+    return true;
+  }
+  __device__ bool operator()(const Entry& e) const {
+    if (common::CheckNAN(e.fvalue) || e.fvalue == missing) {
+      return false;
+    }
+    return true;
+  }
+};
+
+template <typename ReturnT, typename IterT, typename FuncT>
+thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
+    IterT iter, FuncT func) {
+  return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
 }
 
+template <typename AdapterT>
+void AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing) {
+  CHECK(adapter->NumRows() != data::kAdapterUnknownSize);
+  CHECK(adapter->NumColumns() != data::kAdapterUnknownSize);
+
+  adapter->BeforeFirst();
+  adapter->Next();
+  auto& batch = adapter->Value();
+
+  // Enforce single batch
+  CHECK(!adapter->Next());
+  auto batch_iter = MakeTransformIterator<data::COOTuple>(thrust::make_counting_iterator(0llu), [=] __device__(size_t idx) {
+    return batch.GetElement(idx);
+  });
+  auto entry_iter = MakeTransformIterator<Entry>(
+      thrust::make_counting_iterator(0llu), [=] __device__(size_t idx) {
+        return Entry(batch.GetElement(idx).column_idx,
+                     batch.GetElement(idx).value);
+      });
+  size_t valid_elements = thrust::count_if(
+      batch_iter, batch_iter + batch.Size(), IsValidFunctor(missing));
+  thrust::device_vector<Entry> tmp(valid_elements);
+
+  thrust::copy_if(entry_iter, entry_iter + batch.Size(), tmp.begin(),
+                  IsValidFunctor(missing));
+  thrust::device_vector<size_t> column_sizes_scan(adapter->NumColumns() + 1);
+  auto d_column_sizes_scan = column_sizes_scan.data().get();
+  auto d_tmp = tmp.data().get();
+  dh::LaunchN(adapter->DeviceIdx(),tmp.size(),[=] __device__ (size_t idx)
+  {
+    auto &e = d_tmp[idx];
+    atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+      &d_column_sizes_scan[e.index]),
+      static_cast<unsigned long long>(1));  // NOLINT
+  });
+  thrust::exclusive_scan(column_sizes_scan.begin(), column_sizes_scan.end(),column_sizes_scan.begin());
+
+  thrust::sort(tmp.begin(), tmp.end(),
+               [=] __device__(const Entry &a, const Entry &b) {
+                 if (a.index == b.index) {
+                   return a.fvalue < b.fvalue;
+                 }
+                 return a.index < b.index;
+               });
+
+  SketchContainer sketch_container(num_bins, adapter->NumColumns(),
+                                   adapter->NumRows());
+}
+
+TEST(gpu_hist_util, AdapterDeviceSketch)
+{
+  int rows = 50;
+  int cols = 10;
+  float missing = 0.0;
+  thrust::device_vector< float> data(rows*cols);
+  auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
+  std::stringstream ss;
+  Json::Dump(json_array_interface, &ss);
+  std::string str = ss.str();
+  data::CupyAdapter adapter(str);
+
+  AdapterDeviceSketch(&adapter, 4, missing);
+}
 }  // namespace common
 }  // namespace xgboost
