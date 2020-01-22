@@ -21,11 +21,13 @@ namespace data {
 class DeviceDMatrix : public DMatrix {
  public:
   template <typename AdapterT>
-  explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {}
+  explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
+    SimpleDMatrix dmat(adapter, missing, nthread);
+    ellpack_page_.reset(new EllpackPage(&dmat, {0, 256, 0, 0}));
+  }
   
   explicit DeviceDMatrix(DMatrix*dmat)
   {
-    auto& batch = *dmat->GetBatches<EllpackPage>({0,256,0,0}).begin();
     ellpack_page_.reset(new EllpackPage(dmat, {0, 256, 0, 0}));
   }
 
