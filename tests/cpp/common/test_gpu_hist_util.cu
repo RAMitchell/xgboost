@@ -18,6 +18,7 @@
 #include "../../../src/data/device_adapter.cuh"
 #include "../data/test_array_interface.h"
 #include "../../../src/common/math.h"
+#include "../../../src/data/simple_dmatrix.h"
 
 namespace xgboost {
 namespace common {
@@ -187,16 +188,17 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
   auto d_cuts = cuts.data().get();
   auto d_sorted_entries = sorted_entries.data().get();
 
-  dh::LaunchN(adapter->DeviceIdx(), cuts.size(), [=]__device__(size_t idx)
-  {
+  dh::LaunchN(adapter->DeviceIdx(), cuts.size(), [=] __device__(size_t idx) {
     // Each thread is responsible for obtaining one cut from the sorted input
     size_t column_idx = idx / num_cuts;
+    size_t column_size =
+        d_column_sizes_scan[column_idx + 1] - d_column_sizes_scan[column_idx];
+    size_t num_available_cuts = std::min(size_t (num_cuts), column_size);
     size_t cut_idx = idx % num_cuts;
-    double rank = double(cut_idx) / num_cuts;
+    if (cut_idx >= num_available_cuts) return;
+    double rank = double(cut_idx) / num_available_cuts;
     Span<Entry> column_entries(
-        d_sorted_entries + d_column_sizes_scan[column_idx],
-        d_column_sizes_scan[column_idx + 1] - d_column_sizes_scan[column_idx]);
-    if (column_entries.size() == 0)return;
+        d_sorted_entries + d_column_sizes_scan[column_idx], column_size);
 
     auto value = column_entries[column_entries.size() * rank].fvalue;
     size_t weight = column_entries.size() * rank;
@@ -213,8 +215,9 @@ if (adapter->NumColumns()> SketchContainer::kOmpNumColsParallelizeLimit) // NOLI
     size_t column_size = host_column_sizes_scan[icol + 1] - host_column_sizes_scan[icol];
     if (column_size== 0) continue;
     WXQuantileSketch<bst_float,bst_float>::SummaryContainer summary;
-    summary.Reserve(num_cuts);
-    summary.MakeFromSorted(&host_cuts[num_cuts * icol], num_cuts);
+    size_t num_available_cuts = std::min(size_t(num_cuts), column_size);
+    summary.Reserve(num_available_cuts);
+    summary.MakeFromSorted(&host_cuts[num_cuts * icol], num_available_cuts);
 
     std::lock_guard<std::mutex> lock(sketch_container->col_locks_[icol]);
     sketch_container->sketches_[icol].PushSummary(summary);
@@ -251,10 +254,20 @@ HistogramCuts AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing
   return cuts;
 }
 
+template <typename AdapterT>
+HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
+  HistogramCuts cuts;
+  DenseCuts builder(&cuts);
+  data::SimpleDMatrix dmat(adapter, missing, 1);
+  builder.Build(&dmat,num_bins);
+  return cuts;
+}
+
 TEST(gpu_hist_util, AdapterDeviceSketch)
 {
   int rows = 5;
   int cols = 1;
+  int num_bins = 4;
   float missing =  - 1.0;
   thrust::device_vector< float> data(rows*cols);
   auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
@@ -264,8 +277,12 @@ TEST(gpu_hist_util, AdapterDeviceSketch)
   std::string str = ss.str();
   data::CupyAdapter adapter(str);
 
-  auto cuts=AdapterDeviceSketch(&adapter, 4, missing);
+  auto device_cuts = AdapterDeviceSketch(&adapter, num_bins, missing);
+  auto host_cuts = GetHostCuts(&adapter, num_bins, missing);
 
+  EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
+  EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
+  EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 }  // namespace common
 }  // namespace xgboost
