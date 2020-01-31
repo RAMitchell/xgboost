@@ -196,13 +196,13 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
     size_t num_available_cuts = std::min(size_t (num_cuts), column_size);
     size_t cut_idx = idx % num_cuts;
     if (cut_idx >= num_available_cuts) return;
-    double rank = double(cut_idx) / num_available_cuts;
     Span<Entry> column_entries(
         d_sorted_entries + d_column_sizes_scan[column_idx], column_size);
 
-    auto value = column_entries[column_entries.size() * rank].fvalue;
-    size_t weight = column_entries.size() * rank;
-    d_cuts[idx] = SketchEntry(weight, weight + 1, 1, value);
+    double phi = double(cut_idx) / num_available_cuts;
+    size_t rank = column_entries.size() * phi;
+    auto value = column_entries[rank].fvalue;
+    d_cuts[idx] = SketchEntry(rank, rank + 1, 1, value);
   });
 
   // add cuts into sketches
@@ -284,5 +284,7 @@ TEST(gpu_hist_util, AdapterDeviceSketch)
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
+
+
 }  // namespace common
 }  // namespace xgboost
