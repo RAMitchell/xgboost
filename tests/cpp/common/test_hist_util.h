@@ -28,6 +28,26 @@ inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
   return x;
 }
 
+#ifdef __CUDACC__
+data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
+  int num_rows, int num_columns) {
+  Json array_interface{Object()};
+  std::vector<Json> shape = {Json(static_cast<Integer::Int>(num_rows)),
+    Json(static_cast<Integer::Int>(num_columns))};
+  array_interface["shape"] = Array(shape);
+  std::vector<Json> j_data{
+    Json(Integer(reinterpret_cast<Integer::Int>(x.data().get()))),
+    Json(Boolean(false))};
+  array_interface["data"] = j_data;
+  array_interface["version"] = Integer(static_cast<Integer::Int>(1));
+  array_interface["typestr"] = String("<f4");
+  std::stringstream ss;
+  Json::Dump(array_interface, &ss);
+  std::string str = ss.str();
+  return data::CupyAdapter(str);
+}
+#endif
+
 inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
                                                                 int num_categories) {
   std::vector<float> x(n);
