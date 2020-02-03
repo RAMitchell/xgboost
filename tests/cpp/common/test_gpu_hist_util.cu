@@ -19,6 +19,7 @@
 #include "../data/test_array_interface.h"
 #include "../../../src/common/math.h"
 #include "../../../src/data/simple_dmatrix.h"
+#include "test_hist_util.h"
 
 namespace xgboost {
 namespace common {
@@ -199,16 +200,18 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
     Span<Entry> column_entries(
         d_sorted_entries + d_column_sizes_scan[column_idx], column_size);
 
-    double phi = double(cut_idx) / num_available_cuts;
-    size_t rank = column_entries.size() * phi;
+    size_t rank = (column_entries.size() * cut_idx) / num_available_cuts;
     auto value = column_entries[rank].fvalue;
     d_cuts[idx] = SketchEntry(rank, rank + 1, 1, value);
   });
 
   // add cuts into sketches
   thrust::host_vector<SketchEntry> host_cuts(cuts);
-  std::vector<SketchEntry> v_host_cuts(host_cuts.size());
-  thrust::copy(host_cuts.begin(), host_cuts.end(), v_host_cuts.begin());
+  std::vector<float> v_host_cuts(host_cuts.size());
+  for(auto i = 0ull; i < host_cuts.size(); i++)
+  {
+    v_host_cuts[i] = host_cuts[i].value;
+  }
 #pragma omp parallel for default(none) schedule(static) \
 if (adapter->NumColumns()> SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
   for (int icol = 0; icol <  adapter->NumColumns(); ++icol) {
@@ -285,6 +288,64 @@ TEST(gpu_hist_util, AdapterDeviceSketch)
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
+ data::CupyAdapter AdapterFromData(const thrust::device_vector<float >& x)
+{
+  Json array_interface{Object()};
+  std::vector<Json> shape = {Json(static_cast<Integer::Int>(x.size())),
+                             Json(static_cast<Integer::Int>(1))};
+  array_interface["shape"] = Array(shape);
+  std::vector<Json> j_data{
+      Json(Integer(reinterpret_cast<Integer::Int>(x.data().get()))),
+      Json(Boolean(false))};
+  array_interface["data"] = j_data;
+  array_interface["version"] = Integer(static_cast<Integer::Int>(1));
+  array_interface["typestr"] = String("<f4");
+  std::stringstream ss;
+  Json::Dump(array_interface, &ss);
+  std::string str = ss.str();
+  return data::CupyAdapter(str);
+}
+
+ TEST(gpu_hist_util, AdapterDeviceSketchCategorical) {
+   int categorical_sizes[] = {2, 6, 8, 12};
+   int num_bins = 256;
+   int sizes[] = {25, 100, 1000};
+   for (auto n : sizes) {
+     for (auto num_categories : categorical_sizes) {
+       auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
+    auto x_device = thrust::device_vector<float >(x);
+       std::vector<float> x_sorted(x);
+       std::sort(x_sorted.begin(), x_sorted.end());
+       auto adapter = AdapterFromData(x_device);
+       auto cuts = AdapterDeviceSketch(&adapter, num_bins,
+                                       std::numeric_limits<float>::quiet_NaN());
+       auto cuts_from_sketch = cuts.Values();
+       EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
+       EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
+       EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
+       EXPECT_EQ(cuts_from_sketch.size(), num_categories);
+     }
+   }
+ }
+
+TEST(gpu_hist_util, AdapterDeviceSketchAccuracyTest) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {25, 100, 1000};
+  float low = -100;
+  float high = 100;
+  for (auto n : sizes) {
+    auto x = GenerateRandomSingleColumn(n, low, high);
+    auto x_device = thrust::device_vector<float >(x);
+    std::vector<float> x_sorted(x);
+    std::sort(x_sorted.begin(), x_sorted.end());
+    for (auto num_bins : bin_sizes) {
+      auto adapter = AdapterFromData(x_device);
+      auto cuts = AdapterDeviceSketch(&adapter, num_bins,
+                                      std::numeric_limits<float>::quiet_NaN());
+      ValidateCuts(cuts, x_sorted, 0.01, num_bins);
+    }
+  }
+}
 
 }  // namespace common
 }  // namespace xgboost
