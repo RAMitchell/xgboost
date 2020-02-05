@@ -93,7 +93,7 @@ TEST(gpu_hist_util, DeviceSketch_ExternalMemory) {
   TestDeviceSketch(true); }
 
 struct SketchContainer {
-  std::vector<DenseCuts::WXQSketch> sketches_;  // NOLINT
+  std::vector<DenseCuts::WQSketch> sketches_;  // NOLINT
   std::vector<std::mutex> col_locks_; // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
 
@@ -288,11 +288,11 @@ TEST(gpu_hist_util, AdapterDeviceSketch)
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
- data::CupyAdapter AdapterFromData(const thrust::device_vector<float >& x)
-{
+ data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
+                                  int num_rows, int num_columns) {
   Json array_interface{Object()};
-  std::vector<Json> shape = {Json(static_cast<Integer::Int>(x.size())),
-                             Json(static_cast<Integer::Int>(1))};
+  std::vector<Json> shape = {Json(static_cast<Integer::Int>(num_rows)),
+                             Json(static_cast<Integer::Int>(num_columns))};
   array_interface["shape"] = Array(shape);
   std::vector<Json> j_data{
       Json(Integer(reinterpret_cast<Integer::Int>(x.data().get()))),
@@ -316,7 +316,7 @@ TEST(gpu_hist_util, AdapterDeviceSketch)
     auto x_device = thrust::device_vector<float >(x);
        std::vector<float> x_sorted(x);
        std::sort(x_sorted.begin(), x_sorted.end());
-       auto adapter = AdapterFromData(x_device);
+       auto adapter = AdapterFromData(x_device, n, 1);
        auto cuts = AdapterDeviceSketch(&adapter, num_bins,
                                        std::numeric_limits<float>::quiet_NaN());
        auto cuts_from_sketch = cuts.Values();
@@ -328,24 +328,20 @@ TEST(gpu_hist_util, AdapterDeviceSketch)
    }
  }
 
-TEST(gpu_hist_util, AdapterDeviceSketchAccuracyTest) {
+TEST(gpu_hist_util, AdapterDeviceSketchMultipleColumns) {
   int bin_sizes[] = {2, 16, 256, 512};
-  int sizes[] = {25, 100, 1000};
-  float low = -100;
-  float high = 100;
-  for (auto n : sizes) {
-    auto x = GenerateRandomSingleColumn(n, low, high);
-    auto x_device = thrust::device_vector<float >(x);
-    std::vector<float> x_sorted(x);
-    std::sort(x_sorted.begin(), x_sorted.end());
+  int sizes[] = {100, 1000, 1500};
+  int num_columns = 5;
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    auto x_device = thrust::device_vector<float>(x);
     for (auto num_bins : bin_sizes) {
-      auto adapter = AdapterFromData(x_device);
+      auto adapter = AdapterFromData(x_device, num_rows, num_columns);
       auto cuts = AdapterDeviceSketch(&adapter, num_bins,
                                       std::numeric_limits<float>::quiet_NaN());
-      ValidateCuts(cuts, x_sorted, 0.01, num_bins);
+      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
     }
   }
 }
-
 }  // namespace common
 }  // namespace xgboost
