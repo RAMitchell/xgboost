@@ -17,6 +17,7 @@
 #include "./quantile.h"
 #include "./../tree/updater_quantile_hist.h"
 
+
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
   #include <xmmintrin.h>
   #define PREFETCH_READ_T0(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)

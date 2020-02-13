@@ -431,6 +431,7 @@ if (num_cols_ > SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
 
       std::lock_guard<std::mutex> lock(sketch_container_->col_locks_[icol]);
       sketch_container_->sketches_[icol].PushSummary(summary);
+
     }
   }
 

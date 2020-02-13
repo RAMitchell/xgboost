@@ -94,10 +94,10 @@ TEST(gpu_hist_util, DeviceSketch_ExternalMemory) {
 
 struct SketchContainer {
   std::vector<DenseCuts::WQSketch> sketches_;  // NOLINT
-  std::vector<std::mutex> col_locks_; // NOLINT
+  //std::vector<std::mutex> col_locks_; // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
 
-  SketchContainer(int max_bin,size_t num_columns,size_t num_rows ) : col_locks_(num_columns) {
+  SketchContainer(int max_bin,size_t num_columns,size_t num_rows )  {
     // Initialize Sketches for this dmatrix
     sketches_.resize(num_columns);
 #pragma omp parallel for default(none) shared(max_bin) schedule(static) \
@@ -142,6 +142,7 @@ thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
 template <typename AdapterT>
 void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
                   SketchContainer *sketch_container, int num_cuts) {
+  dh::XGBCachingDeviceAllocator<char> alloc;
   adapter->BeforeFirst();
   adapter->Next();
   auto& batch = adapter->Value();
@@ -156,7 +157,8 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
         return Entry(batch.GetElement(idx).column_idx,
                      batch.GetElement(idx).value);
       });
-  thrust::device_vector<size_t> column_sizes_scan(adapter->NumColumns() + 1);
+  dh::caching_device_vector<size_t> column_sizes_scan(adapter->NumColumns() + 1,
+                                                      0);
   auto d_column_sizes_scan = column_sizes_scan.data().get();
   IsValidFunctor is_valid(missing);
   dh::LaunchN(adapter->DeviceIdx(), end - begin , [=] __device__(size_t idx)
@@ -169,14 +171,16 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
     }
   });
   dh::safe_cuda (cudaDeviceSynchronize());
-  thrust::exclusive_scan(column_sizes_scan.begin(), column_sizes_scan.end(),column_sizes_scan.begin());
+  thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan.begin(),
+                         column_sizes_scan.end(), column_sizes_scan.begin());
   thrust::host_vector<size_t > host_column_sizes_scan(column_sizes_scan);
   size_t num_valid = host_column_sizes_scan.back();
 
   thrust::device_vector<Entry> sorted_entries(num_valid);
-  thrust::copy_if(entry_iter + begin, entry_iter + end, sorted_entries.begin(), is_valid);
+  thrust::copy_if(thrust::cuda::par(alloc),entry_iter + begin, entry_iter + end, sorted_entries.begin(), is_valid);
 
-  thrust::sort(sorted_entries.begin(), sorted_entries.end(),
+  thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
+               sorted_entries.end(),
                [=] __device__(const Entry &a, const Entry &b) {
                  if (a.index == b.index) {
                    return a.fvalue < b.fvalue;
@@ -185,7 +189,7 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
                });
 
   using SketchEntry = WXQuantileSketch<bst_float, bst_float>::Entry;
-  thrust::device_vector<SketchEntry> cuts(adapter->NumColumns() * num_cuts);
+  dh::caching_device_vector<SketchEntry> cuts(adapter->NumColumns() * num_cuts);
   auto d_cuts = cuts.data().get();
   auto d_sorted_entries = sorted_entries.data().get();
 
@@ -207,11 +211,6 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
 
   // add cuts into sketches
   thrust::host_vector<SketchEntry> host_cuts(cuts);
-  std::vector<float> v_host_cuts(host_cuts.size());
-  for(auto i = 0ull; i < host_cuts.size(); i++)
-  {
-    v_host_cuts[i] = host_cuts[i].value;
-  }
 #pragma omp parallel for default(none) schedule(static) \
 if (adapter->NumColumns()> SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
   for (int icol = 0; icol <  adapter->NumColumns(); ++icol) {
@@ -222,14 +221,15 @@ if (adapter->NumColumns()> SketchContainer::kOmpNumColsParallelizeLimit) // NOLI
     summary.Reserve(num_available_cuts);
     summary.MakeFromSorted(&host_cuts[num_cuts * icol], num_available_cuts);
 
-    std::lock_guard<std::mutex> lock(sketch_container->col_locks_[icol]);
+    //std::lock_guard<std::mutex> lock(sketch_container->col_locks_[icol]);
     sketch_container->sketches_[icol].PushSummary(summary);
   }
 }
 
 
 template <typename AdapterT>
-HistogramCuts AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing) {
+HistogramCuts AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing, size_t sketch_batch_size=10000000) {
+
   CHECK(adapter->NumRows() != data::kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != data::kAdapterUnknownSize);
 
@@ -250,10 +250,18 @@ HistogramCuts AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing
   size_t dummy_nlevel;
   size_t num_cuts;
   WXQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
-      batch.Size(), eps, &dummy_nlevel, &num_cuts);
-  ProcessBatch(adapter, 0, batch.Size(), missing, &sketch_container,num_cuts);
+       adapter->NumRows(), eps, &dummy_nlevel, &num_cuts);
+  num_cuts = std::min(num_cuts, adapter->NumRows());
+  if (sketch_batch_size == 0) {
+    sketch_batch_size = batch.Size();
+  }
+  for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_size) {
+    size_t end = std::min(batch.Size(), begin + sketch_batch_size);
+    ProcessBatch(adapter, begin, end, missing, &sketch_container, num_cuts);
+  }
 
   dense_cuts.Init(&sketch_container.sketches_, num_bins);
+  sketch_container.sketches_.clear();
   return cuts;
 }
 
@@ -342,6 +350,140 @@ TEST(gpu_hist_util, AdapterDeviceSketchMultipleColumns) {
       ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
     }
   }
+}
+TEST(gpu_hist_util, AdapterDeviceSketchBatches) {
+  int num_bins = 256;
+  int num_rows = 5000;
+  int batch_sizes[] = {0, 100, 1500, 6000};
+  int num_columns = 5;
+  for (auto batch_size : batch_sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    auto x_device = thrust::device_vector<float>(x);
+    auto adapter = AdapterFromData(x_device, num_rows, num_columns);
+    auto cuts = AdapterDeviceSketch(&adapter, num_bins,
+                                    std::numeric_limits<float>::quiet_NaN(),
+                                    batch_size);
+    ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+  }
+}
+
+TEST(gpu_hist_util, Benchmark) {
+  int num_bins = 256;
+  std::vector<int> sizes;
+  for (auto i = 8ull; i < 26; i += 2) {
+    sizes.push_back(1 << i);
+  }
+
+  std::cout << "Num rows, ";
+  for (auto n : sizes) {
+    std::cout << n << ", ";
+  }
+  std::cout << "\n";
+  int num_columns = 5;
+  std::cout << "AdapterDeviceSketch, ";
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    auto x_device = thrust::device_vector<float>(x);
+    auto adapter = AdapterFromData(x_device, num_rows, num_columns);
+    Timer t;
+    t.Start();
+    auto cuts = AdapterDeviceSketch(&adapter, num_bins,
+                                    std::numeric_limits<float>::quiet_NaN());
+    t.Stop();
+    std::cout << t.ElapsedSeconds() << ", ";
+  }
+  std::cout << "\n";
+
+  std::cout << "DeviceSketch, ";
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    dmlc::TemporaryDirectory tmpdir;
+    auto dmat =
+      GetDMatrixFromData(x, num_rows, num_columns);
+    HistogramCuts cuts;
+    Timer t;
+    t.Start();
+    DeviceSketch(0, num_bins, 0, &dmat, &cuts);
+    t.Stop();
+    std::cout << t.ElapsedSeconds() << ", ";
+  }
+  std::cout << "\n";
+
+  std::cout << "WQSketch, ";
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    dmlc::TemporaryDirectory tmpdir;
+    auto dmat =
+      GetDMatrixFromData(x, num_rows, num_columns);
+      HistogramCuts cuts;
+      DenseCuts dense(&cuts);
+      Timer t;
+      t.Start();
+      dense.Build(&dmat, num_bins);
+      t.Stop();
+      std::cout << t.ElapsedSeconds() << ", ";
+  }
+  std::cout << "\n";
+}
+TEST(gpu_hist_util, BenchmarkNumColumns) {
+  int num_bins = 256;
+  int num_rows = 10;
+  std::vector<int> num_columns;
+  for (auto i = 4ull; i < 16; i += 2) {
+    num_columns.push_back(1 << i);
+  }
+  num_columns = { 1 << 16 };
+
+  std::cout << "Num columns, ";
+  for (auto n : num_columns) {
+    std::cout << n << ", ";
+  }
+  std::cout << "\n";
+  std::cout << "AdapterDeviceSketch, ";
+  for (auto num_column : num_columns) {
+    auto x = GenerateRandom(num_rows, num_column);
+    auto x_device = thrust::device_vector<float>(x);
+    auto adapter = AdapterFromData(x_device, num_rows, num_column);
+    Timer t;
+    t.Start();
+    SketchContainer container(num_bins, num_column, num_rows);
+    auto cuts = AdapterDeviceSketch(&adapter, num_bins,
+                                    std::numeric_limits<float>::quiet_NaN());
+    container.sketches_[0].Init(num_rows, 0.1);
+    container.sketches_.clear();
+    t.Stop();
+    std::cout << t.ElapsedSeconds() << ", ";
+  }
+  std::cout << "\n";
+  //std::cout << "DeviceSketch, ";
+  //for (auto num_column : num_columns) {
+  //  auto x = GenerateRandom(num_rows, num_column);
+  //  dmlc::TemporaryDirectory tmpdir;
+  //  auto dmat =
+  //    GetDMatrixFromData(x, num_rows, num_column);
+  //  HistogramCuts cuts;
+  //  Timer t;
+  //  t.Start();
+  //  DeviceSketch(0, num_bins, 0, &dmat, &cuts);
+  //  t.Stop();
+  //  std::cout << t.ElapsedSeconds() << ", ";
+  //}
+  //std::cout << "\n";
+  //std::cout << "SparseCuts, ";
+  //for (auto num_column : num_columns) {
+  //  auto x = GenerateRandom(num_rows, num_column);
+  //  dmlc::TemporaryDirectory tmpdir;
+  //  auto dmat =
+  //    GetDMatrixFromData(x, num_rows, num_column);
+  //  HistogramCuts cuts;
+  //  SparseCuts sparse(&cuts);
+  //  Timer t;
+  //  t.Start();
+  //  sparse.Build(&dmat, num_bins);
+  //  t.Stop();
+  //  std::cout << t.ElapsedSeconds() << ", ";
+  //}
+  //std::cout << "\n";
 }
 }  // namespace common
 }  // namespace xgboost
