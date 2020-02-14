@@ -174,7 +174,10 @@ class HistogramCuts {
  */
 class CutsBuilder {
  public:
-  using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
+  //using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
+  using WQSketch =
+      common::QuantileSketchTemplate<bst_float, bst_float,
+                                     WQSummary<bst_float, bst_float>>;
 
  protected:
   HistogramCuts* p_cuts_;

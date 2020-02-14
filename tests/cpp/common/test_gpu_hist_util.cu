@@ -188,7 +188,7 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
                  return a.index < b.index;
                });
 
-  using SketchEntry = WXQuantileSketch<bst_float, bst_float>::Entry;
+  using SketchEntry = WQuantileSketch<bst_float, bst_float>::Entry;
   dh::caching_device_vector<SketchEntry> cuts(adapter->NumColumns() * num_cuts);
   auto d_cuts = cuts.data().get();
   auto d_sorted_entries = sorted_entries.data().get();
@@ -213,16 +213,16 @@ void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
   thrust::host_vector<SketchEntry> host_cuts(cuts);
 #pragma omp parallel for default(none) schedule(static) \
 if (adapter->NumColumns()> SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
-  for (int icol = 0; icol <  adapter->NumColumns(); ++icol) {
-    size_t column_size = host_column_sizes_scan[icol + 1] - host_column_sizes_scan[icol];
-    if (column_size== 0) continue;
-    WXQuantileSketch<bst_float,bst_float>::SummaryContainer summary;
+  for (int icol = 0; icol < adapter->NumColumns(); ++icol) {
+    size_t column_size =
+        host_column_sizes_scan[icol + 1] - host_column_sizes_scan[icol];
+    if (column_size == 0) continue;
+    WQuantileSketch<bst_float, bst_float>::SummaryContainer summary;
     size_t num_available_cuts = std::min(size_t(num_cuts), column_size);
     summary.Reserve(num_available_cuts);
     summary.MakeFromSorted(&host_cuts[num_cuts * icol], num_available_cuts);
 
-    //std::lock_guard<std::mutex> lock(sketch_container->col_locks_[icol]);
-    sketch_container->sketches_[icol].PushSummary(summary);
+     sketch_container->sketches_[icol].PushSummary(summary);
   }
 }
 
@@ -249,7 +249,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing
   double eps = 1.0 / (kFactor * num_bins);
   size_t dummy_nlevel;
   size_t num_cuts;
-  WXQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
+  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
        adapter->NumRows(), eps, &dummy_nlevel, &num_cuts);
   num_cuts = std::min(num_cuts, adapter->NumRows());
   if (sketch_batch_size == 0) {
@@ -260,8 +260,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing
     ProcessBatch(adapter, begin, end, missing, &sketch_container, num_cuts);
   }
 
-  dense_cuts.Init(&sketch_container.sketches_, num_bins);
-  sketch_container.sketches_.clear();
+  dense_cuts.Init(&sketch_container.sketches_, num_bins, adapter->NumRows());
   return cuts;
 }
 
@@ -432,7 +431,7 @@ TEST(gpu_hist_util, BenchmarkNumColumns) {
   for (auto i = 4ull; i < 16; i += 2) {
     num_columns.push_back(1 << i);
   }
-  num_columns = { 1 << 16 };
+  //num_columns = {1 << 16};
 
   std::cout << "Num columns, ";
   for (auto n : num_columns) {
@@ -455,35 +454,50 @@ TEST(gpu_hist_util, BenchmarkNumColumns) {
     std::cout << t.ElapsedSeconds() << ", ";
   }
   std::cout << "\n";
-  //std::cout << "DeviceSketch, ";
-  //for (auto num_column : num_columns) {
-  //  auto x = GenerateRandom(num_rows, num_column);
-  //  dmlc::TemporaryDirectory tmpdir;
-  //  auto dmat =
-  //    GetDMatrixFromData(x, num_rows, num_column);
-  //  HistogramCuts cuts;
-  //  Timer t;
-  //  t.Start();
-  //  DeviceSketch(0, num_bins, 0, &dmat, &cuts);
-  //  t.Stop();
-  //  std::cout << t.ElapsedSeconds() << ", ";
-  //}
-  //std::cout << "\n";
-  //std::cout << "SparseCuts, ";
-  //for (auto num_column : num_columns) {
-  //  auto x = GenerateRandom(num_rows, num_column);
-  //  dmlc::TemporaryDirectory tmpdir;
-  //  auto dmat =
-  //    GetDMatrixFromData(x, num_rows, num_column);
-  //  HistogramCuts cuts;
-  //  SparseCuts sparse(&cuts);
-  //  Timer t;
-  //  t.Start();
-  //  sparse.Build(&dmat, num_bins);
-  //  t.Stop();
-  //  std::cout << t.ElapsedSeconds() << ", ";
-  //}
-  //std::cout << "\n";
+  std::cout << "DeviceSketch, ";
+  for (auto num_column : num_columns) {
+    auto x = GenerateRandom(num_rows, num_column);
+    dmlc::TemporaryDirectory tmpdir;
+    auto dmat =
+      GetDMatrixFromData(x, num_rows, num_column);
+    HistogramCuts cuts;
+    Timer t;
+    t.Start();
+    DeviceSketch(0, num_bins, 0, &dmat, &cuts);
+    t.Stop();
+    std::cout << t.ElapsedSeconds() << ", ";
+  }
+  std::cout << "\n";
+  std::cout << "SparseCuts, ";
+  for (auto num_column : num_columns) {
+    auto x = GenerateRandom(num_rows, num_column);
+    dmlc::TemporaryDirectory tmpdir;
+    auto dmat =
+      GetDMatrixFromData(x, num_rows, num_column);
+    HistogramCuts cuts;
+    SparseCuts sparse(&cuts);
+    Timer t;
+    t.Start();
+    sparse.Build(&dmat, num_bins);
+    t.Stop();
+    std::cout << t.ElapsedSeconds() << ", ";
+  }
+  std::cout << "\n";
+   std::cout << "DenseCuts, ";
+  for (auto num_column : num_columns) {
+    auto x = GenerateRandom(num_rows, num_column);
+    dmlc::TemporaryDirectory tmpdir;
+    auto dmat =
+      GetDMatrixFromData(x, num_rows, num_column);
+    HistogramCuts cuts;
+    DenseCuts dense(&cuts);
+    Timer t;
+    t.Start();
+    dense.Build(&dmat, num_bins);
+    t.Stop();
+    std::cout << t.ElapsedSeconds() << ", ";
+  }
+  std::cout << "\n";
 }
 }  // namespace common
 }  // namespace xgboost

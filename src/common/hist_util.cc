@@ -310,6 +310,7 @@ void DenseCuts::Init
   size_t intermediate_num_cuts =
       std::min(global_max_rows, static_cast<size_t>(max_num_bins * kFactor));
   // gather the histogram data
+  size_t intermediate_num_cuts = std::min(max_rows, static_cast<size_t >(max_num_bins*kFactor));
   rabit::SerializeReducer<WQSketch::SummaryContainer> sreducer;
   std::vector<WQSketch::SummaryContainer> summary_array;
   summary_array.resize(sketchs.size());
