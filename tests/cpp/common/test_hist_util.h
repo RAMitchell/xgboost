@@ -29,7 +29,7 @@ inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
 }
 
 #ifdef __CUDACC__
-data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
+inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
   int num_rows, int num_columns) {
   Json array_interface{Object()};
   std::vector<Json> shape = {Json(static_cast<Integer::Int>(num_rows)),

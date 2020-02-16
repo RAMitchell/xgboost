@@ -262,6 +262,11 @@ size_t DeviceSketch(int device,
                     DMatrix* dmat,
                     HistogramCuts* hmat);
 
+template <typename AdapterT>
+HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
+                                  float missing,
+                                  size_t sketch_batch_size = 10000000);
+
 /*!
  * \brief preprocessed global index matrix, in CSR format
  *  Transform floating values to integer index in histogram

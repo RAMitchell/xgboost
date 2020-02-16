@@ -85,13 +85,14 @@ void TestDeviceSketch(bool use_external_memory) {
   delete dmat;
 }
 
-TEST(gpu_hist_util, DeviceSketch) {
+TEST(hist_util, DeviceSketch) {
   TestDeviceSketch(false);
 }
 
-TEST(gpu_hist_util, DeviceSketch_ExternalMemory) {
+TEST(hist_util, DeviceSketch_ExternalMemory) {
   TestDeviceSketch(true); }
 
+/*
 struct SketchContainer {
   std::vector<DenseCuts::WQSketch> sketches_;  // NOLINT
   //std::vector<std::mutex> col_locks_; // NOLINT
@@ -263,6 +264,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing
   dense_cuts.Init(&sketch_container.sketches_, num_bins, adapter->NumRows());
   return cuts;
 }
+*/
 
 template <typename AdapterT>
 HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
@@ -273,7 +275,7 @@ HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
   return cuts;
 }
 
-TEST(gpu_hist_util, AdapterDeviceSketch)
+TEST(hist_util, AdapterDeviceSketch)
 {
   int rows = 5;
   int cols = 1;
@@ -295,25 +297,7 @@ TEST(gpu_hist_util, AdapterDeviceSketch)
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
- data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
-                                  int num_rows, int num_columns) {
-  Json array_interface{Object()};
-  std::vector<Json> shape = {Json(static_cast<Integer::Int>(num_rows)),
-                             Json(static_cast<Integer::Int>(num_columns))};
-  array_interface["shape"] = Array(shape);
-  std::vector<Json> j_data{
-      Json(Integer(reinterpret_cast<Integer::Int>(x.data().get()))),
-      Json(Boolean(false))};
-  array_interface["data"] = j_data;
-  array_interface["version"] = Integer(static_cast<Integer::Int>(1));
-  array_interface["typestr"] = String("<f4");
-  std::stringstream ss;
-  Json::Dump(array_interface, &ss);
-  std::string str = ss.str();
-  return data::CupyAdapter(str);
-}
-
- TEST(gpu_hist_util, AdapterDeviceSketchCategorical) {
+ TEST(hist_util, AdapterDeviceSketchCategorical) {
    int categorical_sizes[] = {2, 6, 8, 12};
    int num_bins = 256;
    int sizes[] = {25, 100, 1000};
@@ -335,7 +319,7 @@ TEST(gpu_hist_util, AdapterDeviceSketch)
    }
  }
 
-TEST(gpu_hist_util, AdapterDeviceSketchMultipleColumns) {
+TEST(hist_util, AdapterDeviceSketchMultipleColumns) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -350,7 +334,7 @@ TEST(gpu_hist_util, AdapterDeviceSketchMultipleColumns) {
     }
   }
 }
-TEST(gpu_hist_util, AdapterDeviceSketchBatches) {
+TEST(hist_util, AdapterDeviceSketchBatches) {
   int num_bins = 256;
   int num_rows = 5000;
   int batch_sizes[] = {0, 100, 1500, 6000};
@@ -366,7 +350,7 @@ TEST(gpu_hist_util, AdapterDeviceSketchBatches) {
   }
 }
 
-TEST(gpu_hist_util, Benchmark) {
+TEST(hist_util, Benchmark) {
   int num_bins = 256;
   std::vector<int> sizes;
   for (auto i = 8ull; i < 26; i += 2) {
@@ -424,7 +408,7 @@ TEST(gpu_hist_util, Benchmark) {
   }
   std::cout << "\n";
 }
-TEST(gpu_hist_util, BenchmarkNumColumns) {
+TEST(hist_util, BenchmarkNumColumns) {
   int num_bins = 256;
   int num_rows = 10;
   std::vector<int> num_columns;
@@ -445,11 +429,8 @@ TEST(gpu_hist_util, BenchmarkNumColumns) {
     auto adapter = AdapterFromData(x_device, num_rows, num_column);
     Timer t;
     t.Start();
-    SketchContainer container(num_bins, num_column, num_rows);
     auto cuts = AdapterDeviceSketch(&adapter, num_bins,
                                     std::numeric_limits<float>::quiet_NaN());
-    container.sketches_[0].Init(num_rows, 0.1);
-    container.sketches_.clear();
     t.Stop();
     std::cout << t.ElapsedSeconds() << ", ";
   }

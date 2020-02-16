@@ -21,17 +21,8 @@ namespace data {
 class DeviceDMatrix : public DMatrix {
  public:
   template <typename AdapterT>
-  explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
-    SimpleDMatrix dmat(adapter, missing, nthread);
-    ellpack_page_.reset(new EllpackPage(&dmat, {0, 256, 0, 0}));
-    info = dmat.Info();
-  }
+  explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread);
   
-  explicit DeviceDMatrix(DMatrix*dmat)
-  {
-    ellpack_page_.reset(new EllpackPage(dmat, {0, 256, 0, 0}));
-  }
-
   MetaInfo& Info() override { return info; }
 
   const MetaInfo& Info() const override { return info; }

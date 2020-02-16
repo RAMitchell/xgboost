@@ -21,6 +21,9 @@
 #include "device_helpers.cuh"
 #include "quantile.h"
 #include "../tree/param.h"
+#include "../data/adapter.h"
+#include "math.h"
+#include "../data/device_adapter.cuh"
 
 namespace xgboost {
 namespace common {
@@ -98,17 +101,16 @@ __global__ void UnpackFeaturesK(float* __restrict__ fvalues,
  */
 struct SketchContainer {
   std::vector<DenseCuts::WQSketch> sketches_;  // NOLINT
-  std::vector<std::mutex> col_locks_; // NOLINT
+  //std::vector<std::mutex> col_locks_; // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
 
-  SketchContainer(int max_bin, DMatrix* dmat) : col_locks_(dmat->Info().num_col_) {
-    const MetaInfo& info = dmat->Info();
+  SketchContainer(int max_bin,size_t num_columns,size_t num_rows )  {
     // Initialize Sketches for this dmatrix
-    sketches_.resize(info.num_col_);
-#pragma omp parallel for default(none) shared(info, max_bin) schedule(static) \
-if (info.num_col_ > kOmpNumColsParallelizeLimit)  // NOLINT
-    for (int icol = 0; icol < info.num_col_; ++icol) {  // NOLINT
-      sketches_[icol].Init(info.num_row_, 1.0 / (8 * max_bin));
+    sketches_.resize(num_columns);
+#pragma omp parallel for default(none) shared(max_bin) schedule(static) \
+if (num_columns> kOmpNumColsParallelizeLimit)  // NOLINT
+    for (int icol = 0; icol < num_columns; ++icol) {  // NOLINT
+      sketches_[icol].Init(num_rows, 1.0 / (8 * max_bin));
     }
   }
 
@@ -143,7 +145,7 @@ class GPUSketcher {
     const MetaInfo& info = dmat->Info();
 
     row_stride_ = 0;
-    sketch_container_.reset(new SketchContainer(max_bin_, dmat));
+    sketch_container_.reset(new SketchContainer(max_bin_, dmat->Info().num_col_,dmat->Info().num_row_));
     for (const auto& batch : dmat->GetBatches<SparsePage>()) {
       this->SketchBatch(batch, info);
     }
@@ -429,7 +431,6 @@ if (num_cols_ > SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
       summary.Reserve(n_cuts_);
       summary.MakeFromSorted(&cuts_h_[n_cuts_ * icol], n_cuts_cur_[icol]);
 
-      std::lock_guard<std::mutex> lock(sketch_container_->col_locks_[icol]);
       sketch_container_->sketches_[icol].PushSummary(summary);
 
     }
@@ -473,5 +474,161 @@ size_t DeviceSketch(int device,
   return res;
 }
 
+
+struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
+  explicit IsValidFunctor(float missing) : missing(missing) {}
+
+  float missing;
+  __device__ bool operator()(const data::COOTuple& e) const {
+    if (common::CheckNAN(e.value) || e.value == missing) {
+      return false;
+    }
+    return true;
+  }
+  __device__ bool operator()(const Entry& e) const {
+    if (common::CheckNAN(e.fvalue) || e.fvalue == missing) {
+      return false;
+    }
+    return true;
+  }
+};
+
+template <typename ReturnT, typename IterT, typename FuncT>
+thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
+    IterT iter, FuncT func) {
+  return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
+}
+
+template <typename AdapterT>
+void ProcessBatch(AdapterT *adapter, size_t begin, size_t end, float missing,
+                  SketchContainer *sketch_container, int num_cuts) {
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  adapter->BeforeFirst();
+  adapter->Next();
+  auto& batch = adapter->Value();
+  // Enforce single batch
+  CHECK(!adapter->Next());
+
+  auto batch_iter = MakeTransformIterator<data::COOTuple>(thrust::make_counting_iterator(0llu), [=] __device__(size_t idx) {
+    return batch.GetElement(idx);
+  });
+  auto entry_iter = MakeTransformIterator<Entry>(
+      thrust::make_counting_iterator(0llu), [=] __device__(size_t idx) {
+        return Entry(batch.GetElement(idx).column_idx,
+                     batch.GetElement(idx).value);
+      });
+  dh::caching_device_vector<size_t> column_sizes_scan(adapter->NumColumns() + 1,
+                                                      0);
+  auto d_column_sizes_scan = column_sizes_scan.data().get();
+  IsValidFunctor is_valid(missing);
+  dh::LaunchN(adapter->DeviceIdx(), end - begin , [=] __device__(size_t idx)
+  {
+    auto &e = batch_iter[begin + idx];
+    if (is_valid(e)) {
+      atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+        &d_column_sizes_scan[e.column_idx]),
+        static_cast<unsigned long long>(1));  // NOLINT
+    }
+  });
+  dh::safe_cuda (cudaDeviceSynchronize());
+  thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan.begin(),
+                         column_sizes_scan.end(), column_sizes_scan.begin());
+  thrust::host_vector<size_t > host_column_sizes_scan(column_sizes_scan);
+  size_t num_valid = host_column_sizes_scan.back();
+
+  thrust::device_vector<Entry> sorted_entries(num_valid);
+  thrust::copy_if(thrust::cuda::par(alloc),entry_iter + begin, entry_iter + end, sorted_entries.begin(), is_valid);
+
+  thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
+               sorted_entries.end(),
+               [=] __device__(const Entry &a, const Entry &b) {
+                 if (a.index == b.index) {
+                   return a.fvalue < b.fvalue;
+                 }
+                 return a.index < b.index;
+               });
+
+  using SketchEntry = WQuantileSketch<bst_float, bst_float>::Entry;
+  dh::caching_device_vector<SketchEntry> cuts(adapter->NumColumns() * num_cuts);
+  auto d_cuts = cuts.data().get();
+  auto d_sorted_entries = sorted_entries.data().get();
+
+  dh::LaunchN(adapter->DeviceIdx(), cuts.size(), [=] __device__(size_t idx) {
+    // Each thread is responsible for obtaining one cut from the sorted input
+    size_t column_idx = idx / num_cuts;
+    size_t column_size =
+        d_column_sizes_scan[column_idx + 1] - d_column_sizes_scan[column_idx];
+    size_t num_available_cuts = std::min(size_t (num_cuts), column_size);
+    size_t cut_idx = idx % num_cuts;
+    if (cut_idx >= num_available_cuts) return;
+    Span<Entry> column_entries(
+        d_sorted_entries + d_column_sizes_scan[column_idx], column_size);
+
+    size_t rank = (column_entries.size() * cut_idx) / num_available_cuts;
+    auto value = column_entries[rank].fvalue;
+    d_cuts[idx] = SketchEntry(rank, rank + 1, 1, value);
+  });
+
+  // add cuts into sketches
+  thrust::host_vector<SketchEntry> host_cuts(cuts);
+#pragma omp parallel for default(none) schedule(static) \
+if (adapter->NumColumns()> SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
+  for (int icol = 0; icol < adapter->NumColumns(); ++icol) {
+    size_t column_size =
+        host_column_sizes_scan[icol + 1] - host_column_sizes_scan[icol];
+    if (column_size == 0) continue;
+    WQuantileSketch<bst_float, bst_float>::SummaryContainer summary;
+    size_t num_available_cuts = std::min(size_t(num_cuts), column_size);
+    summary.Reserve(num_available_cuts);
+    summary.MakeFromSorted(&host_cuts[num_cuts * icol], num_available_cuts);
+
+     sketch_container->sketches_[icol].PushSummary(summary);
+  }
+}
+
+
+template <typename AdapterT>
+HistogramCuts AdapterDeviceSketch(AdapterT *adapter, int num_bins, float missing, size_t sketch_batch_size) {
+
+  CHECK(adapter->NumRows() != data::kAdapterUnknownSize);
+  CHECK(adapter->NumColumns() != data::kAdapterUnknownSize);
+
+  adapter->BeforeFirst();
+  adapter->Next();
+  auto& batch = adapter->Value();
+
+  // Enforce single batch
+  CHECK(!adapter->Next());
+
+  HistogramCuts cuts;
+  DenseCuts dense_cuts(&cuts);
+  SketchContainer sketch_container(num_bins, adapter->NumColumns(),
+                                   adapter->NumRows());
+
+  constexpr int kFactor = 8;
+  double eps = 1.0 / (kFactor * num_bins);
+  size_t dummy_nlevel;
+  size_t num_cuts;
+  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
+       adapter->NumRows(), eps, &dummy_nlevel, &num_cuts);
+  num_cuts = std::min(num_cuts, adapter->NumRows());
+  if (sketch_batch_size == 0) {
+    sketch_batch_size = batch.Size();
+  }
+  for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_size) {
+    size_t end = std::min(batch.Size(), begin + sketch_batch_size);
+    ProcessBatch(adapter, begin, end, missing, &sketch_container, num_cuts);
+  }
+
+  dense_cuts.Init(&sketch_container.sketches_, num_bins, adapter->NumRows());
+  return cuts;
+}
+
+template HistogramCuts AdapterDeviceSketch(data::CudfAdapter* adapter,
+                                           int num_bins, float missing,
+                                           size_t sketch_batch_size);
+template HistogramCuts AdapterDeviceSketch(data::CupyAdapter* adapter,
+                                           int num_bins, float missing,
+                                           size_t sketch_batch_size);
 }  // namespace common
 }  // namespace xgboost

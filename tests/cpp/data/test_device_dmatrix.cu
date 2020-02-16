@@ -8,27 +8,31 @@
 #include <thrust/device_vector.h>
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../common/test_hist_util.h"
+#include <xgboost/predictor.h>
 using namespace xgboost;  // NOLINT
 
 TEST(DeviceDMatrix, Simple) {
   int num_rows = 10;
   int num_columns = 2;
-  auto *dmat = CreateDMatrix(num_rows, num_columns, 0.0);
+  auto x = common::GenerateRandom(num_rows, num_columns);
+  auto x_device = thrust::device_vector<float>(x);
+  auto adapter = common::AdapterFromData(x_device, num_rows, num_columns);
 
-  data::DeviceDMatrix device_dmat(dmat->get());
+  data::DeviceDMatrix device_dmat(&adapter,
+                                  std::numeric_limits<float>::quiet_NaN(), 1);
 
-  auto &batch = *device_dmat.GetBatches<EllpackPage>({0,256,0}).begin();
+  auto &batch = *device_dmat.GetBatches<EllpackPage>({0, 256, 0}).begin();
 
   auto gpu_lparam = CreateEmptyGenericParam(0);
-  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
 
   std::unique_ptr<Predictor> gpu_predictor = std::unique_ptr<Predictor>(
-      Predictor::Create("gpu_predictor", &gpu_lparam, cache));
+      Predictor::Create("gpu_predictor", &gpu_lparam));
 
   gpu_predictor->Configure({});
   LearnerModelParam param;
   gbm::GBTreeModel model = CreateTestModel(&param);
   HostDeviceVector<float> predictions(num_rows);
-  gpu_predictor->PredictBatch(&device_dmat, &predictions, model, 0);
-  delete dmat;
+  PredictionCacheEntry entry;
+  gpu_predictor->PredictBatch(&device_dmat, &entry, model, 0);
 }
