@@ -218,21 +218,6 @@ TEST(hist_util, Benchmark) {
   }
   std::cout << "\n";
 
-  std::cout << "DeviceSketchOld, ";
-  for (auto num_rows : sizes) {
-    auto x = GenerateRandom(num_rows, num_columns);
-    dmlc::TemporaryDirectory tmpdir;
-    auto dmat =
-      GetDMatrixFromData(x, num_rows, num_columns);
-    Timer t;
-    t.Start();
-    HistogramCuts cuts;
-    DeviceSketchOld(0,num_bins,0,&dmat,&cuts);
-    t.Stop();
-    std::cout << t.ElapsedSeconds() << ", ";
-  }
-  std::cout << "\n";
-
   std::cout << "WQSketch, ";
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
@@ -256,7 +241,6 @@ TEST(hist_util, BenchmarkNumColumns) {
   for (auto i = 4ull; i < 16; i += 2) {
     num_columns.push_back(1 << i);
   }
-  //num_columns = {1 << 16};
 
   std::cout << "Num columns, ";
   for (auto n : num_columns) {
@@ -285,20 +269,6 @@ TEST(hist_util, BenchmarkNumColumns) {
     Timer t;
     t.Start();
     auto cuts = DeviceSketch(0, &dmat, num_bins, 0);
-    t.Stop();
-    std::cout << t.ElapsedSeconds() << ", ";
-  }
-  std::cout << "\n";
-  std::cout << "DeviceSketchOld, ";
-  for (auto num_column : num_columns) {
-    auto x = GenerateRandom(num_rows, num_column);
-    dmlc::TemporaryDirectory tmpdir;
-    auto dmat =
-      GetDMatrixFromData(x, num_rows, num_column);
-    Timer t;
-    t.Start();
-    HistogramCuts cuts;
-    DeviceSketchOld(0,num_bins,0,&dmat,&cuts);
     t.Stop();
     std::cout << t.ElapsedSeconds() << ", ";
   }
