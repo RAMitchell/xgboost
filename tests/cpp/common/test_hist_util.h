@@ -146,26 +146,25 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
   EXPECT_EQ(std::set<float>(cuts_begin, cuts_end).size(),
             cuts_end - cuts_begin);
 
-  if (sorted_column.size() <= num_bins) {
+  auto unique = std::set<float>(sorted_column.begin(), sorted_column.end());
+  if (unique.size() <= num_bins) {
     // Less unique values than number of bins
     // Each value should get its own bin
-
-    // First check the inputs are unique
-    int num_unique =
-        std::set<float>(sorted_column.begin(), sorted_column.end()).size();
-    EXPECT_EQ(num_unique, sorted_column.size());
-    for (auto i = 0ull; i < sorted_column.size(); i++) {
-      ASSERT_EQ(cuts.SearchBin(sorted_column[i], column_idx),
-                cuts.Ptrs()[column_idx] + i);
+    int i = 0;
+    for (auto v : unique) {
+      ASSERT_EQ(cuts.SearchBin(v, column_idx), cuts.Ptrs()[column_idx] + i);
+      i++;
     }
   }
-  int num_cuts_column = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
-  std::vector<float> column_cuts(num_cuts_column);
-  std::copy(cuts.Values().begin() + cuts.Ptrs()[column_idx],
-            cuts.Values().begin() + cuts.Ptrs()[column_idx + 1],
-            column_cuts.begin());
-  TestBinDistribution(cuts, column_idx, sorted_column, num_bins);
-  TestRank(column_cuts, sorted_column);
+  else {
+    int num_cuts_column = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
+    std::vector<float> column_cuts(num_cuts_column);
+    std::copy(cuts.Values().begin() + cuts.Ptrs()[column_idx],
+      cuts.Values().begin() + cuts.Ptrs()[column_idx + 1],
+      column_cuts.begin());
+    TestBinDistribution(cuts, column_idx, sorted_column, num_bins);
+    TestRank(column_cuts, sorted_column);
+  }
 }
 
 // x is dense and row major

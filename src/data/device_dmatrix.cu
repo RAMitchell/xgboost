@@ -27,8 +27,6 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
   SimpleDMatrix dmat(adapter, missing, nthread);
 
   ellpack_page_.reset(new EllpackPage());
-  auto ellpack_impl = ellpack_page_->Impl();
-  ellpack_impl.reset(new EllpackPageImpl());
   info = dmat.Info();
   info.num_col_ = adapter->NumColumns();
   info.num_row_ = adapter->NumRows();

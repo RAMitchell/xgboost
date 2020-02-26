@@ -256,16 +256,18 @@ class DenseCuts  : public CutsBuilder {
  *
  *  \return The row stride across the entire dataset.
  */
-size_t DeviceSketch(int device,
+size_t DeviceSketchOld(int device,
                     int max_bin,
                     int gpu_batch_nrows,
                     DMatrix* dmat,
                     HistogramCuts* hmat);
 
+HistogramCuts DeviceSketch(int device, DMatrix*dmat, int max_bins, size_t sketch_batch_num_elements= 10000000);
+
 template <typename AdapterT>
 HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
                                   float missing,
-                                  size_t sketch_batch_size = 10000000);
+                                  size_t sketch_batch_num_elements = 10000000);
 
 /*!
  * \brief preprocessed global index matrix, in CSR format
