@@ -945,6 +945,7 @@ XGBOOST_REGISTER_OBJECTIVE(LambdaRankNDCG, NDCGLambdaWeightComputer::Name())
 XGBOOST_REGISTER_OBJECTIVE(LambdaRankObjMAP, MAPLambdaWeightComputer::Name())
 .describe("LambdaRank with MAP as objective.")
 .set_body([]() { return new LambdaRankObj<MAPLambdaWeightComputer>(); });
+
 #endif
 
 }  // namespace obj

@@ -350,4 +350,60 @@ TEST(Objective, CoxRegressionGPair) {
 }
 #endif
 
+
+TEST(Objective, DeclareUnifiedTest(AUCExponentialObj)) {
+  std::vector<std::pair<std::string, std::string>> args;
+  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  std::unique_ptr<xgboost::ObjFunction> obj{
+      xgboost::ObjFunction::Create("reg:auc_exp", &lparam)};
+
+  CheckObjFunction(obj, {1, -1, 0, 2}, {0, 0, 1, 1}, {1, 1, 1, 1},
+                   {3.08616f, 0.417666f, -3.0862f, -0.41767f},
+                   {3.08616f, 0.417666f, 3.0862f, 0.41767f});
+
+  // Incorrect label
+  EXPECT_ANY_THROW({
+    CheckObjFunction(obj, {1, -1, 0, 2}, {0, 0, 5, 1}, {1, 1, 1, 1},
+                     {3.08616f, 0.417666f, -3.0862f, -0.41767f},
+                     {3.08616f, 0.417666f, 3.0862f, 0.41767f});
+  });
+}
+
+TEST(Objective, DeclareUnifiedTest(AUCSquaredObj)) {
+  std::vector<std::pair<std::string, std::string>> args;
+  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  std::unique_ptr<xgboost::ObjFunction> obj{
+      xgboost::ObjFunction::Create("reg:auc_squared", &lparam)};
+
+  CheckObjFunction(obj, {1, -1, 0, 2}, {0, 0, 1, 1}, {1, 1, 1, 1},
+                   {2.0, -2.0, -2.0, 2.0}, {2.0, 2.0, 2.0, 2.0});
+
+  // Incorrect label
+  EXPECT_ANY_THROW({
+    CheckObjFunction(obj, {1, -1, 0, 2}, {0, 0, 5, 1}, {1, 1, 1, 1},
+                     {0.5,-0.5,-0.5,0.5}, {0.5, 0.5, 0.5, 0.5});
+  });
+}
+
+TEST(Objective, DeclareUnifiedTest(AUCHingeObj)) {
+  std::vector<std::pair<std::string, std::string>> args;
+  xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  std::unique_ptr<xgboost::ObjFunction> obj{
+      xgboost::ObjFunction::Create("reg:auc_hinge", &lparam)};
+
+  CheckObjFunction(obj, {2, 3, 1}, {0, 1, 1}, {1, 1, 1}, {1, 0, -1},
+                   {1.0, 1.0, 1.0});
+  CheckObjFunction(obj, {2, 3, 1}, {0, 0, 1}, {1, 1, 1}, {1, 1, -2},
+                   {1.0, 1.0, 1.0});
+  CheckObjFunction(obj, {1, 1, 1, -1, -1, -1}, {0, 0, 0, 1, 1, 1},
+                   {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, {3, 3, 3, -3, -3, -3},
+                   {1.0, 1.0, 1.0, 1.0, 1.0, 1.0});
+
+  CheckObjFunction(obj, {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, {0, 0, 0, 1, 1, 1},
+                   {1.0, 1.0, 1.0, 1.0, 1.0, 1.0}, {3, 3, 3, -3, -3, -3},
+                   {1.0, 1.0, 1.0, 1.0, 1.0, 1.0});
+}
 }  // namespace xgboost

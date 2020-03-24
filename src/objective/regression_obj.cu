@@ -12,6 +12,18 @@
 #include <memory>
 #include <vector>
 
+#if defined(__CUDACC__)
+#include <thrust/binary_search.h>
+#include <thrust/partition.h>
+#include <thrust/sort.h>
+#include <thrust/transform_reduce.h>
+#include <thrust/pair.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/zip_iterator.h>
+#include "../common/device_helpers.cuh"
+#endif
+
+#include <rabit/c_api.h>
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 #include "xgboost/parameter.h"
@@ -20,6 +32,7 @@
 #include "../common/transform.h"
 #include "../common/common.h"
 #include "./regression_loss.h"
+#include "../common/device_helpers.cuh"
 
 
 namespace xgboost {
@@ -564,6 +577,428 @@ DMLC_REGISTER_PARAMETER(TweedieRegressionParam);
 XGBOOST_REGISTER_OBJECTIVE(TweedieRegression, "reg:tweedie")
 .describe("Tweedie regression for insurance data.")
 .set_body([]() { return new TweedieRegression(); });
+
+
+class AUCExponentialObj : public ObjFunction {
+ public:
+  void Configure(
+      const std::vector<std::pair<std::string, std::string> >& args) override {}
+
+  std::pair<double, double> ReduceCPU(const HostDeviceVector<bst_float>& preds,
+                                      const MetaInfo& info) {
+    size_t const ndata = preds.Size();
+    double sum_exp_pos = 0.0;
+    double sum_exp_neg = 0.0;
+    const auto& label = info.labels_.ConstHostVector();
+    const auto& pred = preds.ConstHostVector();
+#pragma omp parallel for reduction(+: sum_exp_pos, sum_exp_neg ) schedule(static)
+    for (omp_ulong i = 0; i < ndata; ++i) {
+      if (label[i] == 1.0) {
+        sum_exp_pos += std::exp(-pred[i]);
+      } else if (label[i] == 0.0) {
+        sum_exp_neg += std::exp(pred[i]);
+      }
+    }
+    return {sum_exp_pos, sum_exp_neg};
+  }
+
+
+#if defined(__CUDACC__)
+  std::pair<double, double> ReduceGPU(const HostDeviceVector<bst_float>& preds,
+                                      const MetaInfo& info) {
+    preds.SetDevice(tparam_->gpu_id);
+    info.labels_.SetDevice(tparam_->gpu_id);
+    auto input = thrust::make_zip_iterator(thrust::make_tuple(
+        preds.ConstDevicePointer(), info.labels_.ConstDevicePointer()));
+
+    auto unary =
+        [=] __device__(
+            thrust::tuple<float, float> x) -> thrust::pair<double, double> {
+      float p = x.get<0>();
+      float y = x.get<1>();
+      if (y == 1.0) {
+        return {std::exp(-p), 0};
+      } else {
+        return {0, std::exp(p)};
+      }
+    };
+    dh::XGBCachingDeviceAllocator<char> alloc;
+    auto result = thrust::transform_reduce(
+        thrust::cuda::par(alloc), input, input + preds.Size(), unary,
+        thrust::pair<double, double>(0, 0),
+        [=] __device__(thrust::pair<double, double> a,
+                       thrust::pair<double, double> b) {
+          b.first += a.first;
+          b.second += a.second;
+          return b;
+        });
+    return std::pair<float, float>(result.first, result.second);
+  }
+#else
+  std::pair<double, double> ReduceGPU(const HostDeviceVector<bst_float>& preds,
+                                      const MetaInfo& info) {
+    LOG(FATAL) << "XGBoost not complied with GPU support.";
+    return {0.0, 0.0};
+  }
+#endif
+
+  void GetGradient(const HostDeviceVector<bst_float>& preds,
+                   const MetaInfo& info, int iter,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    if (info.labels_.Size() == 0U) {
+      LOG(WARNING) << "Label set is empty.";
+    }
+    CHECK_EQ(preds.Size(), info.labels_.Size());
+    out_gpair->Resize(preds.Size());
+
+    std::pair<double, double> pos_neg_sums;
+    if (tparam_->gpu_id >= 0) {
+      pos_neg_sums = ReduceGPU(preds, info);
+    } else {
+      pos_neg_sums = ReduceCPU(preds, info);
+    }
+    rabit::Allreduce<rabit::op::Sum, double>(
+        reinterpret_cast<double*>(&pos_neg_sums), 2);
+    const bool is_null_weight = info.weights_.Size() == 0;
+    label_correct_.Fill(1);
+
+    common::Transform<>::Init(
+        [=] XGBOOST_DEVICE(size_t _idx, common::Span<int> _label_correct,
+                           common::Span<GradientPair> _out_gpair,
+                           common::Span<const bst_float> _preds,
+                           common::Span<const bst_float> _labels,
+                           common::Span<const bst_float> _weights) {
+          bst_float p = _preds[_idx];
+          bst_float w = is_null_weight ? 1.0f : _weights[_idx];
+          bst_float y = _labels[_idx];
+          bst_float g = 0.0f;
+          bst_float h = 0.0f;
+          if (y == 1.0) {
+            g = -std::exp(-p) * pos_neg_sums.second * w;
+            h = -g;
+          } else if (y == 0.0) {
+            g = std::exp(p) * pos_neg_sums.first * w;
+            h = g;
+          } else {
+            _label_correct[0] = 0;
+          }
+          _out_gpair[_idx] = GradientPair(g, h);
+        },
+        common::Range{0, static_cast<int64_t>(preds.Size())}, tparam_->gpu_id)
+        .Eval(&label_correct_, out_gpair, &preds, &info.labels_,
+              &info.weights_);
+
+    if (label_correct_.ConstHostVector()[0] == 0) {
+      LOG(FATAL) << "Label must be 0.0 or 1.0";
+    }
+  }
+
+  void SaveConfig(Json* p_out) const override {}
+
+  void LoadConfig(Json const& in) override {}
+
+  const char* DefaultEvalMetric() const override { return "auc"; }
+
+ private:
+  HostDeviceVector<int> label_correct_{1};
+};
+XGBOOST_REGISTER_OBJECTIVE(AUCExponentialObj, "reg:auc_exp")
+    .describe("Direct AUC optimisation with exponential surrogate function.")
+    .set_body([]() { return new AUCExponentialObj(); });
+
+class AUCSquaredObj : public ObjFunction {
+ public:
+  void Configure(
+      const std::vector<std::pair<std::string, std::string> >& args) override {}
+
+  std::pair<double, double> ReduceCPU(const HostDeviceVector<bst_float>& preds,
+                                      const MetaInfo& info) {
+    size_t const ndata = preds.Size();
+    double sum_pos = 0.0;
+    double sum_neg = 0.0;
+    const auto& label = info.labels_.ConstHostVector();
+    const auto& pred = preds.ConstHostVector();
+#pragma omp parallel for reduction(+ : sum_pos, sum_neg) schedule(static)
+    for (omp_ulong i = 0; i < ndata; ++i) {
+      if (label[i] == 1.0) {
+        sum_pos += pred[i];
+      } else if (label[i] == 0.0) {
+        sum_neg += pred[i];
+      }
+    }
+    return {sum_pos, sum_neg};
+  }
+
+#if defined(__CUDACC__)
+  std::pair<double, double> ReduceGPU(const HostDeviceVector<bst_float>& preds,
+                                      const MetaInfo& info) {
+    preds.SetDevice(tparam_->gpu_id);
+    info.labels_.SetDevice(tparam_->gpu_id);
+    auto input = thrust::make_zip_iterator(thrust::make_tuple(
+        preds.ConstDevicePointer(), info.labels_.ConstDevicePointer()));
+
+    auto unary =
+        [=] __device__(
+            thrust::tuple<float, float> x) -> thrust::pair<double, double> {
+      float p = x.get<0>();
+      float y = x.get<1>();
+      if (y == 1.0) {
+        return {p, 0};
+      } else {
+        return {0, p};
+      }
+    };
+    dh::XGBCachingDeviceAllocator<char> alloc;
+    auto result = thrust::transform_reduce(
+        thrust::cuda::par(alloc), input, input + preds.Size(), unary,
+        thrust::pair<double, double>(0, 0),
+        [=] __device__(thrust::pair<double, double> a,
+                       thrust::pair<double, double> b) {
+          b.first += a.first;
+          b.second += a.second;
+          return b;
+        });
+    return std::pair<float, float>(result.first, result.second);
+  }
+#else
+  std::pair<double, double> ReduceGPU(const HostDeviceVector<bst_float>& preds,
+                                      const MetaInfo& info) {
+    LOG(FATAL) << "XGBoost not complied with GPU support.";
+    return {0.0, 0.0};
+  }
+#endif
+  void LazyCountLabels(const MetaInfo& info) {
+    // Lazily count positive/negative labels
+    if (num_pos_neg_.first == 0) {
+      for (auto y : info.labels_.ConstHostVector()) {
+        if (y == 1.0) {
+          num_pos_neg_.first += 1;
+        } else {
+          num_pos_neg_.second += 1;
+        }
+      }
+      rabit::Allreduce<rabit::op::Sum, size_t>(
+          reinterpret_cast<size_t*>(&num_pos_neg_), 2);
+      CHECK(num_pos_neg_.first && num_pos_neg_.second)
+          << "Can't have all positive or all negative labels";
+    }
+  }
+
+  void GetGradient(const HostDeviceVector<bst_float>& preds,
+                   const MetaInfo& info, int iter,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    if (info.labels_.Size() == 0U) {
+      LOG(WARNING) << "Label set is empty.";
+    }
+    CHECK_EQ(preds.Size(), info.labels_.Size());
+    out_gpair->Resize(preds.Size());
+
+    this->LazyCountLabels(info);
+    std::pair<double, double> pos_neg_sums;
+    if (tparam_->gpu_id >= 0) {
+      pos_neg_sums = ReduceGPU(preds, info);
+    } else {
+      pos_neg_sums = ReduceCPU(preds, info);
+    }
+    rabit::Allreduce<rabit::op::Sum, double>(
+        reinterpret_cast<double*>(&pos_neg_sums), 2);
+
+    const bool is_null_weight = info.weights_.Size() == 0;
+    label_correct_.Fill(1);
+    size_t num_positive = num_pos_neg_.first;
+    size_t num_negative = num_pos_neg_.second;
+
+    common::Transform<>::Init(
+        [=] XGBOOST_DEVICE(size_t _idx, common::Span<int> _label_correct,
+                           common::Span<GradientPair> _out_gpair,
+                           common::Span<const bst_float> _preds,
+                           common::Span<const bst_float> _labels,
+                           common::Span<const bst_float> _weights) {
+          bst_float p = _preds[_idx];
+          bst_float w = is_null_weight ? 1.0f : _weights[_idx];
+          bst_float y = _labels[_idx];
+          bst_float g = 0.0f;
+          bst_float h = 0.0f;
+          if (y == 1.0) {
+            g = ((p - 1) / num_positive) -
+                (pos_neg_sums.second / (num_positive * num_negative));
+            h = 1.0 / num_positive;
+          } else if (y == 0.0) {
+            g = ((p + 1) / num_negative) -
+                (pos_neg_sums.first / (num_positive * num_negative));
+            h = 1.0 / num_negative;
+          } else {
+            _label_correct[0] = 0;
+          }
+          // Keep Hessian around 2 otherwise min_child_weight prevents tree
+          // growth
+          float normalisation = num_negative + num_positive;
+          _out_gpair[_idx] =
+              GradientPair(g * w * normalisation, h * w * normalisation);
+        },
+        common::Range{0, static_cast<int64_t>(preds.Size())}, tparam_->gpu_id)
+        .Eval(&label_correct_, out_gpair, &preds, &info.labels_,
+              &info.weights_);
+
+    if (label_correct_.ConstHostVector()[0] == 0) {
+      LOG(FATAL) << "Label must be 0.0 or 1.0";
+    }
+  }
+
+  void SaveConfig(Json* p_out) const override {}
+
+  void LoadConfig(Json const& in) override {}
+
+  const char* DefaultEvalMetric() const override { return "auc"; }
+
+ private:
+  HostDeviceVector<int> label_correct_{1};
+  std::pair<size_t, size_t> num_pos_neg_{0, 0};
+};
+XGBOOST_REGISTER_OBJECTIVE(AUCSquaredObj, "reg:auc_squared")
+    .describe("Direct AUC optimisation with squared surrogate function.")
+    .set_body([]() { return new AUCSquaredObj(); });
+
+class AUCHingeObj : public ObjFunction {
+ public:
+  void Configure(
+      const std::vector<std::pair<std::string, std::string> >& args) override {
+    CHECK_EQ(rabit::GetWorldSize(), 1) << "Objective for single machine only.";
+  }
+#if defined(__CUDACC__)
+  void GetGradientDevice(const HostDeviceVector<bst_float>& preds,
+                         const MetaInfo& info, int iter,
+                         HostDeviceVector<GradientPair>* out_gpair) {
+    preds.SetDevice(tparam_->gpu_id);
+    info.labels_.SetDevice(tparam_->gpu_id);
+    info.weights_.SetDevice(tparam_->gpu_id);
+    out_gpair->SetDevice(tparam_->gpu_id);
+    dh::XGBCachingDeviceAllocator<char> alloc;
+    dh::caching_device_vector<float> sorted_preds(
+        thrust::device_pointer_cast(preds.ConstDevicePointer()),
+        thrust::device_pointer_cast(preds.ConstDevicePointer() + preds.Size()));
+    auto neg_iter =
+        thrust::partition(thrust::cuda::par(alloc), sorted_preds.begin(),
+                          sorted_preds.end(), info.labels_.ConstDevicePointer(),
+                          [=] __device__(float y) { return y == 1.0; });
+    size_t num_pos = neg_iter - sorted_preds.begin();
+    size_t num_neg = preds.Size() - num_pos;
+    // sort positives
+    thrust::sort(thrust::cuda::par(alloc), sorted_preds.begin(),
+                 sorted_preds.begin() + num_pos);
+    // sort negatives
+    thrust::sort(thrust::cuda::par(alloc), sorted_preds.begin() + num_pos,
+                 sorted_preds.end());
+    auto d_label = info.labels_.ConstDevicePointer();
+    auto d_preds = preds.ConstDevicePointer();
+    auto d_out_gpair = out_gpair->DevicePointer();
+    const bool is_null_weight = info.weights_.Size() == 0;
+    auto d_weight = info.weights_.ConstDevicePointer();
+    common::Span<float> sorted_pos(sorted_preds.data().get(), num_pos);
+    common::Span<float> sorted_neg(sorted_preds.data().get() + num_pos,
+                                   num_neg);
+    dh::LaunchN(tparam_->gpu_id, preds.Size(), [=] __device__(size_t idx) {
+      float w = is_null_weight ? 1.0f : d_weight[idx];
+      float y = d_label[idx];
+      float p = d_preds[idx];
+      float g, h;
+      if (y == 1.0) {
+        // Number of negative predictions greater than this prediction - 1
+        auto itr = thrust::upper_bound(thrust::seq, sorted_neg.begin(),
+                                       sorted_neg.end(), p - 1.0f);
+        g = -(sorted_neg.end() - itr);
+        h = 1.0;
+      } else {
+        // Number of positive predictions less than this prediction + 1
+        auto itr = thrust::lower_bound(thrust::seq, sorted_pos.begin(),
+                                       sorted_pos.end(), p + 1.0f);
+        g = itr - sorted_pos.begin();
+        h = 1.0;
+      }
+      d_out_gpair[idx] = GradientPair(g * w, h * w);
+    });
+  }
+#else
+  void GetGradientDevice(const HostDeviceVector<bst_float>& preds,
+                         const MetaInfo& info, int iter,
+                         HostDeviceVector<GradientPair>* out_gpair) {
+    LOG(FATAL) << "XGBoost not complied with GPU support.";
+  }
+#endif
+  void GetGradientHost(const HostDeviceVector<bst_float>& preds,
+                       const MetaInfo& info, int iter,
+                       HostDeviceVector<GradientPair>* out_gpair) {
+    std::vector<float> sorted_pos;
+    sorted_pos.reserve(preds.Size());
+    std::vector<float> sorted_neg;
+    sorted_neg.reserve(preds.Size());
+    auto& label = info.labels_.ConstHostVector();
+    auto& pred = preds.ConstHostVector();
+    for (auto i = 0ull; i < preds.Size(); i++) {
+      if (label[i] == 1.0) {
+        sorted_pos.push_back(pred[i]);
+      } else if (label[i] == 0.0) {
+        sorted_neg.push_back(pred[i]);
+      } else {
+        LOG(FATAL) << "Label must be 0.0 or 1.0";
+      }
+    }
+    std::sort(sorted_pos.begin(), sorted_pos.end());
+    std::sort(sorted_neg.begin(), sorted_neg.end());
+
+    size_t const ndata = preds.Size();
+    auto& out = out_gpair->HostVector();
+#pragma omp parallel for schedule(static)
+    for (omp_ulong i = 0; i < ndata; ++i) {
+      float w = info.GetWeight(i);
+      float y = label[i];
+      float p = pred[i];
+      float g, h;
+      if (y == 1.0) {
+        // Number of negative predictions greater than this prediction - 1
+        auto itr =
+            std::upper_bound(sorted_neg.begin(), sorted_neg.end(), p - 1.0f);
+        g = -(sorted_neg.end() - itr);
+        h = 1.0;
+      } else {
+        // Number of positive predictions less than this prediction + 1
+        auto itr =
+            std::lower_bound(sorted_pos.begin(), sorted_pos.end(), p + 1.0f);
+        g = itr - sorted_pos.begin();
+        h = 1.0;
+      }
+      out[i] = GradientPair(g * w, h * w);
+    }
+  }
+  void GetGradient(const HostDeviceVector<bst_float>& preds,
+                   const MetaInfo& info, int iter,
+                   HostDeviceVector<GradientPair>* out_gpair) override {
+    if (info.labels_.Size() == 0U) {
+      LOG(WARNING) << "Label set is empty.";
+    }
+    CHECK_EQ(preds.Size(), info.labels_.Size());
+    out_gpair->Resize(preds.Size());
+
+    if (tparam_->gpu_id >= 0) {
+      this->GetGradientDevice(preds, info, iter, out_gpair);
+    } else {
+      this->GetGradientHost(preds, info, iter, out_gpair);
+    }
+  }
+
+  void SaveConfig(Json* p_out) const override {}
+
+  void LoadConfig(Json const& in) override {}
+
+  const char* DefaultEvalMetric() const override { return "auc"; }
+
+ private:
+  HostDeviceVector<int> label_correct_{1};
+  std::pair<size_t, size_t> num_pos_neg_{0, 0};
+};
+XGBOOST_REGISTER_OBJECTIVE(AUCHingeObj, "reg:auc_hinge")
+    .describe("Direct AUC optimisation with hinge surrogate function.")
+    .set_body([]() { return new AUCHingeObj(); });
 
 }  // namespace obj
 }  // namespace xgboost
