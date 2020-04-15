@@ -228,6 +228,7 @@ TEST(GpuHist, EvaluateSplits) {
   maker.node_value_constraints.resize(1);
   maker.node_value_constraints[0].lower_bound = -1.0;
   maker.node_value_constraints[0].upper_bound = 1.0;
+  maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
 
   std::vector<DeviceSplitCandidate> res = maker.EvaluateSplits({0, 0 }, tree, kNCols);
 

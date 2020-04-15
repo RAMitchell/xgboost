@@ -60,6 +60,8 @@ struct DeviceSplitCandidate {
 
   GradientPair left_sum;
   GradientPair right_sum;
+  // Count number of training instances down left split
+  int64_t left_instances{0}; 
 
   XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
 

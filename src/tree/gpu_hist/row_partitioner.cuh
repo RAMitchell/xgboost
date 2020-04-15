@@ -58,13 +58,9 @@ class RowPartitioner {
   dh::DoubleBuffer<RowIndexT> ridx_;
   /*! \brief mapping for row -> node id. */
   dh::DoubleBuffer<bst_node_t> position_;
-  dh::caching_device_vector<int64_t>
-      left_counts_;  // Useful to keep a bunch of zeroed memory for sort position
-  std::vector<cudaStream_t> streams_;
 
  public:
   RowPartitioner(int device_idx, size_t num_rows);
-  ~RowPartitioner();
   RowPartitioner(const RowPartitioner&) = delete;
   RowPartitioner& operator=(const RowPartitioner&) = delete;
 
@@ -107,18 +103,12 @@ class RowPartitioner {
    */
   template <typename UpdatePositionOpT>
   void UpdatePosition(bst_node_t nidx, bst_node_t left_nidx,
-                      bst_node_t right_nidx, UpdatePositionOpT op) {
+                      bst_node_t right_nidx, size_t left_instances_count,UpdatePositionOpT op) {
     dh::safe_cuda(cudaSetDevice(device_idx_));
     Segment segment = ridx_segments_.at(nidx);  // rows belongs to node nidx
     auto d_ridx = ridx_.CurrentSpan();
     auto d_position = position_.CurrentSpan();
-    if (left_counts_.size() <= nidx) {
-      left_counts_.resize((nidx * 2) + 1);
-      thrust::fill(left_counts_.begin(), left_counts_.end(), 0);
-    }
     // Now we divide the row segment into left and right node.
-
-    int64_t* d_left_count = left_counts_.data().get() + nidx;
     // Launch 1 thread for each row
     dh::LaunchN<1, 128>(device_idx_, segment.Size(), [=] __device__(size_t idx) {
       // LaunchN starts from zero, so we restore the row index by adding segment.begin
@@ -126,26 +116,19 @@ class RowPartitioner {
       RowIndexT ridx = d_ridx[idx];
       bst_node_t new_position = op(ridx);  // new node id
       KERNEL_CHECK(new_position == left_nidx || new_position == right_nidx);
-      AtomicIncrement(d_left_count, new_position == left_nidx);
       d_position[idx] = new_position;
     });
-    // Overlap device to host memory copy (left_count) with sort
-    int64_t left_count;
-    dh::safe_cuda(cudaMemcpyAsync(&left_count, d_left_count, sizeof(int64_t),
-                                  cudaMemcpyDeviceToHost, streams_[0]));
 
-    SortPositionAndCopy(segment, left_nidx, right_nidx, d_left_count,
-                        streams_[1]);
+    SortPositionAndCopy(segment, left_nidx, right_nidx, left_instances_count);
 
-    dh::safe_cuda(cudaStreamSynchronize(streams_[0]));
-    CHECK_LE(left_count, segment.Size());
-    CHECK_GE(left_count, 0);
+    CHECK_LE(left_instances_count, segment.Size());
+    CHECK_GE(left_instances_count, 0);
     ridx_segments_.resize(std::max(static_cast<bst_node_t>(ridx_segments_.size()),
                                    std::max(left_nidx, right_nidx) + 1));
     ridx_segments_[left_nidx] =
-        Segment(segment.begin, segment.begin + left_count);
+        Segment(segment.begin, segment.begin + left_instances_count);
     ridx_segments_[right_nidx] =
-        Segment(segment.begin + left_count, segment.end);
+        Segment(segment.begin + left_instances_count, segment.end);
   }
 
   /**
@@ -179,13 +162,13 @@ class RowPartitioner {
                     common::Span<bst_node_t> position_out,
                     common::Span<RowIndexT> ridx,
                     common::Span<RowIndexT> ridx_out, bst_node_t left_nidx,
-                    bst_node_t right_nidx, int64_t* d_left_count,
-                    cudaStream_t stream = nullptr);
+                    bst_node_t right_nidx, int64_t left_count
+                   );
 
   /*! \brief Sort row indices according to position. */
   void SortPositionAndCopy(const Segment& segment, bst_node_t left_nidx,
-                           bst_node_t right_nidx, int64_t* d_left_count,
-                           cudaStream_t stream);
+                           bst_node_t right_nidx, int64_t left_count
+                           );
   /** \brief Used to demarcate a contiguous set of row indices associated with
    * some tree node. */
   struct Segment {

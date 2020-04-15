@@ -541,6 +541,7 @@ struct GPUHistMakerDevice {
     // Work out cub temporary memory requirement
     GPUTrainingParam gpu_param(param);
     DeviceSplitCandidateReduceOp op(gpu_param);
+    auto d_matrix = page->GetDeviceAccessor(device_id);
     size_t temp_storage_bytes = 0;
     DeviceSplitCandidate*dummy = nullptr;
     cub::DeviceReduce::Reduce(
@@ -606,6 +607,22 @@ struct GPUHistMakerDevice {
                                 cub_bytes, d_split_candidates.data(),
                                 d_result.data(), d_split_candidates.size(), op,
                                 DeviceSplitCandidate(), streams[i]);
+
+      // Count instances in left partition
+      auto d_ridx = row_partitioner->GetRows(nidx);
+      dh::LaunchN(device_id, d_ridx.size(), streams[i],[=]__device__ (size_t idx)
+      {
+        auto &split_entry = d_result_all[i];
+        size_t ridx = d_ridx[idx];
+        bst_float cut_value =
+            d_matrix.GetFvalue(ridx, split_entry.findex);
+        // Missing value
+        if (isnan(cut_value) && split_entry.dir == kLeftDir) {
+          AtomicIncrement(&split_entry.left_instances, true);
+        } else if (cut_value <= split_entry.fvalue) {
+          AtomicIncrement(&split_entry.left_instances, true);
+        } 
+      });
     }
 
     dh::safe_cuda(cudaMemcpy(result_all.data(), d_result_all.data(),
@@ -642,11 +659,11 @@ struct GPUHistMakerDevice {
            hist.HistogramExists(nidx_parent);
   }
 
-  void UpdatePosition(int nidx, RegTree::Node split_node) {
+  void UpdatePosition(ExpandEntry candidate, RegTree::Node split_node) {
     auto d_matrix = page->GetDeviceAccessor(device_id);
 
     row_partitioner->UpdatePosition(
-        nidx, split_node.LeftChild(), split_node.RightChild(),
+        candidate.nid, split_node.LeftChild(), split_node.RightChild(),candidate.split.left_instances,
         [=] __device__(bst_uint ridx) {
           // given a row index, returns the node id it belongs to
           bst_float cut_value =
@@ -898,7 +915,7 @@ struct GPUHistMakerDevice {
       if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
         monitor.StartCuda("UpdatePosition");
-        this->UpdatePosition(candidate.nid, (*p_tree)[candidate.nid]);
+        this->UpdatePosition(candidate, (*p_tree)[candidate.nid]);
         monitor.StopCuda("UpdatePosition");
 
         monitor.StartCuda("BuildHist");

@@ -12,9 +12,8 @@ namespace tree {
 void TestSortPosition(const std::vector<int>& position_in, int left_idx,
                       int right_idx) {
   dh::safe_cuda(cudaSetDevice(0));
-  std::vector<int64_t> left_count = {
-      std::count(position_in.begin(), position_in.end(), left_idx)};
-  dh::caching_device_vector<int64_t> d_left_count = left_count;
+  int64_t left_count = 
+      std::count(position_in.begin(), position_in.end(), left_idx);
   dh::caching_device_vector<int> position = position_in;
   dh::caching_device_vector<int> position_out(position.size());
 
@@ -27,7 +26,7 @@ void TestSortPosition(const std::vector<int>& position_in, int left_idx,
       common::Span<int>(position_out.data().get(), position_out.size()),
       common::Span<RowPartitioner::RowIndexT>(ridx.data().get(), ridx.size()),
       common::Span<RowPartitioner::RowIndexT>(ridx_out.data().get(), ridx_out.size()), left_idx,
-      right_idx, d_left_count.data().get(), nullptr);
+      right_idx, left_count);
   thrust::host_vector<int> position_result = position_out;
   thrust::host_vector<int> ridx_result = ridx_out;
 
@@ -35,9 +34,9 @@ void TestSortPosition(const std::vector<int>& position_in, int left_idx,
   EXPECT_TRUE(std::is_sorted(position_result.begin(), position_result.end()));
   // Check row indices are sorted inside left and right segment
   EXPECT_TRUE(
-      std::is_sorted(ridx_result.begin(), ridx_result.begin() + left_count[0]));
+      std::is_sorted(ridx_result.begin(), ridx_result.begin() + left_count));
   EXPECT_TRUE(
-      std::is_sorted(ridx_result.begin() + left_count[0], ridx_result.end()));
+      std::is_sorted(ridx_result.begin() + left_count, ridx_result.end()));
 
   // Check key value pairs are the same
   for (auto i = 0ull; i < ridx_result.size(); i++) {
@@ -61,7 +60,7 @@ void TestUpdatePosition() {
   }
   // Send the first five training instances to the right node
   // and the second 5 to the left node
-  rp.UpdatePosition(0, 1, 2,
+  rp.UpdatePosition(0, 1, 2,5,
     [=] __device__(RowPartitioner::RowIndexT ridx) {
     if (ridx > 4) {
       return 1;
@@ -80,7 +79,7 @@ void TestUpdatePosition() {
   }
 
   // Split the left node again
-  rp.UpdatePosition(1, 3, 4, [=]__device__(RowPartitioner::RowIndexT ridx)
+  rp.UpdatePosition(1, 3, 4,2, [=]__device__(RowPartitioner::RowIndexT ridx)
   {
     if (ridx < 7) {
       return 3
@@ -113,7 +112,7 @@ TEST(RowPartitioner, Finalise) { TestFinalise(); }
 
 void TestIncorrectRow() {
   RowPartitioner rp(0, 1);
-  rp.UpdatePosition(0, 1, 2, [=]__device__ (RowPartitioner::RowIndexT ridx)
+  rp.UpdatePosition(0, 1, 2, 0, [=] __device__(RowPartitioner::RowIndexT ridx)
   {
     return 4; // This is not the left branch or the right branch
   });

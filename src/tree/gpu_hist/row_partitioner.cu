@@ -26,7 +26,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
                                   common::Span<RowIndexT> ridx_out,
                                   bst_node_t left_nidx,
                                   bst_node_t right_nidx,
-                                  int64_t* d_left_count, cudaStream_t stream) {
+                                  int64_t left_count) {
   // radix sort over 1 bit, see:
   // https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html
   auto d_position_out = position_out.data();
@@ -42,7 +42,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
     } else {
       // current number of rows belong to right node + total number of rows belong to left
       // node
-      scatter_address = (idx - ex_scan_result) + *d_left_count;
+      scatter_address = (idx - ex_scan_result) + left_count;
     }
     // copy the node id to output
     d_position_out[scatter_address] = d_position_in[idx];
@@ -59,10 +59,10 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
   size_t temp_storage_bytes = 0;
   // position is of the same size with current split node's row segment
   cub::DeviceScan::ExclusiveSum(nullptr, temp_storage_bytes, in_itr, out_itr,
-                                position.size(), stream);
+                                position.size());
   dh::caching_device_vector<uint8_t> temp_storage(temp_storage_bytes);
   cub::DeviceScan::ExclusiveSum(temp_storage.data().get(), temp_storage_bytes,
-                                in_itr, out_itr, position.size(), stream);
+                                in_itr, out_itr, position.size());
 }
 
 RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
@@ -82,18 +82,6 @@ RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
   thrust::fill(
       thrust::device_pointer_cast(position_.Current()),
       thrust::device_pointer_cast(position_.Current() + position_.Size()), 0);
-  left_counts_.resize(256);
-  thrust::fill(left_counts_.begin(), left_counts_.end(), 0);
-  streams_.resize(2);
-  for (auto& stream : streams_) {
-    dh::safe_cuda(cudaStreamCreate(&stream));
-  }
-}
-RowPartitioner::~RowPartitioner() {
-  dh::safe_cuda(cudaSetDevice(device_idx_));
-  for (auto& stream : streams_) {
-    dh::safe_cuda(cudaStreamDestroy(stream));
-  }
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
@@ -132,8 +120,8 @@ std::vector<bst_node_t> RowPartitioner::GetPositionHost() {
 void RowPartitioner::SortPositionAndCopy(const Segment& segment,
                                          bst_node_t left_nidx,
                                          bst_node_t right_nidx,
-                                         int64_t* d_left_count,
-                                         cudaStream_t stream) {
+                                         int64_t left_count
+                                         ) {
   SortPosition(
       // position_in
       common::Span<bst_node_t>(position_.Current() + segment.begin,
@@ -145,13 +133,13 @@ void RowPartitioner::SortPositionAndCopy(const Segment& segment,
       common::Span<RowIndexT>(ridx_.Current() + segment.begin, segment.Size()),
       // row index out
       common::Span<RowIndexT>(ridx_.Other() + segment.begin, segment.Size()),
-      left_nidx, right_nidx, d_left_count, stream);
+      left_nidx, right_nidx, left_count);
   // Copy back key/value
   const auto d_position_current = position_.Current() + segment.begin;
   const auto d_position_other = position_.Other() + segment.begin;
   const auto d_ridx_current = ridx_.Current() + segment.begin;
   const auto d_ridx_other = ridx_.Other() + segment.begin;
-  dh::LaunchN(device_idx_, segment.Size(), stream, [=] __device__(size_t idx) {
+  dh::LaunchN(device_idx_, segment.Size(), [=] __device__(size_t idx) {
     d_position_current[idx] = d_position_other[idx];
     d_ridx_current[idx] = d_ridx_other[idx];
   });
