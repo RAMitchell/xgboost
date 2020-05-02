@@ -38,7 +38,7 @@ struct WriteResultsFunctor {
   common::Span<bst_node_t> position_out;
   common::Span<RowPartitioner::RowIndexT> ridx_in;
   common::Span<RowPartitioner::RowIndexT> ridx_out;
-  int64_t* d_left_count;
+  int64_t left_count;
 
   __device__ IndexFlagTuple operator()(const IndexFlagTuple& x) {
     // the ex_scan_result represents how many rows have been assigned to left
@@ -49,7 +49,7 @@ struct WriteResultsFunctor {
     } else {
       // current number of rows belong to right node + total number of rows
       // belong to left node
-      scatter_address = (x.idx - x.flag) + *d_left_count;
+      scatter_address = (x.idx - x.flag) + left_count;
     }
     // copy the node id to output
     position_out[scatter_address] = position_in[x.idx];
@@ -73,9 +73,9 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
                                   common::Span<RowIndexT> ridx,
                                   common::Span<RowIndexT> ridx_out,
                                   bst_node_t left_nidx, bst_node_t right_nidx,
-                                  int64_t* d_left_count, cudaStream_t stream) {
+                                  int64_t left_count, cudaStream_t stream) {
   WriteResultsFunctor write_results{left_nidx, position, position_out,
-                                    ridx,      ridx_out, d_left_count};
+                                    ridx,      ridx_out, left_count};
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(DiscardOverload(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
@@ -110,18 +110,6 @@ RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
   thrust::fill(
       thrust::device_pointer_cast(position_.Current()),
       thrust::device_pointer_cast(position_.Current() + position_.Size()), 0);
-  left_counts_.resize(256);
-  thrust::fill(left_counts_.begin(), left_counts_.end(), 0);
-  streams_.resize(2);
-  for (auto& stream : streams_) {
-    dh::safe_cuda(cudaStreamCreate(&stream));
-  }
-}
-RowPartitioner::~RowPartitioner() {
-  dh::safe_cuda(cudaSetDevice(device_idx_));
-  for (auto& stream : streams_) {
-    dh::safe_cuda(cudaStreamDestroy(stream));
-  }
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
@@ -160,7 +148,7 @@ std::vector<bst_node_t> RowPartitioner::GetPositionHost() {
 void RowPartitioner::SortPositionAndCopy(const Segment& segment,
                                          bst_node_t left_nidx,
                                          bst_node_t right_nidx,
-                                         int64_t* d_left_count,
+                                         int64_t left_count,
                                          cudaStream_t stream) {
   SortPosition(
       // position_in
@@ -173,7 +161,7 @@ void RowPartitioner::SortPositionAndCopy(const Segment& segment,
       common::Span<RowIndexT>(ridx_.Current() + segment.begin, segment.Size()),
       // row index out
       common::Span<RowIndexT>(ridx_.Other() + segment.begin, segment.Size()),
-      left_nidx, right_nidx, d_left_count, stream);
+      left_nidx, right_nidx, left_count, stream);
   // Copy back key/value
   const auto d_position_current = position_.Current() + segment.begin;
   const auto d_position_other = position_.Other() + segment.begin;

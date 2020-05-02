@@ -361,6 +361,21 @@ struct GPUHistMakerDevice {
         node_value_constraints[nidx],
         dh::ToSpan(monotone_constraints)};
     EvaluateSingleSplit(dh::ToSpan(splits_out), inputs);
+    // Count instances in left partition
+    auto d_ridx = row_partitioner->GetRows(nidx);
+    auto d_splits_out = dh::ToSpan(splits_out);
+    dh::LaunchN(device_id, d_ridx.size(),
+                [=] __device__(size_t idx) {
+                  auto& split_entry = d_splits_out[0];
+                  size_t ridx = d_ridx[idx];
+                  bst_float cut_value =
+                      matrix.GetFvalue(ridx, split_entry.findex);
+                  // Missing value
+                  if ((isnan(cut_value) && split_entry.dir == kLeftDir) ||
+                      cut_value <= split_entry.fvalue) {
+                    AtomicIncrement(&split_entry.left_instances, true);
+                  } 
+                });
     std::vector<DeviceSplitCandidate> result(1);
     dh::safe_cuda(cudaMemcpy(result.data(), splits_out.data().get(),
                              sizeof(DeviceSplitCandidate) * splits_out.size(),
@@ -410,7 +425,38 @@ struct GPUHistMakerDevice {
         hist.GetNodeHistogram(right_nidx),
         node_value_constraints[right_nidx],
         dh::ToSpan(monotone_constraints)};
-    EvaluateSplits(dh::ToSpan(splits_out), left, right);
+
+    auto d_splits_out = dh::ToSpan(splits_out);
+    EvaluateSplits(d_splits_out, left, right);
+    
+    // Count instances in left and right partition
+    auto d_ridx_left = row_partitioner->GetRows(left_nidx);
+    auto d_ridx_right = row_partitioner->GetRows(right_nidx);
+    auto d_matrix = page->GetDeviceAccessor(device_id);
+    dh::LaunchN(
+        device_id, d_ridx_left.size() + d_ridx_right.size(),
+        [=] __device__(size_t idx) {
+          bool is_left = idx < d_ridx_left.size();
+          if (is_left) {
+            auto& split_entry = d_splits_out[0];
+            size_t ridx = d_ridx_left[idx];
+            bst_float cut_value = d_matrix.GetFvalue(ridx, split_entry.findex);
+            // Missing value
+            if ((isnan(cut_value) && split_entry.dir == kLeftDir) ||
+                cut_value <= split_entry.fvalue) {
+              AtomicIncrement(&split_entry.left_instances, true);
+            }
+          } else {
+            auto& split_entry = d_splits_out[1];
+            size_t ridx = d_ridx_right[idx - d_ridx_left.size()];
+            bst_float cut_value = d_matrix.GetFvalue(ridx, split_entry.findex);
+            // Missing value
+            if ((isnan(cut_value) && split_entry.dir == kLeftDir) ||
+                cut_value <= split_entry.fvalue) {
+              AtomicIncrement(&split_entry.left_instances, true);
+            }
+          }
+        });
     std::vector<DeviceSplitCandidate> result(2);
     dh::safe_cuda(cudaMemcpy(result.data(), splits_out.data().get(),
                              sizeof(DeviceSplitCandidate) * splits_out.size(),
@@ -446,11 +492,11 @@ struct GPUHistMakerDevice {
            hist.HistogramExists(nidx_parent);
   }
 
-  void UpdatePosition(int nidx, RegTree::Node split_node) {
+  void UpdatePosition(ExpandEntry candidate, RegTree::Node split_node) {
     auto d_matrix = page->GetDeviceAccessor(device_id);
 
     row_partitioner->UpdatePosition(
-        nidx, split_node.LeftChild(), split_node.RightChild(),
+        candidate.nid,candidate.split.left_instances, split_node.LeftChild(), split_node.RightChild(),
         [=] __device__(bst_uint ridx) {
           // given a row index, returns the node id it belongs to
           bst_float cut_value =
@@ -695,7 +741,7 @@ struct GPUHistMakerDevice {
       if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
         monitor.StartCuda("UpdatePosition");
-        this->UpdatePosition(candidate.nid, (*p_tree)[candidate.nid]);
+        this->UpdatePosition(candidate, (*p_tree)[candidate.nid]);
         monitor.StopCuda("UpdatePosition");
 
         monitor.StartCuda("BuildHist");
