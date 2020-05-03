@@ -7,6 +7,18 @@
 namespace xgboost {
 namespace tree {
 
+template <typename T>
+struct SumCallbackOp {
+  // Running prefix
+  T running_total;
+  // Constructor
+  XGBOOST_DEVICE SumCallbackOp() : running_total(T()) {}
+  XGBOOST_DEVICE T operator()(T block_aggregate) {
+    T old_prefix = running_total;
+    running_total += block_aggregate;
+    return old_prefix;
+  }
+};
 // With constraints
 template <typename GradientPairT>
 XGBOOST_DEVICE float LossChangeMissing(const GradientPairT& scan,
@@ -136,7 +148,7 @@ __device__ void EvaluateFeature(
       }
       GradientSumT left = missing_left ? bin + missing : bin;
       GradientSumT right = inputs.parent_sum - left;
-      best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue,
+      best_split->Update(gain, missing_left ? DeviceSplitCandidate::kLeftDir : DeviceSplitCandidate::kRightDir, fvalue,
                          fidx, GradientPair(left), GradientPair(right),
                          inputs.param);
     }

@@ -20,13 +20,14 @@
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/timer.h"
+#include "../common/random.h"
 #include "../data/ellpack_page.cuh"
 #include "param.h"
-#include "updater_gpu_common.cuh"
 #include "constraints.cuh"
 #include "gpu_hist/gradient_based_sampler.cuh"
 #include "gpu_hist/row_partitioner.cuh"
 #include "gpu_hist/histogram.cuh"
+#include "gpu_hist/driver.cuh"
 #include "gpu_hist/evaluate_splits.cuh"
 
 namespace xgboost {
@@ -51,61 +52,10 @@ struct GPUHistMakerTrainParam
         "Check if all distributed tree are identical after tree construction.");
   }
 };
+
 #if !defined(GTEST_TEST)
 DMLC_REGISTER_PARAMETER(GPUHistMakerTrainParam);
 #endif  // !defined(GTEST_TEST)
-
-struct ExpandEntry {
-  int nid;
-  int depth;
-  DeviceSplitCandidate split;
-  uint64_t timestamp;
-  ExpandEntry() = default;
-  ExpandEntry(int nid, int depth, DeviceSplitCandidate split,
-              uint64_t timestamp)
-      : nid(nid), depth(depth), split(std::move(split)), timestamp(timestamp) {}
-  bool IsValid(const TrainParam& param, int num_leaves) const {
-    if (split.loss_chg <= kRtEps) return false;
-    if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
-      return false;
-    }
-    if (split.loss_chg < param.min_split_loss) { return false; }
-    if (param.max_depth > 0 && depth == param.max_depth) {return false; }
-    if (param.max_leaves > 0 && num_leaves == param.max_leaves) { return false; }
-    return true;
-  }
-
-  static bool ChildIsValid(const TrainParam& param, int depth, int num_leaves) {
-    if (param.max_depth > 0 && depth >= param.max_depth) return false;
-    if (param.max_leaves > 0 && num_leaves >= param.max_leaves) return false;
-    return true;
-  }
-
-  friend std::ostream& operator<<(std::ostream& os, const ExpandEntry& e) {
-    os << "ExpandEntry: \n";
-    os << "nidx: " << e.nid << "\n";
-    os << "depth: " << e.depth << "\n";
-    os << "loss: " << e.split.loss_chg << "\n";
-    os << "left_sum: " << e.split.left_sum << "\n";
-    os << "right_sum: " << e.split.right_sum << "\n";
-    return os;
-  }
-};
-
-inline static bool DepthWise(const ExpandEntry& lhs, const ExpandEntry& rhs) {
-  if (lhs.depth == rhs.depth) {
-    return lhs.timestamp > rhs.timestamp;  // favor small timestamp
-  } else {
-    return lhs.depth > rhs.depth;  // favor small depth
-  }
-}
-inline static bool LossGuide(const ExpandEntry& lhs, const ExpandEntry& rhs) {
-  if (lhs.split.loss_chg == rhs.split.loss_chg) {
-    return lhs.timestamp > rhs.timestamp;  // favor small timestamp
-  } else {
-    return lhs.split.loss_chg < rhs.split.loss_chg;  // favor large loss_chg
-  }
-}
 
 /**
  * \struct  DeviceHistogram
@@ -241,17 +191,10 @@ struct GPUHistMakerDevice {
 
   GradientSumT histogram_rounding;
 
-  std::vector<cudaStream_t> streams{};
-
   common::Monitor monitor;
   std::vector<ValueConstraint> node_value_constraints;
   common::ColumnSampler column_sampler;
   FeatureInteractionConstraintDevice interaction_constraints;
-
-  using ExpandQueue =
-      std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
-                          std::function<bool(ExpandEntry, ExpandEntry)>>;
-  std::unique_ptr<ExpandQueue> qexpand;
 
   std::unique_ptr<GradientBasedSampler> sampler;
 
@@ -283,40 +226,10 @@ struct GPUHistMakerDevice {
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
 
-  ~GPUHistMakerDevice() {  // NOLINT
-    dh::safe_cuda(cudaSetDevice(device_id));
-    for (auto& stream : streams) {
-      dh::safe_cuda(cudaStreamDestroy(stream));
-    }
-  }
-
-  // Get vector of at least n initialised streams
-  std::vector<cudaStream_t>& GetStreams(int n) {
-    if (n > streams.size()) {
-      for (auto& stream : streams) {
-        dh::safe_cuda(cudaStreamDestroy(stream));
-      }
-
-      streams.clear();
-      streams.resize(n);
-
-      for (auto& stream : streams) {
-        dh::safe_cuda(cudaStreamCreate(&stream));
-      }
-    }
-
-    return streams;
-  }
-
   // Reset values for each update iteration
   // Note that the column sampler must be passed by value because it is not
   // thread safe
   void Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* dmat, int64_t num_columns) {
-    if (param.grow_policy == TrainParam::kLossGuide) {
-      qexpand.reset(new ExpandQueue(LossGuide));
-    } else {
-      qexpand.reset(new ExpandQueue(DepthWise));
-    }
     this->column_sampler.Init(num_columns, param.colsample_bynode,
       param.colsample_bylevel, param.colsample_bytree);
     dh::safe_cuda(cudaSetDevice(device_id));
@@ -371,7 +284,7 @@ struct GPUHistMakerDevice {
                   bst_float cut_value =
                       matrix.GetFvalue(ridx, split_entry.findex);
                   // Missing value
-                  if ((isnan(cut_value) && split_entry.dir == kLeftDir) ||
+                  if ((isnan(cut_value) && split_entry.dir == DeviceSplitCandidate::kLeftDir) ||
                       cut_value <= split_entry.fvalue) {
                     AtomicIncrement(&split_entry.left_instances, true);
                   } 
@@ -442,7 +355,7 @@ struct GPUHistMakerDevice {
             size_t ridx = d_ridx_left[idx];
             bst_float cut_value = d_matrix.GetFvalue(ridx, split_entry.findex);
             // Missing value
-            if ((isnan(cut_value) && split_entry.dir == kLeftDir) ||
+            if ((isnan(cut_value) && split_entry.dir == DeviceSplitCandidate::kLeftDir) ||
                 cut_value <= split_entry.fvalue) {
               AtomicIncrement(&split_entry.left_instances, true);
             }
@@ -451,7 +364,7 @@ struct GPUHistMakerDevice {
             size_t ridx = d_ridx_right[idx - d_ridx_left.size()];
             bst_float cut_value = d_matrix.GetFvalue(ridx, split_entry.findex);
             // Missing value
-            if ((isnan(cut_value) && split_entry.dir == kLeftDir) ||
+            if ((isnan(cut_value) && split_entry.dir == DeviceSplitCandidate::kLeftDir) ||
                 cut_value <= split_entry.fvalue) {
               AtomicIncrement(&split_entry.left_instances, true);
             }
@@ -659,7 +572,7 @@ struct GPUHistMakerDevice {
                             param, candidate.split.right_sum) *
                         param.learning_rate;
     tree.ExpandNode(candidate.nid, candidate.split.findex,
-                    candidate.split.fvalue, candidate.split.dir == kLeftDir,
+                    candidate.split.fvalue, candidate.split.dir == DeviceSplitCandidate::kLeftDir,
                     base_weight, left_weight, right_weight,
                     candidate.split.loss_chg, parent_sum.GetHess(),
                      candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
@@ -681,7 +594,7 @@ struct GPUHistMakerDevice {
                                   tree[candidate.nid].RightChild());
   }
 
-  void InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
+  ExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
     GradientPair root_sum = thrust::reduce(
@@ -706,8 +619,7 @@ struct GPUHistMakerDevice {
 
     // Generate first split
     auto split = this->EvaluateRootSplit(root_sum);
-    qexpand->push(
-        ExpandEntry(kRootNIdx, p_tree->GetDepth(kRootNIdx), split, 0));
+    return ExpandEntry(kRootNIdx, p_tree->GetDepth(kRootNIdx), split, 0);
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat,
@@ -717,50 +629,51 @@ struct GPUHistMakerDevice {
     monitor.StartCuda("Reset");
     this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_);
     monitor.StopCuda("Reset");
-
+    Driver driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
     monitor.StartCuda("InitRoot");
-    this->InitRoot(p_tree, reducer);
+    driver.Push({ this->InitRoot(p_tree, reducer) });
     monitor.StopCuda("InitRoot");
 
-    auto timestamp = qexpand->size();
+    auto timestamp = 1;
     auto num_leaves = 1;
+    // The set of leaves that can be expanded asynchronously
+    auto expand_set = driver.Pop();
+    while (!expand_set.empty()) {
+      for (auto candidate : expand_set) {
+        if (!candidate.IsValid(param, num_leaves)) {
+          continue;
+        }
+        this->ApplySplit(candidate, p_tree);
 
-    while (!qexpand->empty()) {
-      ExpandEntry candidate = qexpand->top();
-      qexpand->pop();
-      if (!candidate.IsValid(param, num_leaves)) {
-        continue;
+        num_leaves++;
+
+        int left_child_nidx = tree[candidate.nid].LeftChild();
+        int right_child_nidx = tree[candidate.nid].RightChild();
+        // Only create child entries if needed
+        if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
+          num_leaves)) {
+          monitor.StartCuda("UpdatePosition");
+          this->UpdatePosition(candidate, (*p_tree)[candidate.nid]);
+          monitor.StopCuda("UpdatePosition");
+
+          monitor.StartCuda("BuildHist");
+          this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
+          monitor.StopCuda("BuildHist");
+
+          monitor.StartCuda("EvaluateSplits");
+          auto splits = this->EvaluateLeftRightSplits(candidate, left_child_nidx,
+            right_child_nidx,
+            *p_tree);
+          monitor.StopCuda("EvaluateSplits");
+
+          driver.Push(
+              {ExpandEntry(left_child_nidx, tree.GetDepth(left_child_nidx),
+                           splits.at(0), timestamp++),
+               ExpandEntry(right_child_nidx, tree.GetDepth(right_child_nidx),
+                           splits.at(1), timestamp++)});
+        }
       }
-      this->ApplySplit(candidate, p_tree);
-
-      num_leaves++;
-
-      int left_child_nidx = tree[candidate.nid].LeftChild();
-      int right_child_nidx = tree[candidate.nid].RightChild();
-      // Only create child entries if needed
-      if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
-                                    num_leaves)) {
-        monitor.StartCuda("UpdatePosition");
-        this->UpdatePosition(candidate, (*p_tree)[candidate.nid]);
-        monitor.StopCuda("UpdatePosition");
-
-        monitor.StartCuda("BuildHist");
-        this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
-        monitor.StopCuda("BuildHist");
-
-        monitor.StartCuda("EvaluateSplits");
-        auto splits = this->EvaluateLeftRightSplits(candidate, left_child_nidx,
-                                                   right_child_nidx,
-                                           *p_tree);
-        monitor.StopCuda("EvaluateSplits");
-
-        qexpand->push(ExpandEntry(left_child_nidx,
-                                   tree.GetDepth(left_child_nidx), splits.at(0),
-                                   timestamp++));
-        qexpand->push(ExpandEntry(right_child_nidx,
-                                   tree.GetDepth(right_child_nidx),
-                                   splits.at(1), timestamp++));
-      }
+      expand_set = driver.Pop();
     }
 
     monitor.StartCuda("FinalisePosition");
