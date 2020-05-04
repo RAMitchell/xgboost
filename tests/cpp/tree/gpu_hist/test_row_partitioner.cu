@@ -60,7 +60,7 @@ void TestUpdatePosition() {
   }
   // Send the first five training instances to the right node
   // and the second 5 to the left node
-  rp.UpdatePosition(0,5, 1, 2,
+  rp.UpdatePosition(0,5, 1, 2,nullptr,
     [=] __device__(RowPartitioner::RowIndexT ridx) {
     if (ridx > 4) {
       return 1;
@@ -79,7 +79,7 @@ void TestUpdatePosition() {
   }
 
   // Split the left node again
-  rp.UpdatePosition(1,2, 3, 4, [=]__device__(RowPartitioner::RowIndexT ridx)
+  rp.UpdatePosition(1,2, 3, 4,nullptr, [=]__device__(RowPartitioner::RowIndexT ridx)
   {
     if (ridx < 7) {
       return 3
@@ -112,7 +112,7 @@ TEST(RowPartitioner, Finalise) { TestFinalise(); }
 
 void TestIncorrectRow() {
   RowPartitioner rp(0, 1);
-  rp.UpdatePosition(0, 0, 1, 2, [=] __device__(RowPartitioner::RowIndexT ridx)
+  rp.UpdatePosition(0, 0, 1, 2,nullptr, [=] __device__(RowPartitioner::RowIndexT ridx)
   {
     return 4; // This is not the left branch or the right branch
   });

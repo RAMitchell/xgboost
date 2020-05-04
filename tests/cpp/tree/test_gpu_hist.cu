@@ -98,7 +98,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   maker.hist.AllocateHistogram(0);
   maker.gpair = gpair.DeviceSpan();
 
-  maker.BuildHist(0);
+  maker.BuildHist(0, nullptr);
   DeviceHistogram<GradientSumT> d_hist = maker.hist;
 
   auto node_histogram = d_hist.GetNodeHistogram(0);

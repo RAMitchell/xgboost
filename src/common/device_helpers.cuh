@@ -554,7 +554,6 @@ class AllReducer {
   std::vector<size_t> host_data_;  // Used for all reduce on host
 #ifdef XGBOOST_USE_NCCL
   ncclComm_t comm_;
-  cudaStream_t stream_;
   int device_ordinal_;
   ncclUniqueId id_;
 #endif
@@ -581,11 +580,11 @@ class AllReducer {
    * \param count                   Number of elements.
    */
 
-  void AllReduceSum(const double *sendbuff, double *recvbuff, int count) {
+  void AllReduceSum(const double *sendbuff, double *recvbuff, int count, cudaStream_t stream) {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum, comm_, stream_));
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclDouble, ncclSum, comm_, stream));
     allreduce_bytes_ += count * sizeof(double);
     allreduce_calls_ += 1;
 #endif
@@ -600,11 +599,11 @@ class AllReducer {
    * \param count                   Number of elements.
    */
 
-  void AllReduceSum(const float *sendbuff, float *recvbuff, int count) {
+  void AllReduceSum(const float *sendbuff, float *recvbuff, int count, cudaStream_t stream) {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclFloat, ncclSum, comm_, stream_));
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclFloat, ncclSum, comm_, stream));
     allreduce_bytes_ += count * sizeof(float);
     allreduce_calls_ += 1;
 #endif
@@ -620,26 +619,14 @@ class AllReducer {
    * \param count                   Number of.
    */
 
-  void AllReduceSum(const int64_t *sendbuff, int64_t *recvbuff, int count) {
+  void AllReduceSum(const int64_t *sendbuff, int64_t *recvbuff, int count, cudaStream_t stream) {
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
 
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclInt64, ncclSum, comm_, stream_));
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclInt64, ncclSum, comm_, stream));
 #endif
   }
-
-  /**
-   * \fn  void Synchronize()
-   *
-   * \brief Synchronizes the entire communication group.
-   */
-  void Synchronize() {
-#ifdef XGBOOST_USE_NCCL
-    dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    dh::safe_cuda(cudaStreamSynchronize(stream_));
-#endif
-  };
 
 #ifdef XGBOOST_USE_NCCL
   /**

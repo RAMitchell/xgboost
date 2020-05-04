@@ -93,10 +93,10 @@ struct EvaluateSplitInputs {
 template <typename GradientSumT>
 void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
                     EvaluateSplitInputs<GradientSumT> left,
-                    EvaluateSplitInputs<GradientSumT> right);
+                    EvaluateSplitInputs<GradientSumT> right,cudaStream_t stream=nullptr);
 template <typename GradientSumT>
 void EvaluateSingleSplit(common::Span<DeviceSplitCandidate> out_split,
-                         EvaluateSplitInputs<GradientSumT> input);
+                         EvaluateSplitInputs<GradientSumT> input,cudaStream_t stream=nullptr);
 }  // namespace tree
 }  // namespace xgboost
 

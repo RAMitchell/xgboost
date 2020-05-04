@@ -213,14 +213,14 @@ __device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
 template <typename GradientSumT>
 void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
                     EvaluateSplitInputs<GradientSumT> left,
-                    EvaluateSplitInputs<GradientSumT> right) {
+                    EvaluateSplitInputs<GradientSumT> right,cudaStream_t stream) {
   size_t combined_num_features =
       left.feature_set.size() + right.feature_set.size();
   dh::TemporaryArray<DeviceSplitCandidate> feature_best_splits(
       combined_num_features);
   // One block for each feature
   uint32_t constexpr kBlockThreads = 256;
-  dh::LaunchKernel {uint32_t(combined_num_features), kBlockThreads, 0}(
+  dh::LaunchKernel {uint32_t(combined_num_features), kBlockThreads, 0,stream}(
       EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right,
       dh::ToSpan(feature_best_splits));
 
@@ -242,32 +242,32 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
   size_t temp_storage_bytes = 0;
   cub::DeviceSegmentedReduce::Sum(nullptr, temp_storage_bytes,
                                   feature_best_splits.data(), out_splits.data(),
-                                  2, reduce_offset, reduce_offset + 1);
+                                  2, reduce_offset, reduce_offset + 1,stream);
   dh::TemporaryArray<int8_t> temp(temp_storage_bytes);
   cub::DeviceSegmentedReduce::Sum(temp.data().get(), temp_storage_bytes,
                                   feature_best_splits.data(), out_splits.data(),
-                                  2, reduce_offset, reduce_offset + 1);
+                                  2, reduce_offset, reduce_offset + 1,stream);
 }
 
 template <typename GradientSumT>
 void EvaluateSingleSplit(common::Span<DeviceSplitCandidate> out_split,
-                         EvaluateSplitInputs<GradientSumT> input) {
-  EvaluateSplits(out_split, input, {});
+                         EvaluateSplitInputs<GradientSumT> input,cudaStream_t stream) {
+  EvaluateSplits(out_split, input, {},stream);
 }
 
 template void EvaluateSplits<GradientPair>(
     common::Span<DeviceSplitCandidate> out_splits,
     EvaluateSplitInputs<GradientPair> left,
-    EvaluateSplitInputs<GradientPair> right);
+    EvaluateSplitInputs<GradientPair> right,cudaStream_t stream);
 template void EvaluateSplits<GradientPairPrecise>(
     common::Span<DeviceSplitCandidate> out_splits,
     EvaluateSplitInputs<GradientPairPrecise> left,
-    EvaluateSplitInputs<GradientPairPrecise> right);
+    EvaluateSplitInputs<GradientPairPrecise> right,cudaStream_t stream);
 template void EvaluateSingleSplit<GradientPair>(
     common::Span<DeviceSplitCandidate> out_split,
-    EvaluateSplitInputs<GradientPair> input);
+    EvaluateSplitInputs<GradientPair> input,cudaStream_t stream);
 template void EvaluateSingleSplit<GradientPairPrecise>(
     common::Span<DeviceSplitCandidate> out_split,
-    EvaluateSplitInputs<GradientPairPrecise> input);
+    EvaluateSplitInputs<GradientPairPrecise> input,cudaStream_t stream);
 }  // namespace tree
 }  // namespace xgboost

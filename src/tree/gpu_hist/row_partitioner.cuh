@@ -103,13 +103,13 @@ class RowPartitioner {
    */
   template <typename UpdatePositionOpT>
   void UpdatePosition(bst_node_t nidx, int64_t left_instances,bst_node_t left_nidx,
-                      bst_node_t right_nidx, UpdatePositionOpT op) {
+                      bst_node_t right_nidx,cudaStream_t stream ,UpdatePositionOpT op) {
     Segment segment = ridx_segments_.at(nidx);  // rows belongs to node nidx
     auto d_ridx = ridx_.CurrentSpan();
     auto d_position = position_.CurrentSpan();
     // Now we divide the row segment into left and right node.
     // Launch 1 thread for each row
-    dh::LaunchN<1, 128>(device_idx_, segment.Size(), [=] __device__(size_t idx) {
+    dh::LaunchN<1, 128>(device_idx_, segment.Size(), stream,[=] __device__(size_t idx) {
       // LaunchN starts from zero, so we restore the row index by adding segment.begin
       idx += segment.begin;
       RowIndexT ridx = d_ridx[idx];
@@ -117,7 +117,7 @@ class RowPartitioner {
       KERNEL_CHECK(new_position == left_nidx || new_position == right_nidx);
       d_position[idx] = new_position;
     });
-    SortPositionAndCopy(segment, left_nidx, right_nidx, left_instances
+    SortPositionAndCopy(segment, left_nidx, right_nidx, left_instances,stream
                         );
 
     CHECK_LE(left_instances, segment.Size());

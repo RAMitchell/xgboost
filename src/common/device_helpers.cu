@@ -69,7 +69,6 @@ void AllReducer::Init(int _device_ordinal) {
   id_ = GetUniqueId();
   dh::safe_cuda(cudaSetDevice(device_ordinal_));
   dh::safe_nccl(ncclCommInitRank(&comm_, rabit::GetWorldSize(), id_, rank));
-  safe_cuda(cudaStreamCreate(&stream_));
   initialised_ = true;
 #else
   if (rabit::IsDistributed()) {
@@ -81,7 +80,6 @@ void AllReducer::Init(int _device_ordinal) {
 AllReducer::~AllReducer() {
 #ifdef XGBOOST_USE_NCCL
   if (initialised_) {
-    dh::safe_cuda(cudaStreamDestroy(stream_));
     ncclCommDestroy(comm_);
   }
   if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {

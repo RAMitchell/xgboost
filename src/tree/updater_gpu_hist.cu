@@ -190,6 +190,7 @@ struct GPUHistMakerDevice {
   bool deterministic_histogram;
 
   GradientSumT histogram_rounding;
+  std::vector<cudaStream_t> streams{};
 
   common::Monitor monitor;
   std::vector<ValueConstraint> node_value_constraints;
@@ -226,6 +227,30 @@ struct GPUHistMakerDevice {
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
   }
 
+  ~GPUHistMakerDevice() {  // NOLINT
+    dh::safe_cuda(cudaSetDevice(device_id));
+    for (auto& stream : streams) {
+      dh::safe_cuda(cudaStreamDestroy(stream));
+    }
+  }
+
+  // Get vector of at least n initialised streams
+  std::vector<cudaStream_t>& GetStreams(int n) {
+    if (n > streams.size()) {
+      for (auto& stream : streams) {
+        dh::safe_cuda(cudaStreamDestroy(stream));
+      }
+
+      streams.clear();
+      streams.resize(n);
+
+      for (auto& stream : streams) {
+        dh::safe_cuda(cudaStreamCreate(&stream));
+      }
+    }
+
+    return streams;
+  }
   // Reset values for each update iteration
   // Note that the column sampler must be passed by value because it is not
   // thread safe
@@ -280,6 +305,7 @@ struct GPUHistMakerDevice {
     dh::LaunchN(device_id, d_ridx.size(),
                 [=] __device__(size_t idx) {
                   auto& split_entry = d_splits_out[0];
+                  if (split_entry.loss_chg <= kRtEps) return;
                   size_t ridx = d_ridx[idx];
                   bst_float cut_value =
                       matrix.GetFvalue(ridx, split_entry.findex);
@@ -298,7 +324,7 @@ struct GPUHistMakerDevice {
 
   void EvaluateLeftRightSplits(
       ExpandEntry candidate, int left_nidx, int right_nidx,
-      const RegTree& tree,common::Span<ExpandEntry>new_candidates_out) {
+      const RegTree& tree,common::Span<ExpandEntry>new_candidates_out,cudaStream_t stream) {
     CHECK_EQ(new_candidates_out.size(), 2);
     dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
     GPUTrainingParam gpu_param(param);
@@ -341,19 +367,19 @@ struct GPUHistMakerDevice {
         dh::ToSpan(monotone_constraints)};
 
     auto d_splits_out = dh::ToSpan(splits_out);
-    EvaluateSplits(d_splits_out, left, right);
-    dh::safe_cuda(cudaDeviceSynchronize());
+    EvaluateSplits(d_splits_out, left, right, stream);
     
     // Count instances in left and right partition
     auto d_ridx_left = row_partitioner->GetRows(left_nidx);
     auto d_ridx_right = row_partitioner->GetRows(right_nidx);
     auto d_matrix = page->GetDeviceAccessor(device_id);
     dh::LaunchN(
-        device_id, d_ridx_left.size() + d_ridx_right.size(),
+        device_id, d_ridx_left.size() + d_ridx_right.size(),stream,
         [=] __device__(size_t idx) {
           bool is_left = idx < d_ridx_left.size();
           if (is_left) {
             auto& split_entry = d_splits_out[0];
+            if (split_entry.loss_chg <= kRtEps)return;
             size_t ridx = d_ridx_left[idx];
             bst_float cut_value = d_matrix.GetFvalue(ridx, split_entry.findex);
             // Missing value
@@ -363,6 +389,7 @@ struct GPUHistMakerDevice {
             }
           } else {
             auto& split_entry = d_splits_out[1];
+            if (split_entry.loss_chg <= kRtEps)return;
             size_t ridx = d_ridx_right[idx - d_ridx_left.size()];
             bst_float cut_value = d_matrix.GetFvalue(ridx, split_entry.findex);
             // Missing value
@@ -372,36 +399,35 @@ struct GPUHistMakerDevice {
             }
           }
         });
-    dh::safe_cuda(cudaDeviceSynchronize());
     // Create candidates
     dh::TemporaryArray<ExpandEntry> new_candidates(splits_out.size());
     auto d_new_candidates = new_candidates.data();
-    dh::LaunchN(device_id, new_candidates.size(), [=]__device__(size_t idx)
+    dh::LaunchN(device_id, new_candidates.size(),stream, [=]__device__(size_t idx)
     {
       d_new_candidates[idx] =
           ExpandEntry(idx == 0 ? left_nidx : right_nidx, candidate.depth + 1,
                       d_splits_out[idx], 0);
     });
-    dh::safe_cuda(cudaMemcpy(new_candidates_out.data(), new_candidates.data().get(),
+    dh::safe_cuda(cudaMemcpyAsync(new_candidates_out.data(), new_candidates.data().get(),
                              sizeof(ExpandEntry) * new_candidates.size(),
-                             cudaMemcpyDeviceToHost));
+                        cudaMemcpyDeviceToHost,stream)
+        );
   }
 
-  void BuildHist(int nidx) {
+  void BuildHist(int nidx, cudaStream_t stream) {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist,
-                           histogram_rounding);
+    BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist, histogram_rounding, stream);
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
-                        int nidx_subtraction) {
+                        int nidx_subtraction,cudaStream_t stream) {
     auto d_node_hist_parent = hist.GetNodeHistogram(nidx_parent);
     auto d_node_hist_histogram = hist.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetNodeHistogram(nidx_subtraction);
 
-    dh::LaunchN(device_id, page->Cuts().TotalBins(), [=] __device__(size_t idx) {
+    dh::LaunchN(device_id, page->Cuts().TotalBins(), stream,[=] __device__(size_t idx) {
       d_node_hist_subtraction[idx] =
           d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
@@ -415,11 +441,12 @@ struct GPUHistMakerDevice {
            hist.HistogramExists(nidx_parent);
   }
 
-  void UpdatePosition(ExpandEntry candidate, RegTree::Node split_node) {
+  void UpdatePosition(ExpandEntry candidate, RegTree::Node split_node,cudaStream_t stream) {
     auto d_matrix = page->GetDeviceAccessor(device_id);
 
     row_partitioner->UpdatePosition(
-        candidate.nid,candidate.split.left_instances, split_node.LeftChild(), split_node.RightChild(),
+        candidate.nid, candidate.split.left_instances, split_node.LeftChild(),
+        split_node.RightChild(),stream,
         [=] __device__(bst_uint ridx) {
           // given a row index, returns the node id it belongs to
           bst_float cut_value =
@@ -523,14 +550,15 @@ struct GPUHistMakerDevice {
     row_partitioner.reset();
   }
 
-  void AllReduceHist(int nidx, dh::AllReducer* reducer) {
+  void AllReduceHist(int nidx, dh::AllReducer* reducer,cudaStream_t stream) {
     monitor.StartCuda("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     reducer->AllReduceSum(
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-        page->Cuts().TotalBins() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
-    reducer->Synchronize();
+        page->Cuts().TotalBins() *
+            (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)),
+        stream);
 
     monitor.StopCuda("AllReduce");
   }
@@ -539,7 +567,7 @@ struct GPUHistMakerDevice {
    * \brief Build GPU local histograms for the left and right child of some parent node
    */
   void BuildHistLeftRight(const ExpandEntry &candidate, int nidx_left,
-        int nidx_right, dh::AllReducer* reducer) {
+        int nidx_right, dh::AllReducer* reducer,cudaStream_t stream) {
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
 
@@ -550,8 +578,8 @@ struct GPUHistMakerDevice {
       std::swap(build_hist_nidx, subtraction_trick_nidx);
     }
 
-    this->BuildHist(build_hist_nidx);
-    this->AllReduceHist(build_hist_nidx, reducer);
+    this->BuildHist(build_hist_nidx, stream);
+    this->AllReduceHist(build_hist_nidx, reducer,stream);
 
     // Check whether we can use the subtraction trick to calculate the other
     bool do_subtraction_trick = this->CanDoSubtractionTrick(
@@ -560,11 +588,11 @@ struct GPUHistMakerDevice {
     if (do_subtraction_trick) {
       // Calculate other histogram using subtraction trick
       this->SubtractionTrick(candidate.nid, build_hist_nidx,
-                             subtraction_trick_nidx);
+                             subtraction_trick_nidx,stream);
     } else {
       // Calculate other histogram manually
-      this->BuildHist(subtraction_trick_nidx);
-      this->AllReduceHist(subtraction_trick_nidx, reducer);
+      this->BuildHist(subtraction_trick_nidx,stream);
+      this->AllReduceHist(subtraction_trick_nidx, reducer,stream);
     }
   }
 
@@ -614,8 +642,8 @@ struct GPUHistMakerDevice {
     rabit::Allreduce<rabit::op::Sum, float>(reinterpret_cast<float*>(&root_sum),
                                             2);
 
-    this->BuildHist(kRootNIdx);
-    this->AllReduceHist(kRootNIdx, reducer);
+    this->BuildHist(kRootNIdx,nullptr);
+    this->AllReduceHist(kRootNIdx, reducer, nullptr);
 
     // Remember root stats
     node_sum_gradients[kRootNIdx] = root_sum;
@@ -649,8 +677,11 @@ struct GPUHistMakerDevice {
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
       std::vector<ExpandEntry> new_candidates(expand_set.size() * 2);
+      dh::safe_cuda(cudaHostRegister(new_candidates.data(),sizeof(ExpandEntry)*new_candidates.size(),0));
+      auto streams = this->GetStreams(new_candidates.size());
       for(auto i = 0ull; i < expand_set.size(); i++){
         auto candidate = expand_set.at(i);
+        auto stream = streams.at(i);
         if (!candidate.IsValid(param, num_leaves)) {
           continue;
         }
@@ -664,20 +695,22 @@ struct GPUHistMakerDevice {
         if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
           num_leaves)) {
           monitor.StartCuda("UpdatePosition");
-          this->UpdatePosition(candidate, (*p_tree)[candidate.nid]);
+          this->UpdatePosition(candidate, (*p_tree)[candidate.nid], stream);
           monitor.StopCuda("UpdatePosition");
 
           monitor.StartCuda("BuildHist");
-          this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
+          this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer, stream);
           monitor.StopCuda("BuildHist");
 
           monitor.StartCuda("EvaluateSplits");
            this->EvaluateLeftRightSplits(candidate, left_child_nidx,
             right_child_nidx, *p_tree,
-                                        {new_candidates.data() + i * 2, 2});
+                                        {new_candidates.data() + i * 2, 2},stream);
           monitor.StopCuda("EvaluateSplits");
         }
       }
+      dh::safe_cuda(cudaDeviceSynchronize());
+      dh::safe_cuda(cudaHostUnregister(new_candidates.data()));
       driver.Push(new_candidates);
       expand_set = driver.Pop();
     }
