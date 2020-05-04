@@ -296,9 +296,10 @@ struct GPUHistMakerDevice {
     return result.front();
   }
 
-  std::vector<DeviceSplitCandidate> EvaluateLeftRightSplits(
+  void EvaluateLeftRightSplits(
       ExpandEntry candidate, int left_nidx, int right_nidx,
-      const RegTree& tree) {
+      const RegTree& tree,common::Span<ExpandEntry>new_candidates_out) {
+    CHECK_EQ(new_candidates_out.size(), 2);
     dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
     GPUTrainingParam gpu_param(param);
     auto left_sampled_features =
@@ -341,6 +342,7 @@ struct GPUHistMakerDevice {
 
     auto d_splits_out = dh::ToSpan(splits_out);
     EvaluateSplits(d_splits_out, left, right);
+    dh::safe_cuda(cudaDeviceSynchronize());
     
     // Count instances in left and right partition
     auto d_ridx_left = row_partitioner->GetRows(left_nidx);
@@ -370,11 +372,19 @@ struct GPUHistMakerDevice {
             }
           }
         });
-    std::vector<DeviceSplitCandidate> result(2);
-    dh::safe_cuda(cudaMemcpy(result.data(), splits_out.data().get(),
-                             sizeof(DeviceSplitCandidate) * splits_out.size(),
+    dh::safe_cuda(cudaDeviceSynchronize());
+    // Create candidates
+    dh::TemporaryArray<ExpandEntry> new_candidates(splits_out.size());
+    auto d_new_candidates = new_candidates.data();
+    dh::LaunchN(device_id, new_candidates.size(), [=]__device__(size_t idx)
+    {
+      d_new_candidates[idx] =
+          ExpandEntry(idx == 0 ? left_nidx : right_nidx, candidate.depth + 1,
+                      d_splits_out[idx], 0);
+    });
+    dh::safe_cuda(cudaMemcpy(new_candidates_out.data(), new_candidates.data().get(),
+                             sizeof(ExpandEntry) * new_candidates.size(),
                              cudaMemcpyDeviceToHost));
-    return result;
   }
 
   void BuildHist(int nidx) {
@@ -634,12 +644,13 @@ struct GPUHistMakerDevice {
     driver.Push({ this->InitRoot(p_tree, reducer) });
     monitor.StopCuda("InitRoot");
 
-    auto timestamp = 1;
     auto num_leaves = 1;
     // The set of leaves that can be expanded asynchronously
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
-      for (auto candidate : expand_set) {
+      std::vector<ExpandEntry> new_candidates(expand_set.size() * 2);
+      for(auto i = 0ull; i < expand_set.size(); i++){
+        auto candidate = expand_set.at(i);
         if (!candidate.IsValid(param, num_leaves)) {
           continue;
         }
@@ -661,18 +672,13 @@ struct GPUHistMakerDevice {
           monitor.StopCuda("BuildHist");
 
           monitor.StartCuda("EvaluateSplits");
-          auto splits = this->EvaluateLeftRightSplits(candidate, left_child_nidx,
-            right_child_nidx,
-            *p_tree);
+           this->EvaluateLeftRightSplits(candidate, left_child_nidx,
+            right_child_nidx, *p_tree,
+                                        {new_candidates.data() + i * 2, 2});
           monitor.StopCuda("EvaluateSplits");
-
-          driver.Push(
-              {ExpandEntry(left_child_nidx, tree.GetDepth(left_child_nidx),
-                           splits.at(0), timestamp++),
-               ExpandEntry(right_child_nidx, tree.GetDepth(right_child_nidx),
-                           splits.at(1), timestamp++)});
         }
       }
+      driver.Push(new_candidates);
       expand_set = driver.Pop();
     }
 

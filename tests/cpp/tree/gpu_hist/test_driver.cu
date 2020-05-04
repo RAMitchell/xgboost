@@ -8,12 +8,15 @@ TEST(GpuHist, DriverDepthWise)
 {
   Driver driver(TrainParam::kDepthWise);
   EXPECT_TRUE(driver.Pop().empty());
-  ExpandEntry root(0,0,{},0);
+  DeviceSplitCandidate split;
+  split.loss_chg = 1.0f;
+  ExpandEntry root(0,0,split,0);
   driver.Push({root});
   EXPECT_EQ(driver.Pop().front().nid, 0);
-  driver.Push({ExpandEntry{1,1,{},1}});
-  driver.Push({ExpandEntry{2,1,{},1}});
-  driver.Push({ExpandEntry{3,2,{},1}});
+  driver.Push({ExpandEntry{1,1,split,1}});
+  driver.Push({ExpandEntry{2,1,
+    split,1}});
+  driver.Push({ExpandEntry{3, 2, split, 1}});
   // Should return entries from level 1
   auto res = driver.Pop();
   EXPECT_EQ(res.size(), 2);
@@ -28,16 +31,16 @@ TEST(GpuHist, DriverDepthWise)
 
 TEST(GpuHist, DriverLossGuided)
 {
-  Driver driver(TrainParam::kLossGuide);
-  EXPECT_TRUE(driver.Pop().empty());
-  ExpandEntry root(0,0,{},0);
-  driver.Push({root});
-  EXPECT_EQ(driver.Pop().front().nid, 0);
   DeviceSplitCandidate high_gain;
   high_gain.loss_chg = 5.0f;
   DeviceSplitCandidate low_gain;
   low_gain.loss_chg = 1.0f;
 
+  Driver driver(TrainParam::kLossGuide);
+  EXPECT_TRUE(driver.Pop().empty());
+  ExpandEntry root(0,0,high_gain,0);
+  driver.Push({root});
+  EXPECT_EQ(driver.Pop().front().nid, 0);
   // Select high gain first
   driver.Push({ExpandEntry{1,1,low_gain,1}});
   driver.Push({ExpandEntry{2,2,high_gain,2}});

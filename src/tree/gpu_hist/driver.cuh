@@ -78,7 +78,9 @@ inline bool LossGuide(const ExpandEntry& lhs, const ExpandEntry& rhs) {
     {
       for(auto &e:entries)
       {
-        queue.push(e);
+        if (e.split.loss_chg > kRtEps) {
+          queue.push(e);
+        }
       }
     }
     // Return the set of nodes to be expanded
