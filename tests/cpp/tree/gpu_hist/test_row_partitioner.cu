@@ -116,10 +116,11 @@ void TestIncorrectRow() {
   {
     return 4; // This is not the left branch or the right branch
   });
+  dh::safe_cuda(cudaDeviceSynchronize());
 }
 
 TEST(RowPartitioner, IncorrectRow) {
-  ASSERT_DEATH({ TestIncorrectRow(); },".*");
+  EXPECT_ANY_THROW({ TestIncorrectRow(); });
 }
 }  // namespace tree
 }  // namespace xgboost

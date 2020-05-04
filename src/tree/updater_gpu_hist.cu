@@ -85,6 +85,8 @@ class DeviceHistogram {
   void Init(int device_id, int n_bins) {
     this->n_bins_ = n_bins;
     this->device_id_ = device_id;
+    // Initialise to moderate size
+    this->data_.resize(2 * n_bins * 256);
   }
 
   void Reset() {
@@ -107,7 +109,7 @@ class DeviceHistogram {
     return data_;
   }
 
-  void AllocateHistogram(int nidx) {
+  void AllocateHistogram(int nidx,cudaStream_t stream=nullptr) {
     if (HistogramExists(nidx)) return;
     // Number of items currently used in data
     const size_t used_size = nidx_map_.size() * HistogramSize();
@@ -125,7 +127,7 @@ class DeviceHistogram {
       }
       // Zero recycled memory
       auto d_data = data_.data().get() + nidx_map_[nidx];
-      dh::LaunchN(device_id_, n_bins_ * 2,
+      dh::LaunchN(device_id_, n_bins_ * 2,stream,
                   [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     } else {
       // Append new node histogram
@@ -415,7 +417,7 @@ struct GPUHistMakerDevice {
   }
 
   void BuildHist(int nidx, cudaStream_t stream) {
-    hist.AllocateHistogram(nidx);
+    hist.AllocateHistogram(nidx, stream);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist, histogram_rounding, stream);
@@ -434,9 +436,9 @@ struct GPUHistMakerDevice {
   }
 
   bool CanDoSubtractionTrick(int nidx_parent, int nidx_histogram,
-                             int nidx_subtraction) {
+                             int nidx_subtraction,cudaStream_t stream) {
     // Make sure histograms are already allocated
-    hist.AllocateHistogram(nidx_subtraction);
+    hist.AllocateHistogram(nidx_subtraction,stream);
     return hist.HistogramExists(nidx_histogram) &&
            hist.HistogramExists(nidx_parent);
   }
@@ -583,7 +585,7 @@ struct GPUHistMakerDevice {
 
     // Check whether we can use the subtraction trick to calculate the other
     bool do_subtraction_trick = this->CanDoSubtractionTrick(
-        candidate.nid, build_hist_nidx, subtraction_trick_nidx);
+        candidate.nid, build_hist_nidx, subtraction_trick_nidx, stream);
 
     if (do_subtraction_trick) {
       // Calculate other histogram using subtraction trick

@@ -25,7 +25,7 @@ TEST(GpuHist, DeviceHistogram) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
   dh::safe_cuda(cudaSetDevice(0));
   constexpr size_t kNBins = 128;
-  constexpr size_t kNNodes = 4;
+  constexpr size_t kNNodes = 512;
   constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
   DeviceHistogram<GradientPairPrecise, kStopGrowing> histogram;
   histogram.Init(0, kNBins);
@@ -113,7 +113,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   std::vector<GradientPairPrecise> solution = GetHostHistGpair();
   std::cout << std::fixed;
-  for (size_t i = 0; i < h_result.size(); ++i) {
+  for (size_t i = 0; i < solution.size(); ++i) {
     EXPECT_NEAR(h_result[i].GetGrad(), solution[i].GetGrad(), 0.01f);
     EXPECT_NEAR(h_result[i].GetHess(), solution[i].GetHess(), 0.01f);
   }
@@ -200,7 +200,7 @@ TEST(GpuHist, EvaluateRootSplit) {
     hist.push_back(pair.GetHess());
   }
 
-  ASSERT_EQ(maker.hist.Data().size(), hist.size());
+  ASSERT_GE(maker.hist.Data().size(), hist.size());
   thrust::copy(hist.begin(), hist.end(),
     maker.hist.Data().begin());
 
