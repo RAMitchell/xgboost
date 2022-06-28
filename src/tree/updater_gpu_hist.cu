@@ -298,7 +298,7 @@ struct GPUHistMakerDevice {
     auto matrix = page->GetDeviceAccessor(ctx_->gpu_id);
     EvaluateSplitSharedInputs shared_inputs{
         GPUTrainingParam(param), feature_types,     matrix.feature_segments,
-        matrix.gidx_fvalue_map,  matrix.min_fvalue,
+        matrix.gidx_fvalue_map,  matrix.min_fvalue, matrix.is_dense
     };
     dh::TemporaryArray<GPUExpandEntry> entries(2 * candidates.size());
     for (int i = 0; i < candidates.size(); i++) {
