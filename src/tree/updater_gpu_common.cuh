@@ -64,7 +64,7 @@ struct DeviceSplitCandidate {
   GradientPairPrecise left_sum;
   GradientPairPrecise right_sum;
 
-  XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
+  //XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
 
   template <typename ParamT>
   XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
@@ -98,11 +98,11 @@ struct DeviceSplitCandidate {
     fvalue = std::max(this->fvalue, static_cast<float>(c));
   }
 
-  XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in,
-                             float fvalue_in, int findex_in,
-                             GradientPairPrecise left_sum_in,
-                             GradientPairPrecise right_sum_in,
-                             bool cat,
+  XGBOOST_DEVICE void Update(const float &loss_chg_in, const DefaultDirection &dir_in,
+                             const float &fvalue_in,const  int &findex_in,
+                             const GradientPairPrecise &left_sum_in,
+                             const GradientPairPrecise &right_sum_in,
+                             const bool &cat,
                              const GPUTrainingParam& param) {
     if (loss_chg_in > loss_chg &&
         left_sum_in.GetHess() >= param.min_child_weight &&

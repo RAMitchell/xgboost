@@ -336,7 +336,7 @@ TEST(GpuHist, EvaluateSplitsBenchmark) {
   dh::device_vector<EvaluateSplitInputs> inputs = h_inputs;
   evaluator.LaunchEvaluateSplits(feature_set.size(), dh::ToSpan(inputs), shared_inputs,
                                  evaluator.GetEvaluator(), dh::ToSpan(out_splits));
-
+  thrust::reduce(histogram.begin(), histogram.end());
 }
 }  // namespace tree
 }  // namespace xgboost
