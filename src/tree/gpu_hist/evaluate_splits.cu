@@ -269,89 +269,101 @@ __global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernel(bst_featur
   }
 }
 
-template <int BLOCK_THREADS, typename ScanT,typename LoadT, typename MaxReduceT,
-          typename TempStorageT, typename GradientSumT>
-__device__ void EvaluateFeatureOptimised(
-    int fidx, const EvaluateSplitInputs &inputs,const EvaluateSplitSharedInputs &shared_inputs,
-    DeviceSplitCandidate *__restrict__ best_split,  // shared memory storing best split
-    TempStorageT *__restrict__ temp_storage         // temp memory for cub operations
-) {
-  // Use pointer from cut to indicate begin and end of bins for each feature.
-  dh::LDGIterator<uint32_t> feature_segments(shared_inputs.feature_segments.data());
-  dh::LDGIterator<float> min_fvalue(shared_inputs.min_fvalue.data());
-  dh::LDGIterator<float> feature_values(shared_inputs.feature_values.data());
-  const GradientSumT parent_sum = dh::LDGIterator<GradientSumT>(&inputs.parent_sum)[0];
-  const uint32_t gidx_begin = feature_segments[fidx];  // beginning bin
-  const uint32_t gidx_end =
-      feature_segments[fidx + 1];  // end bin for i^th feature
-
-  float const null_gain = -std::numeric_limits<bst_float>::infinity();
-
-  // for (int scan_begin = gidx_begin; scan_begin < gidx_end; scan_begin += BLOCK_THREADS) {
-  const int scan_begin = gidx_begin;
-  const bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
-
-  double tmp[2];
-  LoadT(temp_storage->load)
-      .Load(reinterpret_cast<const double *>(inputs.gradient_histogram.data() + scan_begin), tmp,
-            min(BLOCK_THREADS, gidx_end - scan_begin) * 2);
-  GradientSumT &bin = *reinterpret_cast<GradientSumT *>(tmp);
-
-  ScanT(temp_storage->scan).ExclusiveSum(tmp[0], tmp[0]);
-  __syncthreads();
-  ScanT(temp_storage->scan).ExclusiveSum(tmp[1], tmp[1]);
-  // Whether the gradient of missing values is put to the left side.
-  float gain = thread_active ? LossChange(bin, parent_sum, shared_inputs.param) : null_gain;
-
-
-  // Find thread with best gain
-  cub::KeyValuePair<int, float> tuple(threadIdx.x, gain);
-  cub::KeyValuePair<int, float> best =
-      MaxReduceT(temp_storage->max_reduce).Reduce(tuple, cub::ArgMax());
-
-  __shared__ cub::KeyValuePair<int, float> block_max;
-  if (threadIdx.x == 0) {
-    block_max = best;
-  }
-
-  cub::CTA_SYNC();
-
-  // Best thread updates the split
-  if (threadIdx.x == block_max.key) {
-    // Use pointer from cut to indicate begin and end of bins for each feature.
-    int split_gidx = (scan_begin + threadIdx.x) - 1;
-    float fvalue;
-    if (split_gidx < static_cast<int>(gidx_begin)) {
-      fvalue = min_fvalue[fidx];
-    } else {
-      fvalue = feature_values[split_gidx];
-    }
-    const GradientPairPrecise left = bin;
-    const GradientPairPrecise right = inputs.parent_sum - bin;
-    *best_split = DeviceSplitCandidate{gain, kLeftDir, fidx, fvalue, {},false,left, right};
-    //best_split->Update(gain, kLeftDir, fvalue, fidx, left, right, false, shared_inputs.param);
-  }
-  // cub::CTA_SYNC();
-  //}
-}
 template <int BLOCK_THREADS, typename GradientSumT>
-__global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernelOptimised(bst_feature_t number_active_features, const EvaluateSplitInputs *__restrict__ d_inputs, 
-                                     const EvaluateSplitSharedInputs shared_inputs,
-                                     DeviceSplitCandidate *__restrict__ out_candidates) {
-  // KeyValuePair here used as threadIdx.x -> gain_value
+class EvaluateSplitAgent {
+ public:
   using ArgMaxT = cub::KeyValuePair<int, float>;
-  using BlockScanT = cub::BlockScan<double, BLOCK_THREADS, cub::BLOCK_SCAN_WARP_SCANS>;
-  using MaxReduceT = cub::BlockReduce<ArgMaxT, BLOCK_THREADS>;
-  typedef cub::BlockLoad<double, BLOCK_THREADS, 2, cub::BLOCK_LOAD_WARP_TRANSPOSE> BlockLoadT;
-
+  using BlockScanT = cub::BlockScan<GradientSumT, BLOCK_THREADS>;
+  using MaxReduceT =
+      cub::BlockReduce<ArgMaxT, BLOCK_THREADS, cub::BLOCK_REDUCE_RAKING_COMMUTATIVE_ONLY>;
+  using BlockLoadT = cub::BlockLoad<double, BLOCK_THREADS, 2, cub::BLOCK_LOAD_WARP_TRANSPOSE>;
   struct TempStorage {
     typename BlockScanT::TempStorage scan;
     typename MaxReduceT::TempStorage max_reduce;
     typename BlockLoadT::TempStorage load;
   };
-  __shared__ TempStorage temp_storage;
 
-  /*
+  const int fidx;
+  const float min_fvalue;
+  const uint32_t gidx_begin;  // beginning bin
+  const uint32_t gidx_end;    // end bin for i^th feature
+  const dh::LDGIterator<float> feature_values;
+  const GradientSumT *node_histogram;
+  const GradientSumT parent_sum;
+  const GPUTrainingParam &param;
+  TempStorage *temp_storage;
+  SumCallbackOp<GradientSumT> prefix_op;
+
+    __device__ EvaluateSplitAgent(TempStorage *temp_storage, int fidx,
+                                  const EvaluateSplitInputs &inputs,
+                                  const EvaluateSplitSharedInputs &shared_inputs)
+        : temp_storage(temp_storage),
+          fidx(fidx),
+          min_fvalue(__ldg(shared_inputs.min_fvalue.data())),
+          gidx_begin(__ldg(shared_inputs.feature_segments.data() + fidx)),
+          gidx_end(__ldg(shared_inputs.feature_segments.data() + fidx + 1)),
+          feature_values(shared_inputs.feature_values.data()),node_histogram(inputs.gradient_histogram.data()),
+          parent_sum(dh::LDGIterator<GradientSumT>(&inputs.parent_sum)[0]),param(shared_inputs.param) {}
+
+    __device__ __forceinline__ void ProcessTile(const int scan_begin,
+        DeviceSplitCandidate *__restrict__ best_split) {
+      float const null_gain = -std::numeric_limits<bst_float>::infinity();
+
+      const bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
+
+      double tmp[2];
+      BlockLoadT(temp_storage->load)
+          .Load(reinterpret_cast<const double *>(node_histogram + scan_begin),
+                tmp, min(BLOCK_THREADS, gidx_end - scan_begin) * 2);
+      GradientSumT &bin = *reinterpret_cast<GradientSumT *>(tmp);
+
+      BlockScanT(temp_storage->scan).ExclusiveSum(bin, bin, prefix_op);
+      // Whether the gradient of missing values is put to the left side.
+      float gain = thread_active ? LossChange(bin, parent_sum, param) : null_gain;
+
+      // Find thread with best gain
+      cub::KeyValuePair<int, float> tuple(threadIdx.x, gain);
+      cub::KeyValuePair<int, float> best =
+          MaxReduceT(temp_storage->max_reduce).Reduce(tuple, cub::ArgMax());
+
+      __shared__ cub::KeyValuePair<int, float> block_max;
+      if (threadIdx.x == 0) {
+        block_max = best;
+      }
+
+      cub::CTA_SYNC();
+
+      // Best thread updates the split
+      if (threadIdx.x == block_max.key) {
+        // Use pointer from cut to indicate begin and end of bins for each feature.
+        int split_gidx = (scan_begin + threadIdx.x) - 1;
+        float fvalue;
+        if (split_gidx < static_cast<int>(gidx_begin)) {
+          fvalue = min_fvalue;
+        } else {
+          fvalue = feature_values[split_gidx];
+        }
+        const GradientPairPrecise right = parent_sum - bin;
+        best_split->Update(gain, kLeftDir, fvalue, fidx, bin, right, false, param);
+      }
+      cub::CTA_SYNC();
+    }
+
+    __device__ __forceinline__ void EvaluateFeatureOptimised(
+        DeviceSplitCandidate *__restrict__ best_split) {
+      int offset = gidx_begin;
+      while (offset < gidx_end) {
+        ProcessTile(offset, best_split);
+        offset += BLOCK_THREADS;
+      }
+    }
+};
+
+template <int BLOCK_THREADS, typename GradientSumT>
+__global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernelOptimised(bst_feature_t number_active_features, const EvaluateSplitInputs *__restrict__ d_inputs, 
+                                     const EvaluateSplitSharedInputs shared_inputs,
+                                     DeviceSplitCandidate *__restrict__ out_candidates) {
+
   // Aligned && shared storage for best_split
   __shared__ cub::Uninitialized<DeviceSplitCandidate> uninitialized_split;
   DeviceSplitCandidate& best_split = uninitialized_split.Alias();
@@ -361,7 +373,6 @@ __global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernelOptimised(b
   }
 
   __syncthreads();
-  */
 
   // Allocate blocks to one feature of one node
   const auto input_idx = blockIdx.x / number_active_features;
@@ -369,17 +380,15 @@ __global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernelOptimised(b
 
   const int fidx = blockIdx.x % number_active_features;
 
-  EvaluateFeatureOptimised<BLOCK_THREADS, BlockScanT, BlockLoadT,MaxReduceT, TempStorage, GradientSumT
-                  >(fidx, inputs, shared_inputs, out_candidates + blockIdx.x ,
-                        &temp_storage);
+  using AgentT = EvaluateSplitAgent<BLOCK_THREADS, GradientSumT>;
+  __shared__ typename AgentT::TempStorage temp_storage;
+  AgentT(&temp_storage, fidx, inputs, shared_inputs).EvaluateFeatureOptimised(&best_split);
 
-                        /*
   cub::CTA_SYNC();
   if (threadIdx.x == 0) {
     // Record best loss for each feature
     out_candidates[blockIdx.x] = best_split;
   }
-  */
 }
 
 __device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
@@ -444,7 +453,7 @@ void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(bst_feature_t number_a
   dh::TemporaryArray<DeviceSplitCandidate> feature_best_splits(combined_num_features);
 
   // One block for each feature
-  uint32_t constexpr kBlockThreads = 256;
+  uint32_t constexpr kBlockThreads = 32;
   if (shared_inputs.is_dense && !has_categoricals_ && number_active_features == shared_inputs.Features() && !evaluator.has_constraint) {
     dh::LaunchKernel{static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
         EvaluateSplitsKernelOptimised<kBlockThreads, GradientSumT>, number_active_features, d_inputs.data(),

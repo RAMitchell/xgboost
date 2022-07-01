@@ -64,7 +64,7 @@ struct DeviceSplitCandidate {
   GradientPairPrecise left_sum;
   GradientPairPrecise right_sum;
 
-  //XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
+  XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
 
   template <typename ParamT>
   XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
