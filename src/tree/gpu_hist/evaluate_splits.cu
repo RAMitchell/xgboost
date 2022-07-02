@@ -37,12 +37,20 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
   }
 }
 
-XGBOOST_DEVICE float LossChange(const GradientPairPrecise &scan,
+template <typename TrainingParams>
+__device__  inline float CalcGainFast(const TrainingParams &p, float sum_grad, float sum_hess) {
+  return __fdividef(common::Sqr(sum_grad) , (sum_hess + p.reg_lambda));
+}
+template <typename TrainingParams>
+__device__  inline float CalcGainFast(const TrainingParams &p, const GradientPairPrecise &stat) {
+  return CalcGainFast(p, stat.GetGrad(), stat.GetHess());
+}
+
+__device__  float LossChange(const GradientPairPrecise &scan,
                                 const GradientPairPrecise &parent_sum,
                                 const GPUTrainingParam &param) {  // NOLINT
-  float parent_gain = CalcGain(param, parent_sum);
-  float gain = CalcGain(param, scan) + CalcGain(param, parent_sum - scan);
-  return gain - parent_gain;
+  float gain = CalcGainFast(param, scan) + CalcGainFast(param, parent_sum - scan);
+  return gain;
 }
 
 /*!
