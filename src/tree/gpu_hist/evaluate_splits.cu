@@ -281,14 +281,12 @@ template <int BLOCK_THREADS, typename GradientSumT>
 class EvaluateSplitAgent {
  public:
   using ArgMaxT = cub::KeyValuePair<int, float>;
-  using BlockScanT = cub::BlockScan<GradientSumT, BLOCK_THREADS>;
+  using BlockScanT = cub::WarpScan<GradientSumT, BLOCK_THREADS>;
   using MaxReduceT =
-      cub::BlockReduce<ArgMaxT, BLOCK_THREADS, cub::BLOCK_REDUCE_RAKING_COMMUTATIVE_ONLY>;
-  using BlockLoadT = cub::BlockLoad<double, BLOCK_THREADS, 2, cub::BLOCK_LOAD_WARP_TRANSPOSE>;
+      cub::WarpReduce<ArgMaxT, BLOCK_THREADS>;
   struct TempStorage {
     typename BlockScanT::TempStorage scan;
     typename MaxReduceT::TempStorage max_reduce;
-    typename BlockLoadT::TempStorage load;
   };
 
   const int fidx;
@@ -300,7 +298,7 @@ class EvaluateSplitAgent {
   const GradientSumT parent_sum;
   const GPUTrainingParam &param;
   TempStorage *temp_storage;
-  SumCallbackOp<GradientSumT> prefix_op;
+  GradientSumT running_sum;
 
     __device__ EvaluateSplitAgent(TempStorage *temp_storage, int fidx,
                                   const EvaluateSplitInputs &inputs,
@@ -319,13 +317,16 @@ class EvaluateSplitAgent {
 
       const bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
 
-      double tmp[2];
-      BlockLoadT(temp_storage->load)
-          .Load(reinterpret_cast<const double *>(node_histogram + scan_begin),
-                tmp, min(BLOCK_THREADS, gidx_end - scan_begin) * 2);
-      GradientSumT &bin = *reinterpret_cast<GradientSumT *>(tmp);
+      float4 tmp = thread_active
+                        ? reinterpret_cast<const float4 *>(node_histogram)[scan_begin + threadIdx.x]
+                        : float4();
 
-      BlockScanT(temp_storage->scan).ExclusiveSum(bin, bin, prefix_op);
+      GradientSumT &bin = *reinterpret_cast<GradientSumT *>(&tmp);
+
+      GradientSumT tile_sum;
+      BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin,GradientSumT(), cub::Sum(), tile_sum);
+      bin += running_sum;
+      running_sum += tile_sum;
       // Whether the gradient of missing values is put to the left side.
       float gain = thread_active ? LossChange(bin, parent_sum, param) : null_gain;
 
