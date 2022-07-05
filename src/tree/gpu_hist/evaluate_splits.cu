@@ -19,21 +19,21 @@ XGBOOST_DEVICE float LossChangeMissing(const GradientPairPrecise &scan,
                                        const GradientPairPrecise &parent_sum,
                                        const GPUTrainingParam &param, bst_node_t nidx,
                                        bst_feature_t fidx,
-                                       TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                                       const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator,
                                        bool &missing_left_out) {  // NOLINT
-  float parent_gain = CalcGain(param, parent_sum);
   float missing_left_gain =
-      evaluator.CalcSplitGain(param, nidx, fidx, GradStats(scan + missing),
-                              GradStats(parent_sum - (scan + missing)));
+      evaluator.CalcSplitGain(param, nidx, fidx, scan + missing,
+                              parent_sum - (scan + missing));
+
   float missing_right_gain = evaluator.CalcSplitGain(
-      param, nidx, fidx, GradStats(scan), GradStats(parent_sum - scan));
+      param, nidx, fidx, scan, parent_sum - scan);
 
   if (missing_left_gain > missing_right_gain) {
     missing_left_out = true;
-    return missing_left_gain - parent_gain;
+    return missing_left_gain ;
   } else {
     missing_left_out = false;
-    return missing_right_gain - parent_gain;
+    return missing_right_gain ;
   }
 }
 
@@ -289,7 +289,6 @@ __device__ ReductionValue operator+(const ReductionValue &a, const ReductionValu
 template <int BLOCK_THREADS, typename GradientSumT>
 class EvaluateSplitAgent {
  public:
-  //using ArgMaxT = cub::KeyValuePair<int, float>;
   using BlockScanT = cub::WarpScan<GradientSumT, BLOCK_THREADS>;
   using ReduceT =
       cub::WarpReduce<ReductionValue, BLOCK_THREADS>;
@@ -298,6 +297,7 @@ class EvaluateSplitAgent {
     typename ReduceT::TempStorage reduce;
   };
 
+  const int nidx;
   const int fidx;
   const float min_fvalue;
   const uint32_t gidx_begin;  // beginning bin
@@ -308,43 +308,56 @@ class EvaluateSplitAgent {
   const GPUTrainingParam &param;
   TempStorage *temp_storage;
   GradientSumT running_sum;
+  const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator;
 
-    __device__ EvaluateSplitAgent(TempStorage *temp_storage, int fidx,
-                                  const EvaluateSplitInputs &inputs,
-                                  const EvaluateSplitSharedInputs &shared_inputs,const GradientSumT&parent_sum)
-        : temp_storage(temp_storage),
-          fidx(fidx),
-          min_fvalue(__ldg(shared_inputs.min_fvalue.data())),
-          gidx_begin(__ldg(shared_inputs.feature_segments.data() + fidx)),
-          gidx_end(__ldg(shared_inputs.feature_segments.data() + fidx + 1)),
-          feature_values(shared_inputs.feature_values.data()),node_histogram(inputs.gradient_histogram.data()),
-          parent_sum(parent_sum),param(shared_inputs.param) {}
+  __device__ EvaluateSplitAgent(TempStorage *temp_storage, int nidx, int fidx,
+                                const EvaluateSplitInputs &inputs,
+                                const EvaluateSplitSharedInputs &shared_inputs,
+                                const GradientSumT &parent_sum,
+                                const TreeEvaluator::SplitEvaluator<GPUTrainingParam> &evaluator)
+      : temp_storage(temp_storage),
+        nidx(nidx),
+        fidx(fidx),
+        min_fvalue(__ldg(shared_inputs.min_fvalue.data())),
+        gidx_begin(__ldg(shared_inputs.feature_segments.data() + fidx)),
+        gidx_end(__ldg(shared_inputs.feature_segments.data() + fidx + 1)),
+        feature_values(shared_inputs.feature_values.data()),
+        node_histogram(inputs.gradient_histogram.data()),
+        parent_sum(parent_sum),
+        param(shared_inputs.param),
+        evaluator(evaluator) {}
 
-    __device__ __forceinline__ ReductionValue ProcessTile(const int scan_begin) {
-      float const null_gain = -std::numeric_limits<bst_float>::infinity();
+  __device__ __forceinline__ ReductionValue ProcessTile(const int tile_begin) {
+    float const null_gain = -std::numeric_limits<bst_float>::infinity();
 
-      const bool thread_active = (scan_begin + threadIdx.x) < gidx_end;
+    const bool thread_active = (tile_begin + threadIdx.x) < gidx_end;
 
-      float4 tmp = thread_active
-                        ? reinterpret_cast<const float4 *>(node_histogram)[scan_begin + threadIdx.x]
-                        : float4();
+    float4 tmp = thread_active
+                     ? reinterpret_cast<const float4 *>(node_histogram)[tile_begin + threadIdx.x]
+                     : float4();
 
-      GradientSumT &bin = *reinterpret_cast<GradientSumT *>(&tmp);
+    GradientSumT &bin = *reinterpret_cast<GradientSumT *>(&tmp);
 
-      GradientSumT tile_sum;
-      BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin,GradientSumT(), cub::Sum(), tile_sum);
-      bin += running_sum;
-      running_sum += tile_sum;
-      // Whether the gradient of missing values is put to the left side.
-      float gain = thread_active ? LossChange(bin, parent_sum, param) : null_gain;
+    GradientSumT tile_sum;
+    BlockScanT(temp_storage->scan).ExclusiveScan(bin, bin, GradientSumT(), cub::Sum(), tile_sum);
+    bin += running_sum;
+    running_sum += tile_sum;
+    /*
+    float gain = thread_active ? LossChange(bin, parent_sum, param) : null_gain;
+    */
+    GradientSumT missing;
+    bool missing_left;
+    float gain = thread_active ? LossChangeMissing(bin, missing, parent_sum,
+    param,nidx, fidx, evaluator, missing_left): null_gain;
 
-      // Find thread with best gain
-      int split_gidx = (scan_begin + threadIdx.x) - 1;
-      float fvalue =
-          split_gidx < static_cast<int>(gidx_begin) ? min_fvalue : feature_values[split_gidx];
-      ReductionValue x{fvalue, gain, bin};
-      return ReduceT(temp_storage->reduce).Sum(x);
-    }
+    // Find thread with best gain
+    int split_gidx = (tile_begin + threadIdx.x) - 1;
+    float fvalue = !thread_active || split_gidx < static_cast<int>(gidx_begin)
+                       ? min_fvalue
+                       : feature_values[split_gidx];
+    ReductionValue x{fvalue, gain, bin};
+    return ReduceT(temp_storage->reduce).Sum(x);
+  }
 
     __device__ __forceinline__ ReductionValue EvaluateFeatureOptimised(
 ) {
@@ -361,6 +374,7 @@ class EvaluateSplitAgent {
 template <int BLOCK_THREADS, typename GradientSumT>
 __global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernelOptimised(bst_feature_t number_active_features, const EvaluateSplitInputs *__restrict__ d_inputs, 
                                      const EvaluateSplitSharedInputs shared_inputs,
+                                     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                                      DeviceSplitCandidate *__restrict__ out_candidates) {
 
   // Allocate blocks to one feature of one node
@@ -368,11 +382,12 @@ __global__ __launch_bounds__(BLOCK_THREADS) void EvaluateSplitsKernelOptimised(b
   const EvaluateSplitInputs &inputs = d_inputs[input_idx];
 
   const int fidx = blockIdx.x % number_active_features;
-  GradientSumT parent_sum= dh::LDGIterator<GradientSumT>(&inputs.parent_sum)[0];
+  GradientSumT parent_sum = dh::LDGIterator<GradientSumT>(&inputs.parent_sum)[0];
 
   using AgentT = EvaluateSplitAgent<BLOCK_THREADS, GradientSumT>;
   __shared__ typename AgentT::TempStorage temp_storage;
-  auto best = AgentT(&temp_storage, fidx, inputs, shared_inputs,parent_sum).EvaluateFeatureOptimised();
+  auto best = AgentT(&temp_storage, inputs.nidx, fidx, inputs, shared_inputs, parent_sum, evaluator)
+                  .EvaluateFeatureOptimised();
 
   cub::CTA_SYNC();
   if (threadIdx.x == 0) {
@@ -449,7 +464,7 @@ void GPUHistEvaluator<GradientSumT>::LaunchEvaluateSplits(bst_feature_t number_a
   if (shared_inputs.is_dense && !has_categoricals_ && number_active_features == shared_inputs.Features() && !evaluator.has_constraint) {
     dh::LaunchKernel{static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
         EvaluateSplitsKernelOptimised<kBlockThreads, GradientSumT>, number_active_features, d_inputs.data(),
-        shared_inputs, 
+        shared_inputs, evaluator,
         feature_best_splits.data().get());
   } else {
     dh::LaunchKernel{static_cast<uint32_t>(combined_num_features), kBlockThreads, 0}(
@@ -503,9 +518,12 @@ void GPUHistEvaluator<GradientSumT>::EvaluateSplits(const std::vector<bst_node_t
   auto d_entries = out_entries;
   auto device_cats_accessor = this->DeviceCatStorage(nidx);
   // turn candidate into entry, along with handling sort based split.
-  dh::LaunchN(d_inputs.size(), [=] __device__(size_t i) mutable{
+  dh::LaunchN(d_inputs.size(), [=] __device__(size_t i) mutable {
     auto const input = d_inputs[i];
     auto &split = out_splits[i];
+    // Adjust the loss accounting for the parent node
+    // do this here instead of in the split evaluation kernel because this is a constant per node
+    split.loss_chg -= CalcGain(shared_inputs.param, input.parent_sum);
     auto fidx = out_splits[i].findex;
 
     if (split.is_cat) {

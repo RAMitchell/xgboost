@@ -282,7 +282,7 @@ struct GPUHistMakerDevice {
     EvaluateSplitInputs inputs{nidx, 0, root_sum, feature_set, hist.GetNodeHistogram(nidx)};
     EvaluateSplitSharedInputs shared_inputs{
         gpu_param, feature_types, matrix.feature_segments, matrix.gidx_fvalue_map,
-        matrix.min_fvalue,
+        matrix.min_fvalue, matrix.is_dense
     };
     auto split = this->evaluator_.EvaluateSingleSplit(inputs, shared_inputs, weight);
     return split;

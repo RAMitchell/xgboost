@@ -66,16 +66,15 @@ class TreeEvaluator {
 
   template <typename ParamT>
   struct SplitEvaluator {
-    common::Span<int const> constraints;
-    common::Span<float const> lower;
-    common::Span<float const> upper;
+    const int * constraints;
+    const float * lower;
+    const float * upper;
     bool has_constraint;
 
-    XGBOOST_DEVICE double CalcSplitGain(const ParamT &param, bst_node_t nidx,
-                                        bst_feature_t fidx,
-                                        tree::GradStats const& left,
-                                        tree::GradStats const& right) const {
-      int constraint = constraints[fidx];
+    template <typename StatT>
+    XGBOOST_DEVICE double CalcSplitGain(const ParamT& param, bst_node_t nidx, bst_feature_t fidx,
+                                        StatT const& left, StatT const& right) const {
+      int constraint = has_constraint ? constraints[fidx] : 0;
       const double negative_infinity = -std::numeric_limits<double>::infinity();
       double wleft = this->CalcWeight(nidx, param, left);
       double wright = this->CalcWeight(nidx, param, right);
@@ -92,8 +91,9 @@ class TreeEvaluator {
       }
     }
 
+template <typename StatT>
     XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT &param,
-                                    tree::GradStats const& stats) const {
+                                    StatT const& stats) const {
       float w = ::xgboost::tree::CalcWeight(param, stats);
       if (!has_constraint) {
         return w;
@@ -101,9 +101,9 @@ class TreeEvaluator {
 
       if (nodeid == kRootParentId) {
         return w;
-      } else if (w < lower(nodeid)) {
+      } else if (w < lower[nodeid]) {
         return lower[nodeid];
-      } else if (w > upper(nodeid)) {
+      } else if (w > upper[nodeid]) {
         return upper[nodeid];
       } else {
         return w;
@@ -118,18 +118,19 @@ class TreeEvaluator {
       return ::xgboost::tree::CalcWeight(param, stats);
     }
 
+template <typename StatT>
     XGBOOST_DEVICE float
-    CalcGainGivenWeight(ParamT const &p, tree::GradStats const& stats, float w) const {
+    CalcGainGivenWeight(ParamT const &p, StatT const& stats, float w) const {
       if (stats.GetHess() <= 0) {
         return .0f;
       }
       // Avoiding tree::CalcGainGivenWeight can significantly reduce avg floating point error.
       if (p.max_delta_step == 0.0f && has_constraint == false) {
-        return common::Sqr(ThresholdL1(stats.sum_grad, p.reg_alpha)) /
-               (stats.sum_hess + p.reg_lambda);
+        return common::Sqr(ThresholdL1(stats.GetGrad(), p.reg_alpha)) /
+               (stats.GetHess() + p.reg_lambda);
       }
-      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.sum_grad,
-                                                      stats.sum_hess, w);
+      return tree::CalcGainGivenWeight<ParamT, float>(p, stats.GetGrad(),
+                                                      stats.GetHess(), w);
     }
     XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const &p,
                                   tree::GradStats const& stats) const {
@@ -141,14 +142,14 @@ class TreeEvaluator {
   /* Get a view to the evaluator that can be passed down to device. */
   template <typename ParamT = TrainParam> auto GetEvaluator() const {
     if (device_ != GenericParameter::kCpuId) {
-      auto constraints = monotone_.ConstDeviceSpan();
+      auto constraints = monotone_.ConstDevicePointer();
       return SplitEvaluator<ParamT>{
-          constraints, lower_bounds_.ConstDeviceSpan(),
-          upper_bounds_.ConstDeviceSpan(), has_constraint_};
+          constraints, lower_bounds_.ConstDevicePointer(),
+          upper_bounds_.ConstDevicePointer(), has_constraint_};
     } else {
-      auto constraints = monotone_.ConstHostSpan();
-      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstHostSpan(),
-                                    upper_bounds_.ConstHostSpan(),
+      auto constraints = monotone_.ConstHostPointer();
+      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstHostPointer(),
+                                    upper_bounds_.ConstHostPointer(),
                                     has_constraint_};
     }
   }
