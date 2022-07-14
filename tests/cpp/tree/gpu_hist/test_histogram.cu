@@ -156,5 +156,33 @@ TEST(Histogram, GPUHistCategorical) {
     TestGPUHistogramCategorical(num_categories);
   }
 }
+TEST(Histogram, Benchmark) {
+  size_t constexpr kBins = 256, kCols = 2000, kRows = 50000;
+  float constexpr kLower = -1e-2, kUpper = 1e2;
+
+  float sparsity = 0.0f;
+  auto matrix = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix();
+  BatchParam batch_param{0, static_cast<int32_t>(kBins)};
+
+  for (auto const& batch : matrix->GetBatches<EllpackPage>(batch_param)) {
+    auto* page = batch.Impl();
+
+    tree::RowPartitioner row_partitioner(0, kRows);
+    auto ridx = row_partitioner.GetRows(0);
+
+    int num_bins = kBins * kCols;
+    dh::device_vector<GradientPairPrecise> histogram(num_bins);
+    auto d_histogram = dh::ToSpan(histogram);
+    auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
+    gpair.SetDevice(0);
+
+    FeatureGroups feature_groups(page->Cuts(), page->is_dense, dh::MaxSharedMemoryOptin(0),
+                                 sizeof(GradientPairPrecise));
+
+    auto rounding = CreateRoundingFactor<GradientPairPrecise>(gpair.DeviceSpan());
+    BuildGradientHistogram(page->GetDeviceAccessor(0), feature_groups.DeviceAccessor(0),
+                           gpair.DeviceSpan(), ridx, d_histogram, rounding);
+  }
+}
 }  // namespace tree
 }  // namespace xgboost
