@@ -130,55 +130,65 @@ XGBOOST_DEV_INLINE void AddGpair(OutputGradientT* dest,
   auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 
   *dst_ptr += static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad());
-  *(dst_ptr + 1)+=static_cast<typename OutputGradientT::ValueT>(gpair.GetHess());
+  *(dst_ptr + 1) += static_cast<typename OutputGradientT::ValueT>(gpair.GetHess());
 }
-template <typename GradientSumT, bool use_shared_memory_histograms>
-__global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
-                                    FeatureGroupsAccessor feature_groups,
-                                    common::Span<const RowPartitioner::RowIndexT> d_ridx,
-                                    GradientSumT* __restrict__ d_node_hist,
-                                    const GradientPair* __restrict__ d_gpair,
-                                    HistRounding<GradientSumT> const rounding, const int32_t * __restrict__ d_gidx) {
-  using SharedSumT = typename HistRounding<GradientSumT>::SharedSumT;
-  using T = typename GradientSumT::ValueT;
 
-  extern __shared__ char smem[];
-  const FeatureGroup group = feature_groups[blockIdx.y];
-  SharedSumT *smem_arr = reinterpret_cast<SharedSumT *>(smem);
-  if (use_shared_memory_histograms) {
-    dh::BlockFill(smem_arr, group.num_bins, SharedSumT());
-    __syncthreads();
-  }
-  int feature_stride = matrix.is_dense ? group.num_features : matrix.row_stride;
-  size_t n_elements = feature_stride * d_ridx.size();
-  dh::LDGIterator<GradientPair> gpair_iter(d_gpair);
-  for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
-    int ridx = __ldg(d_ridx.data()+ idx / feature_stride);
-    int gidx = d_gidx[ridx * matrix.row_stride + group.start_feature +
-                                idx % feature_stride];
-                                //int gidx = matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature +
-                                //idx % feature_stride];
+template <typename GradientSumT, int kBlockThreads>
+class HistogramAgent {
+  using SharedSumT = typename HistRounding<GradientSumT>::SharedSumT;
+  SharedSumT* smem_arr;
+  GradientSumT* d_node_hist;
+  dh::LDGIterator<const RowPartitioner::RowIndexT> d_ridx;const GradientPair* d_gpair;
+  const FeatureGroup group;
+  const EllpackDeviceAccessor& matrix;
+  int feature_stride;
+  size_t n_elements;
+  const int32_t* d_gidx;
+  const HistRounding<GradientSumT>& rounding;
+
+ public:
+  __device__ HistogramAgent(SharedSumT* smem_arr, GradientSumT* __restrict__ d_node_hist,
+                            const FeatureGroup& group, const EllpackDeviceAccessor& matrix,
+                            common::Span<const RowPartitioner::RowIndexT> d_ridx,
+                            const int32_t* __restrict__ d_gidx,
+                            const HistRounding<GradientSumT>& rounding, const GradientPair* d_gpair)
+      : smem_arr(smem_arr),
+        d_node_hist(d_node_hist),
+        d_ridx(d_ridx.data()),
+        group(group),
+        matrix(matrix),
+        feature_stride(matrix.is_dense ? group.num_features : matrix.row_stride),
+        n_elements(feature_stride * d_ridx.size()),
+        d_gidx(d_gidx),
+        rounding(rounding),
+        d_gpair(d_gpair) {}
+  template <int kItemsPerTile>
+  __device__ void ProcessTileShared(std::size_t offset) {
+    std::size_t idx = offset + threadIdx.x;
+    if (idx >= n_elements) return;
+    int ridx = d_ridx[idx / feature_stride];
+    int gidx = d_gidx[ridx * matrix.row_stride + group.start_feature + idx % feature_stride];
     if (matrix.is_dense || gidx != matrix.NumBins()) {
       // If we are not using shared memory, accumulate the values directly into
       // global memory
-      gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
-      if (use_shared_memory_histograms) {
-        auto adjusted = rounding.ToFixedPoint(gpair_iter[ridx]);
-        dh::AtomicAddGpair(smem_arr + gidx, adjusted);
-        //AddGpair(smem_arr + gidx, adjusted);
-      } else {
-        GradientSumT truncated{
-            TruncateWithRoundingFactor<T>(rounding.rounding.GetGrad(),
-                                          d_gpair[ridx].GetGrad()),
-            TruncateWithRoundingFactor<T>(rounding.rounding.GetHess(),
-                                          d_gpair[ridx].GetHess()),
-        };
-        dh::AtomicAddGpair(d_node_hist + gidx, truncated);
-      }
+      gidx = gidx - group.start_bin;
+      auto adjusted = rounding.ToFixedPoint(d_gpair[ridx]);
+      dh::AtomicAddGpair(smem_arr + gidx, adjusted);
+      // AddGpair(smem_arr + gidx, adjusted);
     }
   }
+  __device__ void BuildHistogramWithShared() {
+    dh::BlockFill(smem_arr, group.num_bins, SharedSumT());
+    __syncthreads();
 
-  if (use_shared_memory_histograms) {
+    constexpr int kItemsPerTile = 1;
+    constexpr int kTileSize = kItemsPerTile * kBlockThreads;
+    std::size_t offset = blockIdx.x * kTileSize;
+    while (offset < n_elements) {
+      ProcessTileShared<kItemsPerTile>(offset);
+      offset += kTileSize * gridDim.x;
+    }
+
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
@@ -186,94 +196,123 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
       dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
     }
   }
-}
 
-template <typename GradientSumT>
-void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
-                            FeatureGroupsAccessor const& feature_groups,
-                            common::Span<GradientPair const> gpair,
-                            common::Span<const uint32_t> d_ridx,
-                            common::Span<GradientSumT> histogram,
-                            HistRounding<GradientSumT> rounding, bool force_global_memory) {
-  thrust::device_vector<int32_t> gidx(matrix.row_stride * matrix.n_rows);
-  std::cout << gidx.size() <<"\n";
-  auto d_gidx = gidx.data().get();
-
-  dh::LaunchN(
-      gidx.size(), [=]__device__(size_t i) { d_gidx[i] = matrix.gidx_iter[i]; });
-
-  // decide whether to use shared memory
-  int device = 0;
-  dh::safe_cuda(cudaGetDevice(&device));
-  // opt into maximum shared memory for the kernel if necessary
-  size_t max_shared_memory = dh::MaxSharedMemoryOptin(device);
-
-  size_t smem_size = sizeof(typename HistRounding<GradientSumT>::SharedSumT) *
-                     feature_groups.max_group_bins;
-  bool shared = !force_global_memory && smem_size <= max_shared_memory;
-  smem_size = shared ? smem_size : 0;
-
-  auto runit = [&](auto kernel) {
-    if (shared) {
-      dh::safe_cuda(cudaFuncSetAttribute(
-          kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-          max_shared_memory));
+  __device__ void BuildHistogramWithGlobal() {
+    for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
+      int ridx = d_ridx[idx / feature_stride];
+      int gidx = d_gidx[ridx * matrix.row_stride + group.start_feature + idx % feature_stride];
+      // int gidx = matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature +
+      // idx % feature_stride];
+      if (matrix.is_dense || gidx != matrix.NumBins()) {
+        // If we are not using shared memory, accumulate the values directly into
+        // global memory
+          GradientSumT truncated{
+              TruncateWithRoundingFactor<GradientSumT::ValueT>(rounding.rounding.GetGrad(), d_gpair[ridx].GetGrad()),
+              TruncateWithRoundingFactor<GradientSumT::ValueT>(rounding.rounding.GetHess(), d_gpair[ridx].GetHess()),
+          };
+          dh::AtomicAddGpair(d_node_hist + gidx, truncated);
+      }
     }
+  }
+};
 
-    // determine the launch configuration
-    int min_grid_size;
-    int block_threads = 1024;
-    dh::safe_cuda(cudaOccupancyMaxPotentialBlockSize(
-        &min_grid_size, &block_threads, kernel, smem_size, 0));
-
-    int num_groups = feature_groups.NumGroups();
-    int n_mps = 0;
-    dh::safe_cuda(
-        cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
-    int n_blocks_per_mp = 0;
-    dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-        &n_blocks_per_mp, kernel, block_threads, smem_size));
-    unsigned grid_size = n_blocks_per_mp * n_mps;
-
-    // TODO(canonizer): This is really a hack, find a better way to distribute
-    // the data among thread blocks. The intention is to generate enough thread
-    // blocks to fill the GPU, but avoid having too many thread blocks, as this
-    // is less efficient when the number of rows is low. At least one thread
-    // block per feature group is required. The number of thread blocks:
-    // - for num_groups <= num_groups_threshold, around  grid_size * num_groups
-    // - for num_groups_threshold <= num_groups <= num_groups_threshold *
-    // grid_size,
-    //     around grid_size * num_groups_threshold
-    // - for num_groups_threshold * grid_size <= num_groups, around num_groups
-    int num_groups_threshold = 4;
-    grid_size = common::DivRoundUp(
-        grid_size, common::DivRoundUp(num_groups, num_groups_threshold));
-
+  template <typename GradientSumT, bool use_shared_memory_histograms,int kBlockThreads>
+  __global__ void __launch_bounds__(kBlockThreads) SharedMemHistKernel(EllpackDeviceAccessor matrix,
+                                      FeatureGroupsAccessor feature_groups,
+                                      common::Span<const RowPartitioner::RowIndexT> d_ridx,
+                                      GradientSumT* __restrict__ d_node_hist,
+                                      const GradientPair* __restrict__ d_gpair,
+                                      HistRounding<GradientSumT> const rounding,
+                                      const int32_t* __restrict__ d_gidx) {
+    using SharedSumT = typename HistRounding<GradientSumT>::SharedSumT;
     using T = typename GradientSumT::ValueT;
-    dh::LaunchKernel {dim3(grid_size, num_groups),
-          static_cast<uint32_t>(block_threads),
-          smem_size} (kernel, matrix, feature_groups, d_ridx,
-                      histogram.data(), gpair.data(), rounding, d_gidx);
-  };
 
-  if (shared) {
-    runit(SharedMemHistKernel<GradientSumT, true>);
-  } else {
-    runit(SharedMemHistKernel<GradientSumT, false>);
+    extern __shared__ char smem[];
+    const FeatureGroup group = feature_groups[blockIdx.y];
+    SharedSumT* smem_arr = reinterpret_cast<SharedSumT*>(smem);
+    auto agent=HistogramAgent<GradientSumT,kBlockThreads>(smem_arr, d_node_hist, group, matrix, d_ridx,d_gidx, rounding,d_gpair);
+    if (use_shared_memory_histograms) {
+      agent.BuildHistogramWithShared();
+    } else {
+      agent.BuildHistogramWithGlobal();
+    }
   }
 
-  dh::safe_cuda(cudaDeviceSynchronize());
-  dh::safe_cuda(cudaGetLastError());
-}
+  template <typename GradientSumT>
+  void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
+                              FeatureGroupsAccessor const& feature_groups,
+                              common::Span<GradientPair const> gpair,
+                              common::Span<const uint32_t> d_ridx,
+                              common::Span<GradientSumT> histogram,
+                              HistRounding<GradientSumT> rounding, bool force_global_memory) {
+    thrust::device_vector<int32_t> gidx(matrix.row_stride * matrix.n_rows);
+    auto d_gidx = gidx.data().get();
 
-template void BuildGradientHistogram<GradientPairPrecise>(
-    EllpackDeviceAccessor const& matrix,
-    FeatureGroupsAccessor const& feature_groups,
-    common::Span<GradientPair const> gpair,
-    common::Span<const uint32_t> ridx,
-    common::Span<GradientPairPrecise> histogram,
-    HistRounding<GradientPairPrecise> rounding,
-    bool force_global_memory);
+    dh::LaunchN(gidx.size(), [=] __device__(size_t i) { d_gidx[i] = matrix.gidx_iter[i]; });
+
+    // decide whether to use shared memory
+    int device = 0;
+    dh::safe_cuda(cudaGetDevice(&device));
+    // opt into maximum shared memory for the kernel if necessary
+    size_t max_shared_memory = dh::MaxSharedMemoryOptin(device);
+
+    size_t smem_size =
+        sizeof(typename HistRounding<GradientSumT>::SharedSumT) * feature_groups.max_group_bins;
+    bool shared = !force_global_memory && smem_size <= max_shared_memory;
+    smem_size = shared ? smem_size : 0;
+
+    constexpr int kBlockThreads = 1024;
+    auto runit = [&](auto kernel) {
+      if (shared) {
+        dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                           max_shared_memory));
+      }
+
+      // determine the launch configuration
+
+      int num_groups = feature_groups.NumGroups();
+      int n_mps = 0;
+      dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
+      int n_blocks_per_mp = 0;
+      dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&n_blocks_per_mp, kernel,
+                                                                  kBlockThreads , smem_size));
+      unsigned grid_size = n_blocks_per_mp * n_mps;
+
+      // TODO(canonizer): This is really a hack, find a better way to distribute
+      // the data among thread blocks. The intention is to generate enough thread
+      // blocks to fill the GPU, but avoid having too many thread blocks, as this
+      // is less efficient when the number of rows is low. At least one thread
+      // block per feature group is required. The number of thread blocks:
+      // - for num_groups <= num_groups_threshold, around  grid_size * num_groups
+      // - for num_groups_threshold <= num_groups <= num_groups_threshold *
+      // grid_size,
+      //     around grid_size * num_groups_threshold
+      // - for num_groups_threshold * grid_size <= num_groups, around num_groups
+      int num_groups_threshold = 4;
+      grid_size =
+          common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, num_groups_threshold));
+
+      using T = typename GradientSumT::ValueT;
+      dh::LaunchKernel{dim3(grid_size, num_groups), static_cast<uint32_t>(kBlockThreads ),
+                       smem_size}(kernel, matrix, feature_groups, d_ridx, histogram.data(),
+                                  gpair.data(), rounding, d_gidx);
+    };
+
+    if (shared) {
+      runit(SharedMemHistKernel<GradientSumT, true,kBlockThreads>);
+    } else {
+      runit(SharedMemHistKernel<GradientSumT, false,kBlockThreads>);
+    }
+
+    dh::safe_cuda(cudaDeviceSynchronize());
+    dh::safe_cuda(cudaGetLastError());
+  }
+
+  template void BuildGradientHistogram<GradientPairPrecise>(
+      EllpackDeviceAccessor const& matrix, FeatureGroupsAccessor const& feature_groups,
+      common::Span<GradientPair const> gpair, common::Span<const uint32_t> ridx,
+      common::Span<GradientPairPrecise> histogram, HistRounding<GradientPairPrecise> rounding,
+      bool force_global_memory);
 
 }  // namespace tree
 }  // namespace xgboost

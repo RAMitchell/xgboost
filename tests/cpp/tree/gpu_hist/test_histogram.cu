@@ -180,6 +180,7 @@ TEST(Histogram, Benchmark) {
                                  sizeof(GradientPairPrecise));
 
     auto rounding = CreateRoundingFactor<GradientPairPrecise>(gpair.DeviceSpan());
+    
     BuildGradientHistogram(page->GetDeviceAccessor(0), feature_groups.DeviceAccessor(0),
                            gpair.DeviceSpan(), ridx, d_histogram, rounding);
   }
