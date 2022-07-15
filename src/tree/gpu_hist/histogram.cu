@@ -194,7 +194,7 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
     for (int i = 0; i < kItemsPerTile; i++) {
       gpair[i] = d_gpair[ridx[i]];
       gidx[i] =
-          d_gidx[ridx[i] * matrix.row_stride + group.start_feature + idx[i] % feature_stride];
+          matrix.gidx_iter[ridx[i] * matrix.row_stride + group.start_feature + idx[i] % feature_stride];
     }
 #pragma unroll
     for (int i = 0; i < kItemsPerTile; i++) {
