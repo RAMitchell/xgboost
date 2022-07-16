@@ -144,14 +144,12 @@ class HistogramAgent {
   const EllpackDeviceAccessor& matrix;
   const int feature_stride;
   const std::size_t n_elements;
-  const int32_t* d_gidx;
   const HistRounding<GradientSumT>& rounding;
 
  public:
   __device__ HistogramAgent(SharedSumT* smem_arr, GradientSumT* __restrict__ d_node_hist,
                             const FeatureGroup& group, const EllpackDeviceAccessor& matrix,
                             common::Span<const RowPartitioner::RowIndexT> d_ridx,
-                            const int32_t* __restrict__ d_gidx,
                             const HistRounding<GradientSumT>& rounding, const GradientPair* d_gpair)
       : smem_arr(smem_arr),
         d_node_hist(d_node_hist),
@@ -160,7 +158,6 @@ class HistogramAgent {
         matrix(matrix),
         feature_stride(matrix.is_dense ? group.num_features : matrix.row_stride),
         n_elements(feature_stride * d_ridx.size()),
-        d_gidx(d_gidx),
         rounding(rounding),
         d_gpair(d_gpair) {}
   template <int kItemsPerTile>
@@ -168,7 +165,7 @@ class HistogramAgent {
     for (std::size_t idx = offset + threadIdx.x;
          idx < min(offset + kBlockThreads * kItemsPerTile, n_elements); idx += kBlockThreads) {
       int ridx = d_ridx[idx / feature_stride];
-      int gidx = d_gidx[ridx * matrix.row_stride + group.start_feature + idx % feature_stride] -
+      int gidx = matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature + idx % feature_stride] -
                  group.start_bin;
       if (matrix.is_dense || gidx != matrix.NumBins()) {
         auto adjusted = rounding.ToFixedPoint(d_gpair[ridx]);
@@ -232,9 +229,8 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
  __device__ void BuildHistogramWithGlobal() {
    for (auto idx : dh::GridStrideRange(static_cast<std::size_t>(0), n_elements)) {
      int ridx = d_ridx[idx / feature_stride];
-     int gidx = d_gidx[ridx * matrix.row_stride + group.start_feature + idx % feature_stride];
-     // int gidx = matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature +
-     // idx % feature_stride];
+     int gidx = matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature +
+      idx % feature_stride];
      if (matrix.is_dense || gidx != matrix.NumBins()) {
        // If we are not using shared memory, accumulate the values directly into
        // global memory
@@ -256,15 +252,14 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
                                       common::Span<const RowPartitioner::RowIndexT> d_ridx,
                                       GradientSumT* __restrict__ d_node_hist,
                                       const GradientPair* __restrict__ d_gpair,
-                                      HistRounding<GradientSumT> const rounding,
-                                      const int32_t* __restrict__ d_gidx) {
+                                      HistRounding<GradientSumT> const rounding) {
     using SharedSumT = typename HistRounding<GradientSumT>::SharedSumT;
     using T = typename GradientSumT::ValueT;
 
     extern __shared__ char smem[];
     const FeatureGroup group = feature_groups[blockIdx.y];
     SharedSumT* smem_arr = reinterpret_cast<SharedSumT*>(smem);
-    auto agent=HistogramAgent<GradientSumT,kBlockThreads>(smem_arr, d_node_hist, group, matrix, d_ridx,d_gidx, rounding,d_gpair);
+    auto agent=HistogramAgent<GradientSumT,kBlockThreads>(smem_arr, d_node_hist, group, matrix, d_ridx,rounding,d_gpair);
     if (use_shared_memory_histograms) {
       agent.BuildHistogramWithShared();
     } else {
@@ -279,10 +274,6 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
                               common::Span<const uint32_t> d_ridx,
                               common::Span<GradientSumT> histogram,
                               HistRounding<GradientSumT> rounding, bool force_global_memory) {
-    thrust::device_vector<int32_t> gidx(matrix.row_stride * matrix.n_rows);
-    auto d_gidx = gidx.data().get();
-
-    dh::LaunchN(gidx.size(), [=] __device__(size_t i) { d_gidx[i] = matrix.gidx_iter[i]; });
 
     // decide whether to use shared memory
     int device = 0;
@@ -329,7 +320,7 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
       using T = typename GradientSumT::ValueT;
       dh::LaunchKernel{dim3(grid_size, num_groups), static_cast<uint32_t>(kBlockThreads ),
                        smem_size}(kernel, matrix, feature_groups, d_ridx, histogram.data(),
-                                  gpair.data(), rounding, d_gidx);
+                                  gpair.data(), rounding);
     };
 
     if (shared) {
