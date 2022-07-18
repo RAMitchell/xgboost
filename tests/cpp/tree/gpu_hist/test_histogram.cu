@@ -157,7 +157,7 @@ TEST(Histogram, GPUHistCategorical) {
   }
 }
 TEST(Histogram, Benchmark) {
-  size_t constexpr kBins = 256, kCols = 2000, kRows = 50000;
+  size_t constexpr kBins = 256, kCols = 2000, kRows = 50000/8;
   float constexpr kLower = -1e-2, kUpper = 1e2;
 
   float sparsity = 0.0f;

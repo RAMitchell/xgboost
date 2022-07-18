@@ -133,7 +133,7 @@ XGBOOST_DEV_INLINE void AddGpair(OutputGradientT* dest,
   *(dst_ptr + 1) += static_cast<typename OutputGradientT::ValueT>(gpair.GetHess());
 }
 
-template <typename GradientSumT, int kBlockThreads>
+template <typename GradientSumT, int kBlockThreads, int kItemsPerThread, int kItemsPerTile = kBlockThreads*kItemsPerThread>
 class HistogramAgent {
   using SharedSumT = typename HistRounding<GradientSumT>::SharedSumT;
   SharedSumT* smem_arr;
@@ -160,7 +160,6 @@ class HistogramAgent {
         n_elements(feature_stride * d_ridx.size()),
         rounding(rounding),
         d_gpair(d_gpair) {}
-  template <int kItemsPerTile>
   __device__ void ProcessPartialTileShared(std::size_t offset) {
     for (std::size_t idx = offset + threadIdx.x;
          idx < min(offset + kBlockThreads * kItemsPerTile, n_elements); idx += kBlockThreads) {
@@ -173,28 +172,27 @@ class HistogramAgent {
       }
     }
   }
- template <int kItemsPerTile>
 __device__ void ProcessFullTileShared(std::size_t offset) {
-  std::size_t idx[kItemsPerTile];
-  int ridx[kItemsPerTile];
-  int gidx[kItemsPerTile];
-  GradientPair gpair[kItemsPerTile];
+  std::size_t idx[kItemsPerThread];
+  int ridx[kItemsPerThread];
+  int gidx[kItemsPerThread];
+  GradientPair gpair[kItemsPerThread];
 #pragma unroll
-  for (int i = 0; i < kItemsPerTile; i++) {
+  for (int i = 0; i < kItemsPerThread; i++) {
     idx[i] = offset + i * kBlockThreads + threadIdx.x;
   }
 #pragma unroll
-    for (int i = 0; i < kItemsPerTile; i++) {
+    for (int i = 0; i < kItemsPerThread; i++) {
       ridx[i] = d_ridx[idx[i] / feature_stride];
     }
 #pragma unroll
-    for (int i = 0; i < kItemsPerTile; i++) {
+    for (int i = 0; i < kItemsPerThread; i++) {
       gpair[i] = d_gpair[ridx[i]];
       gidx[i] =
           matrix.gidx_iter[ridx[i] * matrix.row_stride + group.start_feature + idx[i] % feature_stride];
     }
 #pragma unroll
-    for (int i = 0; i < kItemsPerTile; i++) {
+    for (int i = 0; i < kItemsPerThread; i++) {
       if ((matrix.is_dense || gidx[i] != matrix.NumBins())) {
         // If we are not using shared memory, accumulate the values directly into
         // global memory
@@ -209,14 +207,12 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
    dh::BlockFill(smem_arr, group.num_bins, SharedSumT());
    __syncthreads();
 
-   constexpr int kItemsPerTile = 8;
-   constexpr int kTileSize = kItemsPerTile * kBlockThreads;
-   std::size_t offset = blockIdx.x * kTileSize;
-   while (offset + kTileSize <= n_elements) {
-     ProcessFullTileShared<kItemsPerTile>(offset);
-     offset += kTileSize * gridDim.x;
+   std::size_t offset = blockIdx.x * kItemsPerTile;
+   while (offset + kItemsPerTile <= n_elements) {
+     ProcessFullTileShared(offset);
+     offset += kItemsPerTile * gridDim.x;
    }
-   ProcessPartialTileShared<kItemsPerTile>(offset);
+   ProcessPartialTileShared(offset);
 
    // Write shared memory back to global memory
    __syncthreads();
@@ -246,7 +242,7 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
  }
 };
 
-  template <typename GradientSumT, bool use_shared_memory_histograms,int kBlockThreads>
+  template <typename GradientSumT, bool use_shared_memory_histograms,int kBlockThreads, int kItemsPerThread>
   __global__ void __launch_bounds__(kBlockThreads) SharedMemHistKernel(const EllpackDeviceAccessor matrix,
                                       const FeatureGroupsAccessor feature_groups,
                                       common::Span<const RowPartitioner::RowIndexT> d_ridx,
@@ -259,7 +255,7 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
     extern __shared__ char smem[];
     const FeatureGroup group = feature_groups[blockIdx.y];
     SharedSumT* smem_arr = reinterpret_cast<SharedSumT*>(smem);
-    auto agent=HistogramAgent<GradientSumT,kBlockThreads>(smem_arr, d_node_hist, group, matrix, d_ridx,rounding,d_gpair);
+    auto agent=HistogramAgent<GradientSumT,kBlockThreads, kItemsPerThread>(smem_arr, d_node_hist, group, matrix, d_ridx,rounding,d_gpair);
     if (use_shared_memory_histograms) {
       agent.BuildHistogramWithShared();
     } else {
@@ -287,6 +283,9 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
     smem_size = shared ? smem_size : 0;
 
     constexpr int kBlockThreads = 1024;
+    constexpr int kItemsPerThread = 8;
+    constexpr int kItemsPerTile = kBlockThreads * kItemsPerThread;
+
     auto runit = [&](auto kernel) {
       if (shared) {
         dh::safe_cuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
@@ -294,7 +293,6 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
       }
 
       // determine the launch configuration
-
       int num_groups = feature_groups.NumGroups();
       int n_mps = 0;
       dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
@@ -303,30 +301,20 @@ __device__ void ProcessFullTileShared(std::size_t offset) {
                                                                   kBlockThreads , smem_size));
       unsigned grid_size = n_blocks_per_mp * n_mps;
 
-      // TODO(canonizer): This is really a hack, find a better way to distribute
-      // the data among thread blocks. The intention is to generate enough thread
-      // blocks to fill the GPU, but avoid having too many thread blocks, as this
-      // is less efficient when the number of rows is low. At least one thread
-      // block per feature group is required. The number of thread blocks:
-      // - for num_groups <= num_groups_threshold, around  grid_size * num_groups
-      // - for num_groups_threshold <= num_groups <= num_groups_threshold *
-      // grid_size,
-      //     around grid_size * num_groups_threshold
-      // - for num_groups_threshold * grid_size <= num_groups, around num_groups
-      int num_groups_threshold = 4;
+      int columns_per_group = common::DivRoundUp(matrix.row_stride, feature_groups.NumGroups());
+      constexpr int kMinItemsPerBlock = kItemsPerTile * 16;
       grid_size =
-          common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, num_groups_threshold));
-
-      using T = typename GradientSumT::ValueT;
+          min(grid_size,
+              unsigned(common::DivRoundUp(d_ridx.size() * columns_per_group, kMinItemsPerBlock)));
       dh::LaunchKernel{dim3(grid_size, num_groups), static_cast<uint32_t>(kBlockThreads ),
                        smem_size}(kernel, matrix, feature_groups, d_ridx, histogram.data(),
                                   gpair.data(), rounding);
     };
 
     if (shared) {
-      runit(SharedMemHistKernel<GradientSumT, true,kBlockThreads>);
+      runit(SharedMemHistKernel<GradientSumT, true,kBlockThreads, kItemsPerThread>);
     } else {
-      runit(SharedMemHistKernel<GradientSumT, false,kBlockThreads>);
+      runit(SharedMemHistKernel<GradientSumT, false,kBlockThreads, kItemsPerThread>);
     }
 
     dh::safe_cuda(cudaDeviceSynchronize());
