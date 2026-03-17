@@ -11,7 +11,7 @@
 
 namespace xgboost {
 template <typename MetricRegistry>
-Metric* CreateMetricImpl(const std::string& name) {
+Metric* CreateMetricImpl(const std::string& name, Args const& args) {
   std::string buf = name;
   std::string prefix = name;
   const char* param;
@@ -25,26 +25,25 @@ Metric* CreateMetricImpl(const std::string& name) {
       prefix = buf;
       param = nullptr;
     }
-    auto *e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
+    auto* e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
     if (e == nullptr) {
       return nullptr;
     }
-    auto p_metric = (e->body)(param);
+    auto p_metric = (e->body)(param, args);
     return p_metric;
   } else {
     std::string prefix = buf.substr(0, pos);
-    auto *e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
+    auto* e = ::dmlc::Registry<MetricRegistry>::Get()->Find(prefix.c_str());
     if (e == nullptr) {
       return nullptr;
     }
-    auto p_metric = (e->body)(buf.substr(pos + 1, buf.length()).c_str());
+    auto p_metric = (e->body)(buf.substr(pos + 1, buf.length()).c_str(), args);
     return p_metric;
   }
 }
 
-Metric *
-Metric::Create(const std::string& name, Context const* ctx) {
-  auto metric = CreateMetricImpl<MetricReg>(name);
+Metric* Metric::Create(const std::string& name, Context const* ctx, Args const& args) {
+  auto metric = CreateMetricImpl<MetricReg>(name, args);
   if (metric == nullptr) {
     LOG(FATAL) << "Unknown metric function " << name;
   }

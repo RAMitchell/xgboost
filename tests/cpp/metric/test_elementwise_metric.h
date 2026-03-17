@@ -48,7 +48,6 @@ inline void CheckDeterministicMetricElementWise(StringView name, int32_t device)
 inline void VerifyRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("rmse", &ctx);
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmse");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
   EXPECT_NEAR(
@@ -72,7 +71,6 @@ inline void VerifyRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyRMSLE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("rmsle", &ctx);
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "rmsle");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.1f, 0.2f, 0.4f, 0.8f, 1.6f}, {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
@@ -96,7 +94,6 @@ inline void VerifyRMSLE(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyMAE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("mae", &ctx);
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mae");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
   EXPECT_NEAR(
@@ -120,7 +117,6 @@ inline void VerifyMAE(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyMAPE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("mape", &ctx);
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mape");
   EXPECT_NEAR(GetMetricEval(metric, {150, 300}, {100, 200}, {}, {}, data_split_mode), 0.5f, 1e-10);
   EXPECT_NEAR(
@@ -144,7 +140,6 @@ inline void VerifyMAPE(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyMPHE(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   std::unique_ptr<xgboost::Metric> metric{xgboost::Metric::Create("mphe", &ctx)};
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "mphe");
   EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
   EXPECT_NEAR(
@@ -172,7 +167,6 @@ inline void VerifyMPHE(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("logloss", &ctx);
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "logloss");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.5f, 1e-17f, 1.0f + 1e-17f, 0.9f}, {0, 0, 1, 1}, {}, {},
@@ -199,7 +193,6 @@ inline void VerifyLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("error", &ctx);
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "error");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
   EXPECT_NEAR(
@@ -220,13 +213,11 @@ inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
   delete metric;
 
   metric = xgboost::Metric::Create("error@0.5f", &ctx);
-  metric->Configure({});
   EXPECT_STREQ(metric->Name(), "error");
 
   delete metric;
 
   metric = xgboost::Metric::Create("error@0.1", &ctx);
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "error@0.1");
   EXPECT_STREQ(metric->Name(), "error@0.1");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0, 1e-10);
@@ -251,7 +242,6 @@ inline void VerifyError(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyPoissonNegLogLik(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
   xgboost::Metric *metric = xgboost::Metric::Create("poisson-nloglik", &ctx);
-  metric->Configure({});
   ASSERT_STREQ(metric->Name(), "poisson-nloglik");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5f, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0.5f, 1e-17f, 1.0f + 1e-17f, 0.9f}, {0, 0, 1, 1}, {}, {},
@@ -285,7 +275,6 @@ inline void VerifyMultiRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
   HostDeviceVector<float> predt(n_samples * n_targets, 0);
 
   std::unique_ptr<Metric> metric{Metric::Create("rmse", &ctx)};
-  metric->Configure({});
 
   auto loss = GetMultiMetricEval(metric.get(), predt, y, {}, {}, data_split_mode);
   std::vector<float> weights(n_samples, 1);
@@ -299,7 +288,8 @@ inline void VerifyMultiRMSE(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyQuantile(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  std::unique_ptr<Metric> metric{Metric::Create("quantile", &ctx)};
+  std::unique_ptr<Metric> metric{
+      Metric::Create("quantile", &ctx, Args{{"quantile_alpha", "[0.0]"}})};
 
   HostDeviceVector<float> predts{0.1f, 0.9f, 0.1f, 0.9f};
   HostDeviceVector<float> predts_2{0.2f, 0.6f, 0.4f, 0.6f, 0.5f, 1.2f, 0.0f, 0.4f};
@@ -308,7 +298,6 @@ inline void VerifyQuantile(DataSplitMode data_split_mode, DeviceOrd device) {
   std::vector<float> labels{0.5f, 0.5f, 0.9f, 0.1f};
   std::vector<float> weights{0.2f, 0.4f, 0.6f, 0.8f};
 
-  metric->Configure(Args{{"quantile_alpha", "[0.0]"}});
   EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights, {}, data_split_mode), 0.400f,
               0.001f);
   metric->Configure(Args{{"quantile_alpha", "[0.2]"}});
@@ -345,7 +334,8 @@ inline void VerifyQuantile(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyExpectile(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  std::unique_ptr<Metric> metric{Metric::Create("expectile", &ctx)};
+  std::unique_ptr<Metric> metric{
+      Metric::Create("expectile", &ctx, Args{{"expectile_alpha", "[0.0]"}})};
 
   HostDeviceVector<float> predts{0.1f, 0.9f, 0.1f, 0.9f};
   HostDeviceVector<float> predts_2{0.2f, 0.6f, 0.4f, 0.6f, 0.5f, 1.2f, 0.0f, 0.4f};
@@ -354,7 +344,6 @@ inline void VerifyExpectile(DataSplitMode data_split_mode, DeviceOrd device) {
   std::vector<float> labels{0.5f, 0.5f, 0.9f, 0.1f};
   std::vector<float> weights{0.2f, 0.4f, 0.6f, 0.8f};
 
-  metric->Configure(Args{{"expectile_alpha", "[0.0]"}});
   EXPECT_NEAR(GetMetricEval(metric.get(), predts, labels, weights, {}, data_split_mode), 0.288f,
               0.001f);
   metric->Configure(Args{{"expectile_alpha", "[0.2]"}});

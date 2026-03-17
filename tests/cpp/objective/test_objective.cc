@@ -91,7 +91,6 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
       metricfn->LoadConfig(mconfig);
       Json loaded(Object{});
       metricfn->SaveConfig(&loaded);
-      metricfn->Configure(Args{});
       ASSERT_EQ(mconfig, loaded);
     }
   }

@@ -869,7 +869,7 @@ class LearnerConfiguration : public Intercept {
         return m->Name() != name;
       };
       if (std::all_of(metrics_.begin(), metrics_.end(), DupCheck)) {
-        metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &ctx_)));
+        metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &ctx_, args)));
       }
     }
 

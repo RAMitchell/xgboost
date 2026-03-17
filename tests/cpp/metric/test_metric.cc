@@ -17,8 +17,8 @@ TEST(Metric, UnknownMetric) {
 
 TEST(Metric, ExpectileLoadConfig) {
   auto ctx = MakeCUDACtx(GPUIDX);
-  std::unique_ptr<xgboost::Metric> metric{xgboost::Metric::Create("expectile", &ctx)};
-  metric->Configure({{"expectile_alpha", "0.8"}});
+  std::unique_ptr<xgboost::Metric> metric{
+      xgboost::Metric::Create("expectile", &ctx, {{"expectile_alpha", "0.8"}})};
   Json config{Object{}};
   metric->SaveConfig(&config);
 

@@ -197,11 +197,11 @@ struct EvalCox : public MetricNoCache {
 
 XGBOOST_REGISTER_METRIC(AMS, "ams")
     .describe("AMS metric for higgs.")
-    .set_body([](const char* param) { return new EvalAMS(param); });
+    .set_body([](const char* param, Args const&) { return new EvalAMS(param); });
 
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
     .describe("Negative log partial likelihood of Cox proportional hazards model.")
-    .set_body([](const char*) { return new EvalCox(); });
+    .set_body([](const char*, Args const&) { return new EvalCox(); });
 
 // ranking metrics that requires cache
 template <typename Cache>
@@ -456,13 +456,13 @@ class EvalMAPScore : public EvalRankWithCache<ltr::MAPCache> {
 
 XGBOOST_REGISTER_METRIC(Precision, "pre")
     .describe("precision@k for rank.")
-    .set_body([](const char* param) { return new EvalPrecision("pre", param); });
+    .set_body([](const char* param, Args const&) { return new EvalPrecision("pre", param); });
 
 XGBOOST_REGISTER_METRIC(EvalMAP, "map")
     .describe("map@k for ranking.")
-    .set_body([](char const* param) { return new EvalMAPScore{"map", param}; });
+    .set_body([](char const* param, Args const&) { return new EvalMAPScore{"map", param}; });
 
 XGBOOST_REGISTER_METRIC(EvalNDCG, "ndcg")
     .describe("ndcg@k for ranking.")
-    .set_body([](char const* param) { return new EvalNDCG{"ndcg", param}; });
+    .set_body([](char const* param, Args const&) { return new EvalNDCG{"ndcg", param}; });
 }  // namespace xgboost::metric

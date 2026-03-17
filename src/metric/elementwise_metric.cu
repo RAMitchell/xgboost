@@ -167,6 +167,9 @@ class PseudoErrorLoss : public MetricNoCache {
   PseudoHuberParam param_;
 
  public:
+  explicit PseudoErrorLoss(Args const& args) { param_.UpdateAllowUnknown(args); }
+  PseudoErrorLoss() = default;
+
   const char* Name() const override { return "mphe"; }
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
   void LoadConfig(Json const& in) override { FromJson(in["pseudo_huber_param"], &param_); }
@@ -365,53 +368,62 @@ struct EvalEWiseBase : public MetricNoCache {
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")
     .describe("Rooted mean square error.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalRowRMSE>(); });
+    .set_body([](const char*, Args const&) { return new EvalEWiseBase<EvalRowRMSE>(); });
 
 XGBOOST_REGISTER_METRIC(RMSLE, "rmsle")
     .describe("Rooted mean square log error.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalRowRMSLE>(); });
+    .set_body([](const char*, Args const&) { return new EvalEWiseBase<EvalRowRMSLE>(); });
 
-XGBOOST_REGISTER_METRIC(MAE, "mae").describe("Mean absolute error.").set_body([](const char*) {
-  return new EvalEWiseBase<EvalRowMAE>();
-});
+XGBOOST_REGISTER_METRIC(MAE, "mae")
+    .describe("Mean absolute error.")
+    .set_body([](const char*, Args const&) { return new EvalEWiseBase<EvalRowMAE>(); });
 
 XGBOOST_REGISTER_METRIC(MAPE, "mape")
     .describe("Mean absolute percentage error.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalRowMAPE>(); });
+    .set_body([](const char*, Args const&) { return new EvalEWiseBase<EvalRowMAPE>(); });
 
 XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
     .describe("Negative loglikelihood for logistic regression.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalRowLogLoss>(); });
+    .set_body([](const char*, Args const&) { return new EvalEWiseBase<EvalRowLogLoss>(); });
 
 XGBOOST_REGISTER_METRIC(PseudoErrorLoss, "mphe")
     .describe("Mean Pseudo-huber error.")
-    .set_body([](const char*) { return new PseudoErrorLoss{}; });
+    .set_body([](const char*, Args const& args) { return new PseudoErrorLoss{args}; });
 
 XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
     .describe("Negative loglikelihood for poisson regression.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalPoissonNegLogLik>(); });
+    .set_body([](const char*, Args const&) { return new EvalEWiseBase<EvalPoissonNegLogLik>(); });
 
 XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
     .describe("Residual deviance for gamma regression.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalGammaDeviance>(); });
+    .set_body([](const char*, Args const&) { return new EvalEWiseBase<EvalGammaDeviance>(); });
 
 XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
     .describe("Negative log-likelihood for gamma regression.")
-    .set_body([](const char*) { return new EvalEWiseBase<EvalGammaNLogLik>(); });
+    .set_body([](const char*, Args const&) { return new EvalEWiseBase<EvalGammaNLogLik>(); });
 
 XGBOOST_REGISTER_METRIC(Error, "error")
     .describe("Binary classification error.")
-    .set_body([](const char* param) { return new EvalEWiseBase<EvalError>(param); });
+    .set_body([](const char* param, Args const&) { return new EvalEWiseBase<EvalError>(param); });
 
 XGBOOST_REGISTER_METRIC(TweedieNLogLik, "tweedie-nloglik")
     .describe("tweedie-nloglik@rho for tweedie regression.")
-    .set_body([](const char* param) { return new EvalEWiseBase<EvalTweedieNLogLik>(param); });
+    .set_body([](const char* param, Args const&) {
+      return new EvalEWiseBase<EvalTweedieNLogLik>(param);
+    });
 
 class QuantileError : public MetricNoCache {
   HostDeviceVector<float> alpha_;
   common::QuantileLossParam param_;
 
  public:
+  explicit QuantileError(Args const& args) {
+    if (!args.empty()) {
+      this->Configure(args);
+    }
+  }
+  QuantileError() = default;
+
   void Configure(Args const& args) override {
     param_.UpdateAllowUnknown(args);
     param_.Validate();
@@ -478,6 +490,8 @@ class QuantileError : public MetricNoCache {
       FromJson(it->second, &param_);
       auto const& name = get<String const>(in["name"]);
       CHECK_EQ(name, "quantile");
+      param_.Validate();
+      alpha_.HostVector() = param_.quantile_alpha.Get();
     }
   }
   void SaveConfig(Json* p_out) const override {
@@ -489,13 +503,20 @@ class QuantileError : public MetricNoCache {
 
 XGBOOST_REGISTER_METRIC(QuantileError, "quantile")
     .describe("Quantile regression error.")
-    .set_body([](const char*) { return new QuantileError{}; });
+    .set_body([](const char*, Args const& args) { return new QuantileError{args}; });
 
 class ExpectileError : public MetricNoCache {
   HostDeviceVector<float> alpha_;
   common::ExpectileLossParam param_;
 
  public:
+  explicit ExpectileError(Args const& args) {
+    if (!args.empty()) {
+      this->Configure(args);
+    }
+  }
+  ExpectileError() = default;
+
   void Configure(Args const& args) override {
     param_.UpdateAllowUnknown(args);
     param_.Validate();
@@ -573,5 +594,5 @@ class ExpectileError : public MetricNoCache {
 
 XGBOOST_REGISTER_METRIC(ExpectileError, "expectile")
     .describe("Expectile regression error.")
-    .set_body([](const char*) { return new ExpectileError{}; });
+    .set_body([](const char*, Args const& args) { return new ExpectileError{args}; });
 }  // namespace xgboost::metric
