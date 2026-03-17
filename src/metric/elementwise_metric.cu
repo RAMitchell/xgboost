@@ -168,7 +168,6 @@ class PseudoErrorLoss : public MetricNoCache {
 
  public:
   explicit PseudoErrorLoss(Args const& args) { param_.UpdateAllowUnknown(args); }
-  PseudoErrorLoss() = default;
 
   const char* Name() const override { return "mphe"; }
   void Configure(Args const& args) override { param_.UpdateAllowUnknown(args); }
@@ -416,19 +415,16 @@ class QuantileError : public MetricNoCache {
   HostDeviceVector<float> alpha_;
   common::QuantileLossParam param_;
 
- public:
-  explicit QuantileError(Args const& args) {
-    if (!args.empty()) {
-      this->Configure(args);
-    }
-  }
-  QuantileError() = default;
-
-  void Configure(Args const& args) override {
+  void UpdateArgs(Args const& args) {
     param_.UpdateAllowUnknown(args);
     param_.Validate();
     alpha_.HostVector() = param_.quantile_alpha.Get();
   }
+
+ public:
+  explicit QuantileError(Args const& args) { this->UpdateArgs(args); }
+
+  void Configure(Args const& args) override { this->UpdateArgs(args); }
 
   double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
     CHECK(!alpha_.Empty());
@@ -509,19 +505,16 @@ class ExpectileError : public MetricNoCache {
   HostDeviceVector<float> alpha_;
   common::ExpectileLossParam param_;
 
- public:
-  explicit ExpectileError(Args const& args) {
-    if (!args.empty()) {
-      this->Configure(args);
-    }
-  }
-  ExpectileError() = default;
-
-  void Configure(Args const& args) override {
+  void UpdateArgs(Args const& args) {
     param_.UpdateAllowUnknown(args);
     param_.Validate();
     alpha_.HostVector() = param_.expectile_alpha.Get();
   }
+
+ public:
+  explicit ExpectileError(Args const& args) { this->UpdateArgs(args); }
+
+  void Configure(Args const& args) override { this->UpdateArgs(args); }
 
   double Eval(HostDeviceVector<bst_float> const& preds, const MetaInfo& info) override {
     CHECK(!alpha_.Empty());

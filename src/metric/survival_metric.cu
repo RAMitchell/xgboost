@@ -214,6 +214,8 @@ struct EvalEWiseSurvivalBase : public MetricNoCache {
 // configuration time, not at prediction time.
 struct AFTNLogLikDispatcher : public MetricNoCache {
  private:
+  void UpdateArgs(Args const& args) { param_.UpdateAllowUnknown(args); }
+
   void MakeMetric() {
     switch (param_.aft_loss_distribution) {
       case common::ProbabilityDistributionType::kNormal:
@@ -237,11 +239,7 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
   explicit AFTNLogLikDispatcher(Args const& args) {
     param_.aft_loss_distribution = common::ProbabilityDistributionType::kNormal;
     param_.aft_loss_distribution_scale = 1.0f;
-    param_.UpdateAllowUnknown(args);
-  }
-  AFTNLogLikDispatcher() {
-    param_.aft_loss_distribution = common::ProbabilityDistributionType::kNormal;
-    param_.aft_loss_distribution_scale = 1.0f;
+    this->UpdateArgs(args);
   }
 
   [[nodiscard]] const char* Name() const override { return "aft-nloglik"; }
@@ -254,9 +252,8 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
   }
 
   void Configure(const Args& args) override {
-    param_.UpdateAllowUnknown(args);
+    this->UpdateArgs(args);
     this->MakeMetric();
-    metric_->Configure(args);
   }
 
   void SaveConfig(Json* p_out) const override {
