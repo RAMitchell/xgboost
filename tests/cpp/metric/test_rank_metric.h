@@ -2,15 +2,15 @@
  * Copyright 2016-2023 by XGBoost Contributors
  */
 #pragma once
-#include <gtest/gtest.h>                 // for Test, EXPECT_NEAR, ASSERT_STREQ
-#include <xgboost/context.h>             // for Context
-#include <xgboost/data.h>                // for MetaInfo, DMatrix
-#include <xgboost/linalg.h>              // for Matrix
-#include <xgboost/metric.h>              // for Metric
+#include <gtest/gtest.h>      // for Test, EXPECT_NEAR, ASSERT_STREQ
+#include <xgboost/context.h>  // for Context
+#include <xgboost/data.h>     // for MetaInfo, DMatrix
+#include <xgboost/linalg.h>   // for Matrix
+#include <xgboost/metric.h>   // for Metric
 
-#include <algorithm>                     // for max
-#include <memory>                        // for unique_ptr
-#include <vector>                        // for vector
+#include <algorithm>  // for max
+#include <memory>     // for unique_ptr
+#include <vector>     // for vector
 
 #include "../helpers.h"                  // for GetMetricEval, CreateEmptyGe...
 #include "xgboost/base.h"                // for bst_float, kRtEps
@@ -21,14 +21,14 @@ namespace xgboost::metric {
 
 inline void VerifyPrecision(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  std::unique_ptr<xgboost::Metric> metric{Metric::Create("pre", &ctx)};
+  std::unique_ptr<xgboost::Metric> metric{Metric::Create("pre", &ctx, {})};
   ASSERT_STREQ(metric->Name(), "pre");
   EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5, 1e-7);
   EXPECT_NEAR(
       GetMetricEval(metric.get(), {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
       0.5, 1e-7);
 
-  metric.reset(xgboost::Metric::Create("pre@2", &ctx));
+  metric.reset(xgboost::Metric::Create("pre@2", &ctx, {}));
   ASSERT_STREQ(metric->Name(), "pre@2");
   EXPECT_NEAR(GetMetricEval(metric.get(), {0, 1}, {0, 1}, {}, {}, data_split_mode), 0.5f, 1e-7);
   EXPECT_NEAR(
@@ -37,7 +37,7 @@ inline void VerifyPrecision(DataSplitMode data_split_mode, DeviceOrd device) {
 
   EXPECT_ANY_THROW(GetMetricEval(metric.get(), {0, 1}, {}, {}, {}, data_split_mode));
 
-  metric.reset(xgboost::Metric::Create("pre@4", &ctx));
+  metric.reset(xgboost::Metric::Create("pre@4", &ctx, {}));
   EXPECT_NEAR(GetMetricEval(metric.get(), {0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f},
                             {0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f}, {}, {}, data_split_mode),
               0.5f, 1e-7);
@@ -45,107 +45,99 @@ inline void VerifyPrecision(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyNDCG(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  Metric * metric = xgboost::Metric::Create("ndcg", &ctx);
+  Metric* metric = xgboost::Metric::Create("ndcg", &ctx, {});
   ASSERT_STREQ(metric->Name(), "ndcg");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}, {}, {}, data_split_mode));
-  ASSERT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}, {}, {}, data_split_mode), 1, 1e-10);
+  ASSERT_NEAR(GetMetricEval(metric, xgboost::HostDeviceVector<xgboost::bst_float>{}, {}, {}, {},
+                            data_split_mode),
+              1, 1e-10);
   ASSERT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.6509f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.6509f, 0.001f);
 
   delete metric;
-  metric = xgboost::Metric::Create("ndcg@2", &ctx);
+  metric = xgboost::Metric::Create("ndcg@2", &ctx, {});
   ASSERT_STREQ(metric->Name(), "ndcg@2");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.3868f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.3868f, 0.001f);
 
   delete metric;
-  metric = xgboost::Metric::Create("ndcg@-", &ctx);
+  metric = xgboost::Metric::Create("ndcg@-", &ctx, {});
   ASSERT_STREQ(metric->Name(), "ndcg-");
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}, {}, {}, data_split_mode), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, xgboost::HostDeviceVector<xgboost::bst_float>{}, {}, {}, {},
+                            data_split_mode),
+              0, 1e-10);
   ASSERT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1.f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.6509f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.6509f, 0.001f);
   delete metric;
-  metric = xgboost::Metric::Create("ndcg-", &ctx);
+  metric = xgboost::Metric::Create("ndcg-", &ctx, {});
   ASSERT_STREQ(metric->Name(), "ndcg-");
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}, {}, {}, data_split_mode), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, xgboost::HostDeviceVector<xgboost::bst_float>{}, {}, {}, {},
+                            data_split_mode),
+              0, 1e-10);
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1.f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-               0.6509f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      0.6509f, 0.001f);
 
   delete metric;
-  metric = xgboost::Metric::Create("ndcg@2-", &ctx);
+  metric = xgboost::Metric::Create("ndcg@2-", &ctx, {});
   ASSERT_STREQ(metric->Name(), "ndcg@2-");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1.f, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              1.f - 0.3868f, 1.f - 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode),
+      1.f - 0.3868f, 1.f - 0.001f);
 
   delete metric;
 }
 
 inline void VerifyMAP(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  Metric * metric = xgboost::Metric::Create("map", &ctx);
+  Metric* metric = xgboost::Metric::Create("map", &ctx, {});
   ASSERT_STREQ(metric->Name(), "map");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1, kRtEps);
 
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.5f, 0.001f);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            std::vector<xgboost::bst_float>{}, {}, {}, data_split_mode), 1, 1e-10);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode), 0.5f,
+      0.001f);
+  EXPECT_NEAR(GetMetricEval(metric, xgboost::HostDeviceVector<xgboost::bst_float>{},
+                            std::vector<xgboost::bst_float>{}, {}, {}, data_split_mode),
+              1, 1e-10);
 
   // Rank metric with group info
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.2f, 0.8f, 0.4f, 1.7f},
-                            {1, 1, 1, 0, 1, 0},  // Labels
-                            {},  // Weights
-                            {0, 2, 5, 6},  // Group info
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.2f, 0.8f, 0.4f, 1.7f}, {1, 1, 1, 0, 1, 0},  // Labels
+                    {},                                                                // Weights
+                    {0, 2, 5, 6},                                                      // Group info
+                    data_split_mode),
+      0.8611f, 0.001f);
+
+  delete metric;
+  metric = xgboost::Metric::Create("map@-", &ctx, {});
+  ASSERT_STREQ(metric->Name(), "map-");
+  EXPECT_NEAR(GetMetricEval(metric, xgboost::HostDeviceVector<xgboost::bst_float>{}, {}, {}, {},
                             data_split_mode),
-              0.8611f, 0.001f);
+              0, 1e-10);
 
   delete metric;
-  metric = xgboost::Metric::Create("map@-", &ctx);
+  metric = xgboost::Metric::Create("map-", &ctx, {});
   ASSERT_STREQ(metric->Name(), "map-");
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}, {}, {}, data_split_mode), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric, xgboost::HostDeviceVector<xgboost::bst_float>{}, {}, {}, {},
+                            data_split_mode),
+              0, 1e-10);
 
   delete metric;
-  metric = xgboost::Metric::Create("map-", &ctx);
-  ASSERT_STREQ(metric->Name(), "map-");
-  EXPECT_NEAR(GetMetricEval(metric,
-                            xgboost::HostDeviceVector<xgboost::bst_float>{},
-                            {}, {}, {}, data_split_mode), 0, 1e-10);
-
-  delete metric;
-  metric = xgboost::Metric::Create("map@2", &ctx);
+  metric = xgboost::Metric::Create("map@2", &ctx, {});
   ASSERT_STREQ(metric->Name(), "map@2");
   EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}, {}, {}, data_split_mode), 1, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}, {}, {}, data_split_mode),
-              0.25f, 0.001f);
+  EXPECT_NEAR(
+      GetMetricEval(metric, {0.1f, 0.9f, 0.1f, 0.9f}, {0, 0, 1, 1}, {}, {}, data_split_mode), 0.25f,
+      0.001f);
   delete metric;
 }
 
@@ -162,7 +154,7 @@ inline void VerifyNDCGExpGain(DataSplitMode data_split_mode, DeviceOrd device) {
   info.data_split_mode = data_split_mode;
   HostDeviceVector<float> predt{{0.1f, 0.2f, 0.3f, 4.0f, 70.0f}};
 
-  std::unique_ptr<Metric> metric{Metric::Create("ndcg", &ctx)};
+  std::unique_ptr<Metric> metric{Metric::Create("ndcg", &ctx, {})};
   Json config{Object{}};
   config["name"] = String{"ndcg"};
   config["lambdarank_param"] = Object{};

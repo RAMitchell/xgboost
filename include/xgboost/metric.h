@@ -75,7 +75,7 @@ class Metric : public Configurable {
    * \param ctx A global context
    * \return the created metric.
    */
-  static Metric* Create(const std::string& name, Context const* ctx, Args const& args = {});
+  static Metric* Create(const std::string& name, Context const* ctx, Args const& args);
   static Metric* CreateForLoad(const std::string& name, Context const* ctx);
 };
 

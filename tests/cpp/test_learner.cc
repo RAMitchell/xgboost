@@ -245,6 +245,42 @@ TEST(Learner, ConfigIO) {
   ASSERT_EQ(eval_res_0, eval_res_1);
 }
 
+TEST(Learner, RecreateStatefulMetric) {
+  auto p_fmat = RandomDataGenerator{32, 8, 0.0f}.GenerateDMatrix();
+
+  Json config_0{Object{}};
+  Json config_1{Object{}};
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    learner->SetParam("eval_metric", "expectile");
+    learner->SetParam("expectile_alpha", "0.8");
+    learner->Configure();
+    learner->SaveConfig(&config_0);
+
+    learner->SetParam("expectile_alpha", "0.2");
+    learner->Configure();
+    learner->SaveConfig(&config_1);
+  }
+
+  auto const& metrics_0 = get<Array const>(config_0["learner"]["metrics"]);
+  auto const& metrics_1 = get<Array const>(config_1["learner"]["metrics"]);
+  ASSERT_EQ(metrics_0.size(), 1);
+  ASSERT_EQ(metrics_1.size(), 1);
+  ASSERT_FALSE(metrics_0[0] == metrics_1[0]);
+
+  Json loaded_config{Object{}};
+  {
+    std::unique_ptr<Learner> loaded{Learner::Create({p_fmat})};
+    loaded->LoadConfig(config_1);
+    loaded->Configure();
+    loaded->SaveConfig(&loaded_config);
+  }
+
+  auto const& loaded_metrics = get<Array const>(loaded_config["learner"]["metrics"]);
+  ASSERT_EQ(loaded_metrics.size(), 1);
+  ASSERT_EQ(metrics_1[0], loaded_metrics[0]);
+}
+
 // Crashes the test runner if there are race condiditions.
 //
 // Build with additional cmake flags to enable thread sanitizer

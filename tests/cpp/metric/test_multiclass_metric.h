@@ -13,7 +13,7 @@ namespace metric {
 
 inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) {
   auto ctx = MakeCUDACtx(device);
-  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx)};
+  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx, {})};
 
   HostDeviceVector<float> predts;
   auto p_fmat = EmptyDMatrix();
@@ -50,7 +50,7 @@ inline void CheckDeterministicMetricMultiClass(StringView name, int32_t device) 
 
 inline void TestMultiClassError(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric *metric = xgboost::Metric::Create("merror", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("merror", &ctx, {});
   ASSERT_STREQ(metric->Name(), "merror");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}, {}, {}, data_split_mode));
   EXPECT_NEAR(
@@ -69,7 +69,7 @@ inline void VerifyMultiClassError(DataSplitMode data_split_mode, DeviceOrd devic
 
 inline void TestMultiClassLogLoss(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  xgboost::Metric *metric = xgboost::Metric::Create("mlogloss", &ctx);
+  xgboost::Metric *metric = xgboost::Metric::Create("mlogloss", &ctx, {});
   ASSERT_STREQ(metric->Name(), "mlogloss");
   EXPECT_ANY_THROW(GetMetricEval(metric, {0}, {0, 0}, {}, {}, data_split_mode));
   EXPECT_NEAR(

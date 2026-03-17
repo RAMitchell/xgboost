@@ -422,7 +422,11 @@ class QuantileError : public MetricNoCache {
   }
 
  public:
-  explicit QuantileError(Args const& args) { this->UpdateArgs(args); }
+  explicit QuantileError(Args const& args) {
+    if (!args.empty()) {
+      this->UpdateArgs(args);
+    }
+  }
 
   void Configure(Args const& args) override { this->UpdateArgs(args); }
 
@@ -512,7 +516,11 @@ class ExpectileError : public MetricNoCache {
   }
 
  public:
-  explicit ExpectileError(Args const& args) { this->UpdateArgs(args); }
+  explicit ExpectileError(Args const& args) {
+    if (!args.empty()) {
+      this->UpdateArgs(args);
+    }
+  }
 
   void Configure(Args const& args) override { this->UpdateArgs(args); }
 

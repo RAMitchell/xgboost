@@ -864,13 +864,21 @@ class LearnerConfiguration : public Intercept {
   }
 
   void ConfigureMetrics(Args const& args) {
+    auto same_metrics = metrics_.size() == metric_names_.size() &&
+                        std::equal(metric_names_.cbegin(), metric_names_.cend(), metrics_.cbegin(),
+                                   [](auto const& name, std::unique_ptr<Metric> const& metric) {
+                                     return metric && metric->Name() == name;
+                                   });
+    // Keep restored metrics intact on a pure LoadConfig->Configure pass. Otherwise, rebuild
+    // metrics from the latest arguments instead of reconfiguring existing instances.
+    if (cfg_.empty() && same_metrics) {
+      return;
+    }
+
+    metrics_.clear();
+    metrics_.reserve(metric_names_.size());
     for (auto const& name : metric_names_) {
-      auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
-        return m->Name() != name;
-      };
-      if (std::all_of(metrics_.begin(), metrics_.end(), DupCheck)) {
-        metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &ctx_, args)));
-      }
+      metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &ctx_, args)));
     }
   }
 
