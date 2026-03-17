@@ -603,16 +603,9 @@ class LearnerConfiguration : public Intercept {
     metric_names_.resize(n_metrics);
     metrics_.resize(n_metrics);
     for (size_t i = 0; i < n_metrics; ++i) {
-      auto old_serialization = IsA<String>(j_metrics[i]);
-      if (old_serialization) {
-        error::WarnOldSerialization();
-        metric_names_[i] = get<String>(j_metrics[i]);
-      } else {
-        metric_names_[i] = get<String>(j_metrics[i]["name"]);
-      }
-      metrics_[i] = std::unique_ptr<Metric>(
-          old_serialization ? Metric::Create(metric_names_[i], &ctx_, Args{})
-                            : Metric::Create(metric_names_[i], &ctx_, j_metrics[i]));
+      metric_names_[i] =
+          IsA<String>(j_metrics[i]) ? get<String>(j_metrics[i]) : get<String>(j_metrics[i]["name"]);
+      metrics_[i] = std::unique_ptr<Metric>(Metric::Create(&ctx_, j_metrics[i]));
     }
 
     FromJson(learner_parameters.at("generic_param"), &ctx_);

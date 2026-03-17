@@ -30,4 +30,15 @@ TEST(Metric, ExpectileLoadConfig) {
   // alpha=0.8, diffs {0.1, -0.1} => losses {0.2*0.01, 0.8*0.01} -> mean 0.005.
   EXPECT_NEAR(result, 0.005f, 1e-6f);
 }
+
+TEST(Metric, OldSerializationLoadConfig) {
+  auto ctx = MakeCUDACtx(GPUIDX);
+  Json config{String{"rmse"}};
+
+  std::unique_ptr<xgboost::Metric> loaded{xgboost::Metric::Create(&ctx, config)};
+  xgboost::HostDeviceVector<float> preds;
+  preds.HostVector() = {0.1f, 0.9f};
+  auto result = GetMetricEval(loaded.get(), preds, {0.0f, 1.0f}, {}, {}, DataSplitMode::kRow);
+  EXPECT_NEAR(result, std::sqrt(0.01f), 1e-6f);
+}
 }  // namespace xgboost

@@ -52,6 +52,16 @@ Metric* Metric::Create(const std::string& name, Context const* ctx, Args const& 
   return metric;
 }
 
+Metric* Metric::Create(Context const* ctx, Json const& config) {
+  if (IsA<String>(config)) {
+    error::WarnOldSerialization();
+    return Metric::Create(get<String const>(config), ctx, Args{});
+  }
+
+  auto const& obj = get<Object const>(config);
+  return Metric::Create(get<String const>(obj.at("name")), ctx, config);
+}
+
 Metric* Metric::Create(std::string const& name, Context const* ctx, Json const& config) {
   auto metric = std::unique_ptr<Metric>{Metric::Create(name, ctx, Args{})};
   metric->LoadConfig(config);
