@@ -22,7 +22,7 @@ TEST(Metric, ExpectileLoadConfig) {
   Json config{Object{}};
   metric->SaveConfig(&config);
 
-  std::unique_ptr<xgboost::Metric> loaded{xgboost::Metric::Create("expectile", &ctx)};
+  std::unique_ptr<xgboost::Metric> loaded{xgboost::Metric::CreateForLoad("expectile", &ctx)};
   loaded->LoadConfig(config);
 
   xgboost::HostDeviceVector<float> preds;

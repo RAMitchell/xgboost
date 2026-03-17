@@ -610,7 +610,7 @@ class LearnerConfiguration : public Intercept {
       } else {
         metric_names_[i] = get<String>(j_metrics[i]["name"]);
       }
-      metrics_[i] = std::unique_ptr<Metric>(Metric::Create(metric_names_[i], &ctx_));
+      metrics_[i] = std::unique_ptr<Metric>(Metric::CreateForLoad(metric_names_[i], &ctx_));
       if (!old_serialization) {
         metrics_[i]->LoadConfig(j_metrics[i]);
       }
@@ -1166,7 +1166,8 @@ class LearnerImpl : public LearnerIO {
     os.precision(std::numeric_limits<double>::max_digits10);
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.empty() && !tparam_.disable_default_eval_metric) {
-      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &ctx_));
+      metrics_.emplace_back(
+          Metric::Create(obj_->DefaultEvalMetric(), &ctx_, {cfg_.cbegin(), cfg_.cend()}));
       auto config = obj_->DefaultMetricConfig();
       if (!IsA<Null>(config)) {
         metrics_.back()->LoadConfig(config);

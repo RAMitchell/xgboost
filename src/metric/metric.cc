@@ -51,6 +51,10 @@ Metric* Metric::Create(const std::string& name, Context const* ctx, Args const& 
   metric->ctx_ = ctx;
   return metric;
 }
+
+Metric* Metric::CreateForLoad(const std::string& name, Context const* ctx) {
+  return Metric::Create(name, ctx, {});
+}
 }  // namespace xgboost
 
 namespace dmlc {
