@@ -872,10 +872,6 @@ class LearnerConfiguration : public Intercept {
         metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &ctx_, args)));
       }
     }
-
-    for (auto& p_metric : metrics_) {
-      p_metric->Configure(args);
-    }
   }
 
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) {
@@ -1172,7 +1168,6 @@ class LearnerImpl : public LearnerIO {
       if (!IsA<Null>(config)) {
         metrics_.back()->LoadConfig(config);
       }
-      metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
 
     for (size_t i = 0; i < data_sets.size(); ++i) {

@@ -155,6 +155,9 @@ struct EvalIntervalRegressionAccuracy {
 /*! \brief Negative log likelihood of Accelerated Failure Time model */
 template <typename Distribution>
 struct EvalAFTNLogLik {
+  EvalAFTNLogLik() = default;
+  explicit EvalAFTNLogLik(AFTParam const& param) : param_{param} {}
+
   void Configure(const Args& args) { param_.UpdateAllowUnknown(args); }
 
   [[nodiscard]] const char* Name() const { return "aft-nloglik"; }
@@ -174,6 +177,10 @@ struct EvalAFTNLogLik {
 template <typename Policy>
 struct EvalEWiseSurvivalBase : public MetricNoCache {
   explicit EvalEWiseSurvivalBase(Context const* ctx) { ctx_ = ctx; }
+  EvalEWiseSurvivalBase(Context const* ctx, Policy policy) : policy_{std::move(policy)} {
+    ctx_ = ctx;
+    reducer_.Configure(policy_);
+  }
   EvalEWiseSurvivalBase() = default;
 
   void Configure(const Args& args) override {
@@ -210,14 +217,16 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
   void MakeMetric() {
     switch (param_.aft_loss_distribution) {
       case common::ProbabilityDistributionType::kNormal:
-        metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(ctx_));
+        metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::NormalDistribution>>(
+            ctx_, EvalAFTNLogLik<common::NormalDistribution>{param_}));
         break;
       case common::ProbabilityDistributionType::kLogistic:
-        metric_.reset(
-            new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::LogisticDistribution>>(ctx_));
+        metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::LogisticDistribution>>(
+            ctx_, EvalAFTNLogLik<common::LogisticDistribution>{param_}));
         break;
       case common::ProbabilityDistributionType::kExtreme:
-        metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>(ctx_));
+        metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>(
+            ctx_, EvalAFTNLogLik<common::ExtremeDistribution>{param_}));
         break;
       default:
         LOG(FATAL) << "Unknown probability distribution";
@@ -226,16 +235,21 @@ struct AFTNLogLikDispatcher : public MetricNoCache {
 
  public:
   explicit AFTNLogLikDispatcher(Args const& args) {
-    if (!args.empty()) {
-      this->Configure(args);
-    }
+    param_.aft_loss_distribution = common::ProbabilityDistributionType::kNormal;
+    param_.aft_loss_distribution_scale = 1.0f;
+    param_.UpdateAllowUnknown(args);
   }
-  AFTNLogLikDispatcher() = default;
+  AFTNLogLikDispatcher() {
+    param_.aft_loss_distribution = common::ProbabilityDistributionType::kNormal;
+    param_.aft_loss_distribution_scale = 1.0f;
+  }
 
   [[nodiscard]] const char* Name() const override { return "aft-nloglik"; }
 
   double Eval(const HostDeviceVector<bst_float>& preds, const MetaInfo& info) override {
-    CHECK(metric_) << "AFT metric must be configured first, with distribution type and scale";
+    if (!metric_) {
+      this->MakeMetric();
+    }
     return metric_->Eval(preds, info);
   }
 
