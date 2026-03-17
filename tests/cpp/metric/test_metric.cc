@@ -6,12 +6,12 @@ namespace xgboost {
 TEST(Metric, UnknownMetric) {
   auto ctx = MakeCUDACtx(GPUIDX);
   xgboost::Metric* metric = nullptr;
-  EXPECT_ANY_THROW(metric = xgboost::Metric::Create("unknown_name", &ctx, {}));
-  EXPECT_NO_THROW(metric = xgboost::Metric::Create("rmse", &ctx, {}));
+  EXPECT_ANY_THROW(metric = xgboost::Metric::Create("unknown_name", &ctx, Args{}));
+  EXPECT_NO_THROW(metric = xgboost::Metric::Create("rmse", &ctx, Args{}));
   delete metric;
   metric = nullptr;
-  EXPECT_ANY_THROW(metric = xgboost::Metric::Create("unknown_name@1", &ctx, {}));
-  EXPECT_NO_THROW(metric = xgboost::Metric::Create("error@0.5f", &ctx, {}));
+  EXPECT_ANY_THROW(metric = xgboost::Metric::Create("unknown_name@1", &ctx, Args{}));
+  EXPECT_NO_THROW(metric = xgboost::Metric::Create("error@0.5f", &ctx, Args{}));
   delete metric;
 }
 
@@ -22,8 +22,7 @@ TEST(Metric, ExpectileLoadConfig) {
   Json config{Object{}};
   metric->SaveConfig(&config);
 
-  std::unique_ptr<xgboost::Metric> loaded{xgboost::Metric::CreateForLoad("expectile", &ctx)};
-  loaded->LoadConfig(config);
+  std::unique_ptr<xgboost::Metric> loaded{xgboost::Metric::Create("expectile", &ctx, config)};
 
   xgboost::HostDeviceVector<float> preds;
   preds.HostVector() = {0.1f, 0.9f};

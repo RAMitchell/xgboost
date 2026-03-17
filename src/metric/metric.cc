@@ -52,8 +52,10 @@ Metric* Metric::Create(const std::string& name, Context const* ctx, Args const& 
   return metric;
 }
 
-Metric* Metric::CreateForLoad(const std::string& name, Context const* ctx) {
-  return Metric::Create(name, ctx, {});
+Metric* Metric::Create(std::string const& name, Context const* ctx, Json const& config) {
+  auto metric = std::unique_ptr<Metric>{Metric::Create(name, ctx, Args{})};
+  metric->LoadConfig(config);
+  return metric.release();
 }
 }  // namespace xgboost
 

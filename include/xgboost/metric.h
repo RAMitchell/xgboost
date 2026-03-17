@@ -76,7 +76,7 @@ class Metric : public Configurable {
    * \return the created metric.
    */
   static Metric* Create(const std::string& name, Context const* ctx, Args const& args);
-  static Metric* CreateForLoad(const std::string& name, Context const* ctx);
+  static Metric* Create(const std::string& name, Context const* ctx, Json const& config);
 };
 
 /*!

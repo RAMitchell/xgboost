@@ -88,8 +88,7 @@ class TestDefaultObjConfig : public ::testing::TestWithParam<std::string> {
     if (!IsA<Null>(mconfig)) {
       // make sure metric can handle it
       std::unique_ptr<Metric> metricfn{
-          Metric::CreateForLoad(get<String const>(mconfig["name"]), &ctx_)};
-      metricfn->LoadConfig(mconfig);
+          Metric::Create(get<String const>(mconfig["name"]), &ctx_, mconfig)};
       Json loaded(Object{});
       metricfn->SaveConfig(&loaded);
       ASSERT_EQ(mconfig, loaded);

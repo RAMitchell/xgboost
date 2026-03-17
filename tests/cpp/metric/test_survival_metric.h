@@ -14,7 +14,7 @@ namespace xgboost {
 namespace common {
 inline void CheckDeterministicMetricElementWise(StringView name, int32_t device) {
   auto ctx = MakeCUDACtx(device);
-  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx, {})};
+  std::unique_ptr<Metric> metric{Metric::Create(name.c_str(), &ctx, Args{})};
 
   HostDeviceVector<float> predts;
   auto p_fmat = EmptyDMatrix();
@@ -88,7 +88,7 @@ inline void VerifyIntervalRegressionAccuracy(DataSplitMode data_split_mode, Devi
   info.data_split_mode = data_split_mode;
   HostDeviceVector<bst_float> preds(4, std::log(60.0f));
 
-  std::unique_ptr<Metric> metric(Metric::Create("interval-regression-accuracy", &ctx, {}));
+  std::unique_ptr<Metric> metric(Metric::Create("interval-regression-accuracy", &ctx, Args{}));
   EXPECT_FLOAT_EQ(metric->Evaluate(preds, p_fmat), 0.75f);
   info.labels_lower_bound_.HostVector()[2] = 70.0f;
   EXPECT_FLOAT_EQ(metric->Evaluate(preds, p_fmat), 0.50f);

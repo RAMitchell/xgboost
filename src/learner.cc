@@ -610,10 +610,9 @@ class LearnerConfiguration : public Intercept {
       } else {
         metric_names_[i] = get<String>(j_metrics[i]["name"]);
       }
-      metrics_[i] = std::unique_ptr<Metric>(Metric::CreateForLoad(metric_names_[i], &ctx_));
-      if (!old_serialization) {
-        metrics_[i]->LoadConfig(j_metrics[i]);
-      }
+      metrics_[i] = std::unique_ptr<Metric>(
+          old_serialization ? Metric::Create(metric_names_[i], &ctx_, Args{})
+                            : Metric::Create(metric_names_[i], &ctx_, j_metrics[i]));
     }
 
     FromJson(learner_parameters.at("generic_param"), &ctx_);

@@ -10,7 +10,7 @@
 namespace xgboost::metric {
 inline void VerifyBinaryAUC(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx, {})};
+  std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx, Args{})};
   Metric* metric = uni_ptr.get();
   ASSERT_STREQ(metric->Name(), "auc");
 
@@ -53,7 +53,7 @@ inline void VerifyBinaryAUC(DataSplitMode data_split_mode, DeviceOrd device) {
 
 inline void VerifyMultiClassAUC(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx, {})};
+  std::unique_ptr<Metric> uni_ptr{Metric::Create("auc", &ctx, Args{})};
   auto metric = uni_ptr.get();
 
   // MultiClass
@@ -114,7 +114,7 @@ inline void VerifyMultiClassAUC(DataSplitMode data_split_mode, DeviceOrd device)
 
 inline void VerifyRankingAUC(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
-  std::unique_ptr<Metric> metric{Metric::Create("auc", &ctx, {})};
+  std::unique_ptr<Metric> metric{Metric::Create("auc", &ctx, Args{})};
 
   // single group
   EXPECT_NEAR(GetMetricEval(metric.get(), {0.7f, 0.2f, 0.3f, 0.6f}, {1.0f, 0.8f, 0.4f, 0.2f},
@@ -149,7 +149,7 @@ inline void VerifyRankingAUC(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
-  xgboost::Metric* metric = xgboost::Metric::Create("aucpr", &ctx, {});
+  xgboost::Metric* metric = xgboost::Metric::Create("aucpr", &ctx, Args{});
   ASSERT_STREQ(metric->Name(), "aucpr");
   EXPECT_NEAR(GetMetricEval(metric, {0, 0, 1, 1}, {0, 0, 1, 1}, {}, {}, data_split_mode), 1, 1e-10);
   EXPECT_NEAR(
@@ -186,7 +186,7 @@ inline void VerifyPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
 inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
-  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx, {})};
+  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx, Args{})};
 
   float auc = 0;
   std::vector<float> labels{1.0f, 0.0f, 2.0f};
@@ -210,7 +210,7 @@ inline void VerifyMultiClassPRAUC(DataSplitMode data_split_mode, DeviceOrd devic
 inline void VerifyRankingPRAUC(DataSplitMode data_split_mode, DeviceOrd device) {
   auto ctx = MakeCUDACtx(device.ordinal);
 
-  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx, {})};
+  std::unique_ptr<Metric> metric{Metric::Create("aucpr", &ctx, Args{})};
 
   std::vector<float> labels{1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
   std::vector<uint32_t> groups{0, 2, 6};
