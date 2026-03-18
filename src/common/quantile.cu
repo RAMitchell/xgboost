@@ -304,18 +304,8 @@ void MergeImpl(Context const *ctx, Span<SketchEntry const> const &d_x,
 void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<size_t> columns_ptr,
                            common::Span<OffsetT> cuts_ptr, size_t total_cuts, Span<float> weights) {
   curt::SetDevice(ctx->Ordinal());
-  auto &current = this->entries_;
-  auto &columns_ptr_out = this->columns_ptr_;
-  Span<SketchEntry> out;
-  dh::device_vector<SketchEntry> cuts;
-  bool first_window = current.empty();
-  if (!first_window) {
-    cuts.resize(total_cuts);
-    out = dh::ToSpan(cuts);
-  } else {
-    current.resize(total_cuts);
-    out = dh::ToSpan(current);
-  }
+  dh::device_vector<SketchEntry> cuts(total_cuts);
+  auto out = dh::ToSpan(cuts);
   auto ft = this->feature_types_.ConstDeviceSpan();
   if (weights.empty()) {
     auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const &column,
@@ -340,19 +330,11 @@ void SketchContainer::Push(Context const *ctx, Span<Entry const> entries, Span<s
     PruneImpl<Entry>(cuts_ptr, entries, columns_ptr, ft, out, to_sketch_entry);
   }
   auto n_uniques = this->ScanInput(ctx, out, cuts_ptr);
+  CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
+  this->Merge(ctx, cuts_ptr, out.subspan(0, n_uniques));
 
-  if (!first_window) {
-    CHECK_EQ(columns_ptr_out.Size(), cuts_ptr.size());
-    out = out.subspan(0, n_uniques);
-    this->Merge(ctx, cuts_ptr, out);
-  } else {
-    current.resize(n_uniques);
-    columns_ptr_out.SetDevice(ctx->Device());
-    columns_ptr_out.Resize(cuts_ptr.size());
-
-    auto d_cuts_ptr = columns_ptr_out.DeviceSpan();
-    CopyTo(d_cuts_ptr, cuts_ptr);
-  }
+  auto intermediate_num_cuts = static_cast<bst_idx_t>(num_bins_ * kFactor);
+  this->Prune(ctx, intermediate_num_cuts);
 }
 
 size_t SketchContainer::ScanInput(Context const *ctx, Span<SketchEntry> entries,
@@ -470,38 +452,36 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
              << "This capacity:" << HumanMemUnit(this->MemCapacityBytes()) << "." << std::endl;
 
   timer_.Start(__func__);
-  auto normalize_merged = [&] {
-    if (this->HasCategorical()) {
-      // Numerical summaries are normalized during prune.  Categorical features can still
-      // produce repeated category values, so compact those here before exposing the sketch.
-      auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
-      auto d_column_scan = columns_ptr.DeviceSpan();
-      auto merged_entries = dh::ToSpan(entries);
-      HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
-      scan_out.SetDevice(ctx->Device());
-      auto n_uniques = dh::SegmentedUnique(
-          ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
-          merged_entries.data(), merged_entries.data() + merged_entries.size(),
-          scan_out.DevicePointer(), merged_entries.data(), detail::SketchUnique{},
-          [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
-            return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
-          });
-      columns_ptr.Copy(scan_out);
-      entries.resize(n_uniques);
+  auto compact_categories = [&] {
+    if (!this->HasCategorical()) {
+      return;
     }
-    this->FixError();
+    // Numerical summaries are normalized during prune.  Categorical features can still
+    // produce repeated category values, so compact those here before exposing the sketch.
+    auto d_feature_types = this->FeatureTypes().ConstDeviceSpan();
+    auto d_column_scan = columns_ptr.DeviceSpan();
+    auto merged_entries = dh::ToSpan(entries);
+    HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
+    scan_out.SetDevice(ctx->Device());
+    auto n_uniques = dh::SegmentedUnique(
+        ctx->CUDACtx()->CTP(), d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
+        merged_entries.data(), merged_entries.data() + merged_entries.size(),
+        scan_out.DevicePointer(), merged_entries.data(), detail::SketchUnique{},
+        [d_feature_types] __device__(size_t l_fidx, size_t r_fidx) {
+          return l_fidx == r_fidx && IsCat(d_feature_types, l_fidx);
+        });
+    columns_ptr.Copy(scan_out);
+    entries.resize(n_uniques);
   };
+  if (that.empty()) {
+    timer_.Stop(__func__);
+    return;
+  }
   if (entries.empty()) {
-    CHECK_EQ(columns_ptr.HostVector().back(), 0);
-    CHECK_EQ(columns_ptr.HostVector().size(), d_that_columns_ptr.size());
-    CHECK_EQ(columns_ptr.Size(), num_columns_ + 1);
-    thrust::copy(ctx->CUDACtx()->CTP(), d_that_columns_ptr.data(),
-                 d_that_columns_ptr.data() + d_that_columns_ptr.size(),
-                 columns_ptr.DevicePointer());
-    auto total = columns_ptr.HostVector().back();
-    entries.resize(total);
+    this->SetCurrentColumns(d_that_columns_ptr);
+    entries.resize(that.size());
     CopyTo(dh::ToSpan(entries), that);
-    normalize_merged();
+    compact_categories();
     timer_.Stop(__func__);
     return;
   }
@@ -522,7 +502,8 @@ void SketchContainer::Merge(Context const *ctx, Span<OffsetT const> d_that_colum
             d_that_columns_ptr, dh::ToSpan(scratch), columns_ptr_tmp.DeviceSpan());
   this->CommitScratch(new_size);
   CHECK_EQ(columns_ptr.Size(), num_columns_ + 1);
-  normalize_merged();
+  compact_categories();
+  this->FixError();
   timer_.Stop(__func__);
 }
 
