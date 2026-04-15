@@ -185,6 +185,14 @@ To run this check locally, run the following command from the top level source t
   cd /path/to/xgboost/
   python3 ops/script/run_clang_tidy.py
 
+If you already have a configured build directory with ``compile_commands.json``, you can
+reuse it instead of letting the script generate a temporary compilation database:
+
+.. code-block:: bash
+
+  cd /path/to/xgboost/
+  python3 ops/script/run_clang_tidy.py --build-dir build
+
 Also, the script accepts two optional integer arguments, namely ``--cpp`` and ``--cuda``. By default they are both set to 1, meaning that both C++ and CUDA code will be checked. If the CUDA toolkit is not installed on your machine, you'll encounter an error. To exclude CUDA source from linting, use:
 
 .. code-block:: bash
