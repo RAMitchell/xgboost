@@ -100,6 +100,7 @@ class Model:
     average_depth: float
     mean_max_depth: float
     max_max_depth: int
+    max_unique_feature_depth: int
     mean_nodes: float
     mean_leaves: float
 
@@ -147,30 +148,67 @@ def train_model(dataset: TestDataset, spec: ModelSpec) -> xgb.Booster:
     )
 
 
+def train_or_load_model(
+    dataset: TestDataset,
+    spec: ModelSpec,
+    model_name: str,
+    model_dir: Path | None,
+    force_retrain: bool,
+) -> xgb.Booster:
+    if model_dir is None:
+        print(f"Training {model_name}")
+        return train_model(dataset, spec)
+
+    model_path = model_dir / f"{model_name}.ubj"
+    if model_path.exists() and not force_retrain:
+        print(f"Loading {model_name} from {model_path}")
+        booster = xgb.Booster()
+        booster.load_model(model_path)
+        return booster
+
+    print(f"Training {model_name}")
+    booster = train_model(dataset, spec)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    booster.save_model(model_path)
+    return booster
+
+
 def tree_stats(model: xgb.Booster) -> dict[str, float]:
     dump = model.get_dump(dump_format="json", with_stats=True)
 
-    def walk(node: dict, depth: int = 0) -> tuple[int, int, int]:
+    def walk(
+        node: dict, depth: int = 0, path_features: frozenset[str] = frozenset()
+    ) -> tuple[int, int, int, int]:
         children = node.get("children", [])
         if not children:
-            return depth, 1, 1
+            return depth, len(path_features), 1, 1
+        feature = node["split"]
+        child_path_features = path_features | {feature}
         max_depth = depth
+        max_unique_feature_depth = len(child_path_features)
         node_count = 1
         leaf_count = 0
         for child in children:
-            child_depth, child_nodes, child_leaves = walk(child, depth + 1)
+            child_depth, child_unique_feature_depth, child_nodes, child_leaves = walk(
+                child, depth + 1, child_path_features
+            )
             max_depth = max(max_depth, child_depth)
+            max_unique_feature_depth = max(
+                max_unique_feature_depth, child_unique_feature_depth
+            )
             node_count += child_nodes
             leaf_count += child_leaves
-        return max_depth, node_count, leaf_count
+        return max_depth, max_unique_feature_depth, node_count, leaf_count
 
     max_depths: list[int] = []
+    unique_feature_depths: list[int] = []
     node_counts: list[int] = []
     leaf_counts: list[int] = []
     for tree_json in dump:
         tree = json.loads(tree_json)
-        max_depth, nodes, leaves = walk(tree)
+        max_depth, unique_feature_depth, nodes, leaves = walk(tree)
         max_depths.append(max_depth)
+        unique_feature_depths.append(unique_feature_depth)
         node_counts.append(nodes)
         leaf_counts.append(leaves)
 
@@ -180,20 +218,24 @@ def tree_stats(model: xgb.Booster) -> dict[str, float]:
         "average_depth": float(statistics.mean(max_depths)),
         "mean_max_depth": float(statistics.mean(max_depths)),
         "max_max_depth": int(max(max_depths)),
+        "max_unique_feature_depth": int(max(unique_feature_depths)),
         "mean_nodes": float(statistics.mean(node_counts)),
         "mean_leaves": float(statistics.mean(leaf_counts)),
     }
 
 
-def get_models(model_filter: str) -> list[Model]:
+def get_models(
+    model_filter: str, model_dir: Path | None, force_retrain: bool
+) -> list[Model]:
     models: list[Model] = []
     for dataset in get_test_datasets():
         for spec in MODEL_SPECS.values():
             model_name = f"{dataset.name}-{spec.suffix}"
             if model_filter not in {"all", spec.suffix} and model_filter != model_name:
                 continue
-            print(f"Training {model_name}")
-            booster = train_model(dataset, spec)
+            booster = train_or_load_model(
+                dataset, spec, model_name, model_dir, force_retrain
+            )
             stats = tree_stats(booster)
             models.append(
                 Model(
@@ -206,6 +248,7 @@ def get_models(model_filter: str) -> list[Model]:
                     average_depth=float(stats["average_depth"]),
                     mean_max_depth=float(stats["mean_max_depth"]),
                     max_max_depth=int(stats["max_max_depth"]),
+                    max_unique_feature_depth=int(stats["max_unique_feature_depth"]),
                     mean_nodes=float(stats["mean_nodes"]),
                     mean_leaves=float(stats["mean_leaves"]),
                 )
@@ -515,10 +558,26 @@ def main() -> None:
         default="all",
         help="Model filter: all, small, large, sparse, or a specific dataset-size name",
     )
+    parser.add_argument(
+        "--model-dir",
+        type=Path,
+        default=None,
+        help="Optional directory for persisted trained model cache.",
+    )
+    parser.add_argument(
+        "--force-retrain",
+        action="store_true",
+        help="Retrain and overwrite persisted models even when cached models exist.",
+    )
+    parser.add_argument(
+        "--models-only",
+        action="store_true",
+        help="Only train/load models and emit the model metadata table.",
+    )
     parser.add_argument("--interactions", action="store_true")
     args = parser.parse_args()
 
-    models = get_models(args.model)
+    models = get_models(args.model, args.model_dir, args.force_retrain)
     model_rows = [
         {
             "model": model.name,
@@ -531,6 +590,7 @@ def main() -> None:
             "average_depth": model.average_depth,
             "mean_max_depth": model.mean_max_depth,
             "max_max_depth": model.max_max_depth,
+            "max_unique_feature_depth": model.max_unique_feature_depth,
             "mean_nodes": model.mean_nodes,
             "mean_leaves_per_tree": model.mean_leaves,
         }
@@ -538,24 +598,25 @@ def main() -> None:
     ]
     results_rows: list[dict[str, object]] = []
     details_rows: list[dict[str, object]] = []
-    for model in models:
-        x_test = model.dataset.test_input(args.nrows, args.seed)
-        dtest = xgb.DMatrix(x_test, enable_categorical=True)
-        result_row, details = benchmark_model(
-            model,
-            x_test,
-            dtest,
-            args.niter,
-            args.interactions,
-            args.case_timeout_seconds,
-        )
-        results_rows.append(result_row)
-        details_rows.extend(details)
-        print(
-            pd.DataFrame(results_rows).to_string(
-                index=False, float_format=lambda x: f"{x:.6f}"
+    if not args.models_only:
+        for model in models:
+            x_test = model.dataset.test_input(args.nrows, args.seed)
+            dtest = xgb.DMatrix(x_test, enable_categorical=True)
+            result_row, details = benchmark_model(
+                model,
+                x_test,
+                dtest,
+                args.niter,
+                args.interactions,
+                args.case_timeout_seconds,
             )
-        )
+            results_rows.append(result_row)
+            details_rows.extend(details)
+            print(
+                pd.DataFrame(results_rows).to_string(
+                    index=False, float_format=lambda x: f"{x:.6f}"
+                )
+            )
 
     models_df = pd.DataFrame(model_rows)
     results_df = pd.DataFrame(results_rows)
@@ -563,7 +624,9 @@ def main() -> None:
         "nrows": args.nrows,
         "niter": args.niter,
         "interactions": args.interactions,
+        "models_only": args.models_only,
         "model_filter": args.model,
+        "model_dir": str(args.model_dir) if args.model_dir is not None else None,
         "model_specs": {
             name: {
                 "num_rounds": spec.num_rounds,
@@ -587,13 +650,10 @@ def main() -> None:
         results_df.to_csv(args.out_results, index=False)
     if args.out_markdown is not None:
         args.out_markdown.parent.mkdir(parents=True, exist_ok=True)
-        args.out_markdown.write_text(
-            "## Models\n\n"
-            + markdown_table(models_df, ".3f")
-            + "\n\n## Results\n\n"
-            + markdown_table(results_df, ".6f")
-            + "\n"
-        )
+        text = "## Models\n\n" + markdown_table(models_df, ".3f") + "\n"
+        if not args.models_only:
+            text += "\n## Results\n\n" + markdown_table(results_df, ".6f") + "\n"
+        args.out_markdown.write_text(text)
 
     print("Models:")
     print(models_df.to_string(index=False))
