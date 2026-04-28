@@ -1,5 +1,5 @@
 """Benchmark Shapley interaction indices against TreeSHAP-IQ."""
-# pylint: disable=missing-function-docstring,missing-class-docstring,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,too-many-locals,broad-exception-caught,cell-var-from-loop
+# pylint: disable=missing-function-docstring,missing-class-docstring,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,too-many-locals,broad-exception-caught,cell-var-from-loop,too-many-branches,too-many-statements
 
 import argparse
 import importlib.util
@@ -46,6 +46,7 @@ class PyTree:
     missing: np.ndarray
     feature: np.ndarray
     threshold: np.ndarray
+    categories: list[set[int] | None]
     value: np.ndarray
     cover: np.ndarray
     child_weight: np.ndarray
@@ -97,8 +98,6 @@ def convert_for_shapiq(booster: xgb.Booster):
 
 def parse_trees(booster: xgb.Booster) -> list[PyTree]:
     frame = booster.trees_to_dataframe()
-    if frame["Category"].notna().any():
-        raise ValueError("This harness currently supports numeric-only XGBoost trees.")
     convert_feature_column(booster, frame)
     trees = []
     for _, tree_df in frame.groupby("Tree"):
@@ -132,12 +131,22 @@ def parse_trees(booster: xgb.Booster) -> list[PyTree]:
                 ),
                 feature=tree_df["Feature"].to_numpy(dtype=np.int32),
                 threshold=tree_df["Split"].to_numpy(dtype=np.float64),
+                categories=[
+                    set(int(item) for item in value)
+                    if isinstance(value, list)
+                    else None
+                    for value in tree_df["Category"]
+                ],
                 value=tree_df["Gain"].to_numpy(dtype=np.float64),
                 cover=cover,
                 child_weight=child_weight,
             )
         )
     return trees
+
+
+def has_categorical_splits(trees: list[PyTree]) -> bool:
+    return any(category is not None for tree in trees for category in tree.categories)
 
 
 @njit
@@ -277,7 +286,12 @@ class OrderQuadrature:
         right = int(tree.right[node])
         children = (left, right)
         fvalue = row[feature]
-        if np.isnan(fvalue):
+        if tree.categories[node] is not None:
+            if np.isnan(fvalue) or fvalue < 0:
+                hot_child = int(tree.missing[node])
+            else:
+                hot_child = left if int(fvalue) in tree.categories[node] else right
+        elif np.isnan(fvalue):
             hot_child = int(tree.missing[node])
         else:
             hot_child = left if fvalue < tree.threshold[node] else right
@@ -348,7 +362,12 @@ class OrderQuadrature:
         left = int(tree.left[node])
         right = int(tree.right[node])
         fvalue = row[feature]
-        if np.isnan(fvalue):
+        if tree.categories[node] is not None:
+            if np.isnan(fvalue) or fvalue < 0:
+                hot_child = int(tree.missing[node])
+            else:
+                hot_child = left if int(fvalue) in tree.categories[node] else right
+        elif np.isnan(fvalue):
             hot_child = int(tree.missing[node])
         else:
             hot_child = left if fvalue < tree.threshold[node] else right
@@ -565,18 +584,29 @@ def compare_dicts(lhs: dict[tuple[int, ...], float], rhs: dict[tuple[int, ...], 
     }
 
 
+def to_numeric_matrix(x_test) -> np.ndarray:
+    if hasattr(x_test, "select_dtypes"):
+        converted = x_test.copy()
+        for column in converted.select_dtypes(include=["category"]).columns:
+            converted[column] = converted[column].cat.codes
+        return converted.to_numpy(dtype=np.float64)
+    return np.asarray(x_test, dtype=np.float64)
+
+
 def run_model(
-    model_name: str, rows: int, order: int, points: int, index: str, seed: int
+    model_name: str,
+    rows: int,
+    order: int,
+    points: int,
+    index: str,
+    seed: int,
+    skip_treeshapiq: bool,
 ):
     qbench = load_benchmark_module()
     dataset_name = model_name.rsplit("-", 1)[0]
     dataset = next(ds for ds in qbench.get_test_datasets() if ds.name == dataset_name)
     x_test = dataset.test_input(rows, seed)
-    x_np = (
-        x_test.to_numpy(dtype=np.float64)
-        if hasattr(x_test, "to_numpy")
-        else np.asarray(x_test)
-    )
+    x_np = to_numeric_matrix(x_test)
     x_np = np.atleast_2d(x_np)
 
     booster = xgb.Booster()
@@ -591,19 +621,25 @@ def run_model(
     }
     q_construct = time.perf_counter() - t0
 
-    t0 = time.perf_counter()
-    iq_trees = convert_for_shapiq(booster)
-    min_order = 0 if index == "k-SII" else order
-    iq_explainer = TreeExplainer(
-        iq_trees, max_order=order, min_order=min_order, index=index
-    )
-    iq_construct = time.perf_counter() - t0
+    supports_iq = not skip_treeshapiq and not has_categorical_splits(q_trees)
+    iq_explainer = None
+    iq_construct = None
+    if supports_iq:
+        t0 = time.perf_counter()
+        iq_trees = convert_for_shapiq(booster)
+        min_order = 0 if index == "k-SII" else order
+        iq_explainer = TreeExplainer(
+            iq_trees, max_order=order, min_order=min_order, index=index
+        )
+        iq_construct = time.perf_counter() - t0
 
     q_times = []
     iq_times = []
     diffs = []
     iq_efficiency_errors = []
-    can_check_efficiency = index == "k-SII" and is_scalar_output(booster)
+    can_check_efficiency = (
+        supports_iq and index == "k-SII" and is_scalar_output(booster)
+    )
     xgb_base_score = base_score(booster)
     for row in x_np:
         t0 = time.perf_counter()
@@ -618,28 +654,31 @@ def run_model(
             q_values = q_explainers[order].explain(np.asarray(row, dtype=np.float64))
         q_times.append(time.perf_counter() - t0)
 
-        t0 = time.perf_counter()
-        iq_all_values = iq_explainer.explain(np.asarray(row))
-        if index == "k-SII":
-            iq_values = nonempty_dict_from_interaction_values(iq_all_values, order)
-        else:
-            iq_values = dict_from_interaction_values(iq_all_values, order)
-        iq_times.append(time.perf_counter() - t0)
-        diffs.append(compare_dicts(q_values, iq_values))
+        if supports_iq:
+            t0 = time.perf_counter()
+            iq_all_values = iq_explainer.explain(np.asarray(row))
+            if index == "k-SII":
+                iq_values = nonempty_dict_from_interaction_values(iq_all_values, order)
+            else:
+                iq_values = dict_from_interaction_values(iq_all_values, order)
+            iq_times.append(time.perf_counter() - t0)
+            diffs.append(compare_dicts(q_values, iq_values))
 
-        if can_check_efficiency:
-            raw_margin = float(
-                np.sum(
-                    booster.predict(
-                        xgb.DMatrix(np.asarray(row, dtype=np.float64).reshape(1, -1)),
-                        output_margin=True,
+            if can_check_efficiency:
+                raw_margin = float(
+                    np.sum(
+                        booster.predict(
+                            xgb.DMatrix(
+                                np.asarray(row, dtype=np.float64).reshape(1, -1)
+                            ),
+                            output_margin=True,
+                        )
                     )
                 )
-            )
-            tree_margin = raw_margin - xgb_base_score
-            iq_efficiency_errors.append(
-                abs(float(sum(iq_all_values.dict_values.values())) - tree_margin)
-            )
+                tree_margin = raw_margin - xgb_base_score
+                iq_efficiency_errors.append(
+                    abs(float(sum(iq_all_values.dict_values.values())) - tree_margin)
+                )
 
     result = {
         "model": model_name,
@@ -647,39 +686,63 @@ def run_model(
         "order": order,
         "index": index,
         "points": points,
+        "has_categorical_splits": has_categorical_splits(q_trees),
         "n_features": n_features,
         "num_trees": len(q_trees),
         "quadrature_construct_s": q_construct,
         "treeshapiq_construct_s": iq_construct,
         "quadrature_total_s": float(sum(q_times)),
-        "treeshapiq_total_s": float(sum(iq_times)),
+        "treeshapiq_total_s": float(sum(iq_times)) if supports_iq else None,
         "quadrature_mean_row_s": float(np.mean(q_times)),
-        "treeshapiq_mean_row_s": float(np.mean(iq_times)),
-        "speedup": float(sum(iq_times) / sum(q_times)) if sum(q_times) else None,
-        "max_abs_diff": float(max((d["max_abs_diff"] for d in diffs), default=0.0)),
-        "mean_abs_diff": float(np.mean([d["mean_abs_diff"] for d in diffs]))
-        if diffs
-        else 0.0,
-        "quadrature_nnz_max": int(max((d["nnz_lhs"] for d in diffs), default=0)),
-        "treeshapiq_nnz_max": int(max((d["nnz_rhs"] for d in diffs), default=0)),
+        "treeshapiq_mean_row_s": float(np.mean(iq_times)) if supports_iq else None,
+        "speedup": (
+            float(sum(iq_times) / sum(q_times))
+            if supports_iq and sum(q_times)
+            else None
+        ),
+        "max_abs_diff": (
+            float(max((d["max_abs_diff"] for d in diffs), default=0.0))
+            if supports_iq
+            else None
+        ),
+        "mean_abs_diff": (
+            float(np.mean([d["mean_abs_diff"] for d in diffs])) if diffs else None
+        ),
+        "quadrature_nnz_max": int(max((d["nnz_lhs"] for d in diffs), default=0))
+        if supports_iq
+        else None,
+        "treeshapiq_nnz_max": int(max((d["nnz_rhs"] for d in diffs), default=0))
+        if supports_iq
+        else None,
     }
+    if not supports_iq:
+        if skip_treeshapiq:
+            result["treeshapiq_error"] = "TreeSHAP-IQ skipped"
+        else:
+            result["treeshapiq_error"] = (
+                "categorical XGBoost splits are not supported by the TreeSHAP-IQ adapter"
+            )
     if index == "k-SII":
-        result["treeshapiq_efficiency_error_max"] = float(
-            max(iq_efficiency_errors, default=0.0)
+        result["treeshapiq_efficiency_error_max"] = (
+            float(max(iq_efficiency_errors, default=0.0)) if supports_iq else None
         )
         result["treeshapiq_efficiency_error_mean"] = (
-            float(np.mean(iq_efficiency_errors)) if iq_efficiency_errors else 0.0
+            float(np.mean(iq_efficiency_errors))
+            if supports_iq and iq_efficiency_errors
+            else None
         )
         result["treeshapiq_efficiency_checked"] = can_check_efficiency
     return result
 
 
-def worker(queue, model_name, rows, order, points, index, seed):
+def worker(queue, model_name, rows, order, points, index, seed, skip_treeshapiq):
     try:
         queue.put(
             {
                 "ok": True,
-                "result": run_model(model_name, rows, order, points, index, seed),
+                "result": run_model(
+                    model_name, rows, order, points, index, seed, skip_treeshapiq
+                ),
             }
         )
     except Exception as exc:  # noqa: BLE001
@@ -705,6 +768,7 @@ def run_with_timeout(model_name: str, args):
             args.points,
             args.index,
             args.seed,
+            args.skip_treeshapiq,
         ),
     )
     proc.start()
@@ -728,6 +792,21 @@ def run_with_timeout(model_name: str, args):
     return payload["result"]
 
 
+def write_outputs(args, results: list[dict[str, object]]) -> None:
+    payload = {
+        "rows": args.rows,
+        "order": args.order,
+        "index": args.index,
+        "points": args.points,
+        "skip_treeshapiq": args.skip_treeshapiq,
+        "models": args.models,
+        "complete": len(results) == len(args.models),
+        "results": results,
+    }
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
@@ -737,6 +816,11 @@ def main():
     parser.add_argument("--points", type=int, default=8)
     parser.add_argument("--seed", type=int, default=432)
     parser.add_argument("--timeout", type=float, default=600.0)
+    parser.add_argument(
+        "--skip-treeshapiq",
+        action="store_true",
+        help="Run only quadrature while preserving the usual result schema.",
+    )
     parser.add_argument(
         "--out", type=Path, default=Path(__file__).with_name("results-order3.json")
     )
@@ -748,17 +832,7 @@ def main():
         result = run_with_timeout(model_name, args)
         results.append(result)
         print(json.dumps(result, indent=2), flush=True)
-
-    payload = {
-        "rows": args.rows,
-        "order": args.order,
-        "index": args.index,
-        "points": args.points,
-        "models": args.models,
-        "results": results,
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        write_outputs(args, results)
 
 
 if __name__ == "__main__":

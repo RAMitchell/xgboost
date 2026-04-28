@@ -19,6 +19,27 @@ def load_rows(paths: list[Path], model: str) -> list[dict[str, object]]:
     return sorted(rows, key=lambda row: int(row["order"]))
 
 
+def apply_quadrature_overrides(
+    rows: list[dict[str, object]], override_paths: list[Path], model: str
+) -> list[dict[str, object]]:
+    overrides = {int(row["order"]): row for row in load_rows(override_paths, model)}
+    merged = []
+    for row in rows:
+        order = int(row["order"])
+        updated = dict(row)
+        override = overrides.get(order)
+        if override is not None:
+            for key, value in override.items():
+                if key.startswith("quadrature_"):
+                    updated[key] = value
+            if updated.get("treeshapiq_total_s") and updated.get("quadrature_total_s"):
+                updated["speedup"] = float(updated["treeshapiq_total_s"]) / float(
+                    updated["quadrature_total_s"]
+                )
+        merged.append(updated)
+    return merged
+
+
 def write_markdown(path: Path, rows: list[dict[str, object]]) -> None:
     lines = [
         "| order | quadrature s | TreeSHAP-IQ s | speedup | max abs diff | mean abs diff |",
@@ -100,6 +121,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="cal_housing-sparse")
     parser.add_argument("--inputs", type=Path, nargs="+", required=True)
+    parser.add_argument("--quadrature-inputs", type=Path, nargs="*", default=[])
     parser.add_argument("--out-md", type=Path, required=True)
     parser.add_argument("--out-csv", type=Path, required=True)
     parser.add_argument("--out-chart", type=Path, required=True)
@@ -108,6 +130,8 @@ def main() -> None:
     args = parser.parse_args()
 
     rows = load_rows(args.inputs, args.model)
+    if args.quadrature_inputs:
+        rows = apply_quadrature_overrides(rows, args.quadrature_inputs, args.model)
     write_markdown(args.out_md, rows)
     write_csv(args.out_csv, rows)
     plot(args.out_chart, rows)

@@ -37,6 +37,7 @@ class PyTree:
     missing: np.ndarray
     feature: np.ndarray
     threshold: np.ndarray
+    categories: list[set[int] | None]
     value: np.ndarray
     cover: np.ndarray
     child_weight: np.ndarray
@@ -66,8 +67,6 @@ def convert_feature_column(booster: xgb.Booster, frame):
 
 def parse_trees(booster: xgb.Booster) -> list[PyTree]:
     frame = booster.trees_to_dataframe()
-    if frame["Category"].notna().any():
-        raise ValueError("categorical XGBoost splits are not supported by this harness")
     convert_feature_column(booster, frame)
     trees = []
     for _, tree_df in frame.groupby("Tree"):
@@ -101,12 +100,22 @@ def parse_trees(booster: xgb.Booster) -> list[PyTree]:
                 ),
                 feature=tree_df["Feature"].to_numpy(dtype=np.int32),
                 threshold=tree_df["Split"].to_numpy(dtype=np.float64),
+                categories=[
+                    set(int(item) for item in value)
+                    if isinstance(value, list)
+                    else None
+                    for value in tree_df["Category"]
+                ],
                 value=tree_df["Gain"].to_numpy(dtype=np.float64),
                 cover=cover,
                 child_weight=child_weight,
             )
         )
     return trees
+
+
+def has_categorical_splits(trees: list[PyTree]) -> bool:
+    return any(category is not None for tree in trees for category in tree.categories)
 
 
 def max_depth(tree: PyTree) -> int:
@@ -126,12 +135,18 @@ def xgboost_to_treegrad_model(trees: list[PyTree]):
     for tree in trees:
         if tree.feature[0] < 0:
             continue
+        threshold = tree.threshold.astype(np.float64).copy()
+        split_mask = tree.feature >= 0
+        # XGBoost sends values left for x < split; sklearn-style trees use
+        # x <= threshold. Nudge split thresholds down so TreeGrad traverses the
+        # converted tree with XGBoost's strict-left semantics.
+        threshold[split_mask] = np.nextafter(threshold[split_mask], -np.inf)
         value = tree.value.reshape(-1, 1, 1).astype(np.float64)
         sklearn_tree = SimpleNamespace(
             children_left=tree.left.astype(np.int64),
             children_right=tree.right.astype(np.int64),
             feature=tree.feature.astype(np.int64),
-            threshold=tree.threshold.astype(np.float64),
+            threshold=threshold,
             n_node_samples=tree.cover.astype(np.float64),
             value=value,
             max_depth=max_depth(tree),
@@ -214,7 +229,12 @@ class OrderOneQuadrature:
         left = int(tree.left[node])
         right = int(tree.right[node])
         fvalue = row[feature]
-        if np.isnan(fvalue):
+        if tree.categories[node] is not None:
+            if np.isnan(fvalue) or fvalue < 0:
+                hot_child = int(tree.missing[node])
+            else:
+                hot_child = left if int(fvalue) in tree.categories[node] else right
+        elif np.isnan(fvalue):
             hot_child = int(tree.missing[node])
         else:
             hot_child = left if fvalue < tree.threshold[node] else right
@@ -270,7 +290,12 @@ class OrderOneQuadrature:
         left = int(tree.left[node])
         right = int(tree.right[node])
         fvalue = row[feature]
-        if np.isnan(fvalue):
+        if tree.categories[node] is not None:
+            if np.isnan(fvalue) or fvalue < 0:
+                hot_child = int(tree.missing[node])
+            else:
+                hot_child = left if int(fvalue) in tree.categories[node] else right
+        elif np.isnan(fvalue):
             hot_child = int(tree.missing[node])
         else:
             hot_child = left if fvalue < tree.threshold[node] else right
@@ -324,6 +349,15 @@ def default_points(trees: list[PyTree], n_features: int) -> int:
     )
 
 
+def to_numeric_matrix(x_test) -> np.ndarray:
+    if hasattr(x_test, "select_dtypes"):
+        converted = x_test.copy()
+        for column in converted.select_dtypes(include=["category"]).columns:
+            converted[column] = converted[column].cat.codes
+        return converted.to_numpy(dtype=np.float64)
+    return np.asarray(x_test, dtype=np.float64)
+
+
 def run_model(
     model_name: str, rows: int, quadrature_points: int, seed: int, treegrad_root: Path
 ):
@@ -340,19 +374,19 @@ def run_model(
     trees = parse_trees(booster)
 
     x_test = dataset.test_input(rows, seed)
-    x_np = (
-        x_test.to_numpy(dtype=np.float64)
-        if hasattr(x_test, "to_numpy")
-        else np.asarray(x_test, dtype=np.float64)
-    )
+    x_np = to_numeric_matrix(x_test)
     x_np = np.atleast_2d(x_np)
     treegrad_points = default_points(trees, n_features)
     quadrature = OrderOneQuadrature(trees, n_features, quadrature_points)
     q_construct = time.perf_counter() - t0
 
-    t0 = time.perf_counter()
-    treegrad_model = xgboost_to_treegrad_model(trees)
-    tg_construct = time.perf_counter() - t0
+    supports_treegrad = not has_categorical_splits(trees)
+    treegrad_model = None
+    tg_construct = None
+    if supports_treegrad:
+        t0 = time.perf_counter()
+        treegrad_model = xgboost_to_treegrad_model(trees)
+        tg_construct = time.perf_counter() - t0
 
     q_times = []
     tg_times = []
@@ -363,33 +397,48 @@ def run_model(
         q_values = quadrature.explain(row)
         q_times.append(time.perf_counter() - t0)
 
-        t0 = time.perf_counter()
-        tg_values = treestab(treegrad_model, row, (1, 1), class_index=None)
-        tg_times.append(time.perf_counter() - t0)
+        if supports_treegrad:
+            t0 = time.perf_counter()
+            tg_values = treestab(treegrad_model, row, (1, 1), class_index=None)
+            tg_times.append(time.perf_counter() - t0)
 
-        diffs = np.abs(q_values - tg_values)
-        max_abs_diffs.append(float(np.max(diffs)))
-        mean_abs_diffs.append(float(np.mean(diffs)))
+            diffs = np.abs(q_values - tg_values)
+            max_abs_diffs.append(float(np.max(diffs)))
+            mean_abs_diffs.append(float(np.mean(diffs)))
 
-    return {
+    result = {
         "model": model_name,
         "rows": rows,
         "quadrature_points": quadrature_points,
         "treegrad_points": treegrad_points,
+        "has_categorical_splits": has_categorical_splits(trees),
         "n_features": n_features,
         "num_trees": len(trees),
         "quadrature_construct_s": q_construct,
         "treegrad_construct_s": tg_construct,
         "quadrature_total_s": float(sum(q_times)),
-        "treegrad_total_s": float(sum(tg_times)),
+        "treegrad_total_s": float(sum(tg_times)) if supports_treegrad else None,
         "quadrature_mean_row_s": float(np.mean(q_times)),
-        "treegrad_mean_row_s": float(np.mean(tg_times)),
-        "speedup_treegrad_over_quadrature": float(sum(tg_times) / sum(q_times))
-        if sum(q_times)
-        else None,
-        "max_abs_diff": float(max(max_abs_diffs, default=0.0)),
-        "mean_abs_diff": float(np.mean(mean_abs_diffs)) if mean_abs_diffs else 0.0,
+        "treegrad_mean_row_s": float(np.mean(tg_times)) if supports_treegrad else None,
+        "speedup_treegrad_over_quadrature": (
+            float(sum(tg_times) / sum(q_times))
+            if supports_treegrad and sum(q_times)
+            else None
+        ),
+        "max_abs_diff": (
+            float(max(max_abs_diffs, default=0.0)) if supports_treegrad else None
+        ),
+        "mean_abs_diff": (
+            float(np.mean(mean_abs_diffs))
+            if supports_treegrad and mean_abs_diffs
+            else None
+        ),
     }
+    if not supports_treegrad:
+        result["treegrad_error"] = (
+            "categorical XGBoost splits are not supported by the TreeGrad adapter"
+        )
+    return result
 
 
 def worker(queue, model_name, rows, quadrature_points, seed, treegrad_root):
@@ -453,11 +502,13 @@ def markdown_table(rows: list[dict[str, object]]) -> str:
         ("rows", "rows"),
         ("quadrature_points", "quadrature points"),
         ("treegrad_points", "TreeGrad points"),
+        ("has_categorical_splits", "categorical"),
         ("quadrature_total_s", "quadrature s"),
         ("treegrad_total_s", "TreeGrad s"),
         ("speedup_treegrad_over_quadrature", "TreeGrad / quadrature"),
         ("max_abs_diff", "max abs diff"),
         ("mean_abs_diff", "mean abs diff"),
+        ("treegrad_error", "TreeGrad error"),
         ("error", "error"),
     ]
     lines = [
@@ -470,10 +521,26 @@ def markdown_table(rows: list[dict[str, object]]) -> str:
             value = row.get(key, "")
             if isinstance(value, float):
                 values.append(f"{value:.3e}" if "diff" in key else f"{value:.3f}")
+            elif value is None:
+                values.append("")
             else:
                 values.append(str(value))
         lines.append("| " + " | ".join(values) + " |")
     return "\n".join(lines) + "\n"
+
+
+def write_outputs(args, results: list[dict[str, object]]) -> None:
+    payload = {
+        "rows": args.rows,
+        "quadrature_points": args.quadrature_points,
+        "models": args.models,
+        "treegrad_root": str(args.treegrad_root),
+        "complete": len(results) == len(args.models),
+        "results": results,
+    }
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    args.out_md.write_text(markdown_table(results), encoding="utf-8")
 
 
 def main() -> None:
@@ -502,17 +569,7 @@ def main() -> None:
         result = run_with_timeout(model_name, args)
         results.append(result)
         print(json.dumps(result, indent=2), flush=True)
-
-    payload = {
-        "rows": args.rows,
-        "quadrature_points": args.quadrature_points,
-        "models": args.models,
-        "treegrad_root": str(args.treegrad_root),
-        "results": results,
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    args.out_md.write_text(markdown_table(results), encoding="utf-8")
+        write_outputs(args, results)
 
 
 if __name__ == "__main__":
