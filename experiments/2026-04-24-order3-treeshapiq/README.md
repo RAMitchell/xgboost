@@ -79,7 +79,6 @@ Commit these scripts and this README:
 - `benchmark_order3.py`
 - `summarize_order3.py`
 - `plot_sparse_order_scaling.py`
-- optionally `benchmark_ksii_efficiency_depth.py` and `probe_fashion_sparse_trees.py` as exploratory scripts
 
 Do not commit:
 
