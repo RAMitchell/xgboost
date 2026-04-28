@@ -72,17 +72,6 @@ done
 
 The order-6 run can take several hours because TreeSHAP-IQ construction dominates.
 
-## Numerical Stability Probe
-
-`probe_vandermonde_stability.py` creates a controlled comb tree with one new feature per level and measures the `k-SII` efficiency residual from TreeSHAP-IQ as unique feature depth increases.
-
-```bash
-/home/nfs/rorym/anaconda3/bin/conda run -n xgboost \
-  python experiments/2026-04-24-order3-treeshapiq/probe_vandermonde_stability.py
-```
-
-This is a stress probe, not a real-data benchmark.
-
 ## What To Commit
 
 Commit these scripts and this README:
@@ -90,7 +79,6 @@ Commit these scripts and this README:
 - `benchmark_order3.py`
 - `summarize_order3.py`
 - `plot_sparse_order_scaling.py`
-- `probe_vandermonde_stability.py`
 - optionally `benchmark_ksii_efficiency_depth.py` and `probe_fashion_sparse_trees.py` as exploratory scripts
 
 Do not commit:
