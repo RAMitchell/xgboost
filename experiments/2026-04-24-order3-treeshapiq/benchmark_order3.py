@@ -20,7 +20,10 @@ from shapiq.explainer.tree import TreeExplainer
 from shapiq.explainer.tree.conversion.xgboost import _convert_xgboost_tree_as_df
 
 ROOT = Path(__file__).resolve().parents[2]
-BENCH = ROOT / "demo/guide-python/quadratureshap_rapids_benchmark.py"
+BENCH = (
+    ROOT
+    / "experiments/2026-04-10-rapids-style-shap-benchmark/quadratureshap_rapids_benchmark.py"
+)
 MODEL_CACHE = ROOT / "experiments/2026-04-10-rapids-style-shap-benchmark/model-cache"
 DEFAULT_MODELS = ["cal_housing-small", "cal_housing-sparse"]
 BERNOULLI = {

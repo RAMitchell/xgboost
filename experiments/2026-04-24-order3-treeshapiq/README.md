@@ -18,7 +18,7 @@ The benchmark scripts expect cached XGBoost models under:
 experiments/2026-04-10-rapids-style-shap-benchmark/model-cache/
 ```
 
-Regenerate them with `demo/guide-python/quadratureshap_rapids_benchmark.py --model-dir ... --models-only`.
+Regenerate them with `experiments/2026-04-10-rapids-style-shap-benchmark/quadratureshap_rapids_benchmark.py --model-dir ... --models-only`.
 
 ## Main Order-3 SII Benchmark
 
