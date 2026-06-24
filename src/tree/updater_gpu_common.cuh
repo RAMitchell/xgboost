@@ -3,6 +3,7 @@
  */
 #pragma once
 #include <thrust/random.h>
+#include <xgboost/span.h>
 #include <cstdio>
 #include <cub/cub.cuh>
 #include <stdexcept>
@@ -57,6 +58,8 @@ struct DeviceSplitCandidate {
   DefaultDirection dir {kLeftDir};
   int findex {-1};
   float fvalue {0};
+  int split_gidx_begin {-1};
+  int split_gidx_end {-1};
 
   common::CatBitField split_cats;
   bool is_cat { false };
@@ -74,6 +77,37 @@ struct DeviceSplitCandidate {
         other.right_sum.GetHess() >= param.min_child_weight) {
       *this = other;
     }
+  }
+
+  XGBOOST_DEVICE bool HasNumericSplitRange() const {
+    return !is_cat && split_gidx_begin >= 0 && split_gidx_end >= split_gidx_begin;
+  }
+
+  XGBOOST_DEVICE void SetNumericSplitRange(
+      int split_gidx, common::Span<float const> feature_values) {
+    split_gidx_begin = split_gidx;
+    split_gidx_end = split_gidx;
+    SetNumericSplitValue(feature_values);
+  }
+
+  XGBOOST_DEVICE bool CanMergeNumericSplitRange(
+      DeviceSplitCandidate const& other) const {
+    return this->HasNumericSplitRange() && other.HasNumericSplitRange() &&
+           this->loss_chg == other.loss_chg && this->dir == other.dir &&
+           this->findex == other.findex && this->left_sum == other.left_sum &&
+           this->right_sum == other.right_sum;
+  }
+
+  XGBOOST_DEVICE void MergeNumericSplitRange(
+      DeviceSplitCandidate const& other,
+      common::Span<float const> feature_values) {
+    split_gidx_begin = split_gidx_begin < other.split_gidx_begin
+                           ? split_gidx_begin
+                           : other.split_gidx_begin;
+    split_gidx_end = split_gidx_end > other.split_gidx_end
+                         ? split_gidx_end
+                         : other.split_gidx_end;
+    SetNumericSplitValue(feature_values);
   }
   /**
    * \brief The largest encoded category in the split bitset
@@ -114,6 +148,8 @@ struct DeviceSplitCandidate {
       left_sum = left_sum_in;
       right_sum = right_sum_in;
       findex = findex_in;
+      split_gidx_begin = -1;
+      split_gidx_end = -1;
     }
   }
   XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
@@ -123,10 +159,20 @@ struct DeviceSplitCandidate {
        << "dir: " << c.dir << ", "
        << "findex: " << c.findex << ", "
        << "fvalue: " << c.fvalue << ", "
+       << "split_gidx_begin: " << c.split_gidx_begin << ", "
+       << "split_gidx_end: " << c.split_gidx_end << ", "
        << "is_cat: " << c.is_cat << ", "
        << "left sum: " << c.left_sum << ", "
        << "right sum: " << c.right_sum << std::endl;
     return os;
+  }
+
+ private:
+  XGBOOST_DEVICE void SetNumericSplitValue(
+      common::Span<float const> feature_values) {
+    int const split_gidx =
+        split_gidx_begin + (split_gidx_end - split_gidx_begin + 1) / 2;
+    fvalue = feature_values[split_gidx];
   }
 };
 

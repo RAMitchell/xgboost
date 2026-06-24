@@ -72,6 +72,45 @@ TEST(GpuHist, EvaluateSingleSplit) {
   TestEvaluateSingleSplit(false);
 }
 
+TEST(GpuHist, EvaluateSingleSplitCentersEmptyBinRange) {
+  GradientPairPrecise parent_sum(-1.0, 3.0);
+  TrainParam tparam = ZeroParam();
+  GPUTrainingParam param{tparam};
+
+  thrust::device_vector<bst_feature_t> feature_set =
+      std::vector<bst_feature_t>{0};
+  thrust::device_vector<uint32_t> feature_segments =
+      std::vector<bst_row_t>{0, 6};
+  thrust::device_vector<float> feature_values =
+      std::vector<float>{0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+  thrust::device_vector<float> feature_min_values =
+      std::vector<float>{-1.0};
+  thrust::device_vector<GradientPair> feature_histogram =
+      std::vector<GradientPair>{{-1.0, 1.0}, {-1.0, 1.0}, {0.0, 0.0},
+                                {0.0, 0.0},  {0.0, 0.0},  {1.0, 1.0}};
+  EvaluateSplitInputs<GradientPair> input{0,
+                                          parent_sum,
+                                          param,
+                                          dh::ToSpan(feature_set),
+                                          {},
+                                          dh::ToSpan(feature_segments),
+                                          dh::ToSpan(feature_values),
+                                          dh::ToSpan(feature_min_values),
+                                          dh::ToSpan(feature_histogram)};
+
+  GPUHistEvaluator<GradientPair> evaluator(tparam, feature_min_values.size(), 0);
+  DeviceSplitCandidate result =
+      evaluator.EvaluateSingleSplit(input, 0, ObjInfo{ObjInfo::kRegression}).split;
+
+  EXPECT_EQ(result.findex, 0);
+  EXPECT_EQ(result.dir, kRightDir);
+  EXPECT_EQ(result.split_gidx_begin, 1);
+  EXPECT_EQ(result.split_gidx_end, 4);
+  EXPECT_EQ(result.fvalue, 3.0f);
+  EXPECT_EQ(result.left_sum, GradientPairPrecise(-2.0, 2.0));
+  EXPECT_EQ(result.right_sum, GradientPairPrecise(1.0, 1.0));
+}
+
 TEST(GpuHist, EvaluateCategoricalSplit) {
   TestEvaluateSingleSplit(true);
 }
