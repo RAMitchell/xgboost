@@ -274,11 +274,6 @@ class EvalAUC : public MetricNoCache {
       CheckRowWeights(info);
     }
     double auc{0};
-    if (ctx_->Device().IsCUDA()) {
-      preds.SetDevice(ctx_->Device());
-      info.labels.SetDevice(ctx_->Device());
-      info.weights_.SetDevice(ctx_->Device());
-    }
     // Use global metadata so empty workers enter the same metric path as nonempty workers.
     std::array<bst_idx_t, 4> meta{info.labels.Size(), preds.Size(), info.labels.Shape(1),
                                   !info.group_ptr_.empty()};
@@ -366,7 +361,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     auto n_threads = ctx_->Threads();
     if (ctx_->IsCUDA()) {
       std::tie(auc, valid_groups) =
-          cuda_impl::RankingAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+          cuda_impl::RankingAUC(ctx_, predts.ConstDeviceSpan(ctx_->Device()), info, &this->d_cache_);
     } else {
       std::tie(auc, valid_groups) =
           RankingAUC<true>(ctx_, predts.ConstHostVector(), info, n_threads);
@@ -380,8 +375,8 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     auto n_threads = ctx_->Threads();
     CHECK_NE(n_classes, 0);
     if (ctx_->IsCUDA()) {
-      auc = cuda_impl::MultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_, n_classes,
-                                   MultiAUCType::kMultiClass);
+      auc = cuda_impl::MultiROCAUC(ctx_, predts.ConstDeviceSpan(ctx_->Device()), info, &this->d_cache_,
+                                   n_classes, MultiAUCType::kMultiClass);
     } else {
       auc = MultiAUC(ctx_, predts.ConstHostVector(), info, n_classes, n_threads,
                      MultiAUCType::kMultiClass, BinaryROCAUC);
@@ -392,7 +387,7 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
   double EvalMultiLabel(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_targets) {
     if (ctx_->IsCUDA()) {
-      return cuda_impl::MultiROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_,
+      return cuda_impl::MultiROCAUC(ctx_, predts.ConstDeviceSpan(ctx_->Device()), info, &this->d_cache_,
                                     n_targets, MultiAUCType::kMultiLabel);
     } else {
       return MultiAUC(ctx_, predts.ConstHostVector(), info, n_targets, ctx_->Threads(),
@@ -405,11 +400,11 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     double fp, tp, auc;
     if (ctx_->IsCUDA()) {
       std::tie(fp, tp, auc) =
-          cuda_impl::BinaryROCAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+          cuda_impl::BinaryROCAUC(ctx_, predts.ConstDeviceSpan(ctx_->Device()), info, &this->d_cache_);
     } else {
-      std::tie(fp, tp, auc) = BinaryROCAUC(ctx_, predts.ConstHostVector(),
-                                           info.labels.HostView().Slice(linalg::All(), 0),
-                                           common::OptionalWeights{info.weights_.ConstHostSpan()});
+      std::tie(fp, tp, auc) = BinaryROCAUC(
+          ctx_, predts.ConstHostVector(), info.labels.HostView().Slice(linalg::All(), 0),
+          common::OptionalWeights{info.weights_.ConstHostSpan()});
     }
     return std::make_tuple(fp, tp, auc);
   }
@@ -455,11 +450,11 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     double pr, re, auc;
     if (ctx_->IsCUDA()) {
       std::tie(pr, re, auc) =
-          cuda_impl::BinaryPRAUC(ctx_, predts.ConstDeviceSpan(), info, &this->d_cache_);
+          cuda_impl::BinaryPRAUC(ctx_, predts.ConstDeviceSpan(ctx_->Device()), info, &this->d_cache_);
     } else {
-      std::tie(pr, re, auc) =
-          BinaryPRAUC(ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
-                      common::OptionalWeights{info.weights_.ConstHostSpan()});
+      std::tie(pr, re, auc) = BinaryPRAUC(
+          ctx_, predts.ConstHostSpan(), info.labels.HostView().Slice(linalg::All(), 0),
+          common::OptionalWeights{info.weights_.ConstHostSpan()});
     }
     return std::make_tuple(pr, re, auc);
   }
@@ -467,8 +462,8 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   double EvalMultiClass(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_classes) {
     if (ctx_->IsCUDA()) {
-      return cuda_impl::MultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_classes,
-                                   MultiAUCType::kMultiClass);
+      return cuda_impl::MultiPRAUC(ctx_, predts.ConstDeviceSpan(ctx_->Device()), info, &d_cache_,
+                                   n_classes, MultiAUCType::kMultiClass);
     } else {
       auto n_threads = this->ctx_->Threads();
       return MultiAUC(ctx_, predts.ConstHostSpan(), info, n_classes, n_threads,
@@ -479,8 +474,8 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
   double EvalMultiLabel(HostDeviceVector<float> const &predts, MetaInfo const &info,
                         size_t n_targets) {
     if (ctx_->IsCUDA()) {
-      return cuda_impl::MultiPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_, n_targets,
-                                   MultiAUCType::kMultiLabel);
+      return cuda_impl::MultiPRAUC(ctx_, predts.ConstDeviceSpan(ctx_->Device()), info, &d_cache_,
+                                   n_targets, MultiAUCType::kMultiLabel);
     } else {
       return MultiAUC(ctx_, predts.ConstHostSpan(), info, n_targets, ctx_->Threads(),
                       MultiAUCType::kMultiLabel, BinaryPRAUC);
@@ -494,7 +489,7 @@ class EvalPRAUC : public EvalAUC<EvalPRAUC> {
     auto n_threads = ctx_->Threads();
     if (ctx_->IsCUDA()) {
       std::tie(auc, valid_groups) =
-          cuda_impl::RankingPRAUC(ctx_, predts.ConstDeviceSpan(), info, &d_cache_);
+          cuda_impl::RankingPRAUC(ctx_, predts.ConstDeviceSpan(ctx_->Device()), info, &d_cache_);
     } else {
       auto labels = info.labels.Data()->ConstHostSpan();
       if (std::any_of(labels.cbegin(), labels.cend(), PRAUCLabelInvalid{})) {

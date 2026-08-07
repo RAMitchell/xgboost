@@ -9,9 +9,9 @@
 #include <thrust/execution_policy.h>
 #include <thrust/scan.h>
 
+#include "../common/algorithm.cuh"  // for CopyIf
 #include "../common/device_helpers.cuh"
 #include "../common/error_msg.h"  // for InfInData
-#include "../common/algorithm.cuh"  // for CopyIf
 #include "device_adapter.cuh"     // for NoInfInData
 
 namespace xgboost::data {
@@ -66,14 +66,12 @@ bst_idx_t CopyToSparsePage(Context const* ctx, AdapterBatchT const& batch, Devic
   bool valid = NoInfInData(ctx, batch, IsValidFunctor{missing});
   CHECK(valid) << error::InfInData();
 
-  page->offset.SetDevice(device);
-  page->data.SetDevice(device);
-  page->offset.Resize(batch.NumRows() + 1);
-  auto s_offset = page->offset.DeviceSpan();
+  page->offset.Resize(batch.NumRows() + 1, device);
+  auto s_offset = page->offset.DeviceSpan(device);
   CountRowOffsets(ctx, batch, s_offset, device, missing);
   auto num_nonzero_ = page->offset.HostVector().back();
-  page->data.Resize(num_nonzero_);
-  CopyDataToDMatrix(ctx, batch, page->data.DeviceSpan(), missing);
+  page->data.Resize(num_nonzero_, device);
+  CopyDataToDMatrix(ctx, batch, page->data.DeviceSpan(device), missing);
 
   return num_nonzero_;
 }

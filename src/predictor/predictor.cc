@@ -57,13 +57,9 @@ void Predictor::InitOutPredictions(const MetaInfo& info, HostDeviceVector<float>
                                    gbm::GBTreeModel const& model) const {
   CHECK_NE(model.learner_model_param->num_output_group, 0);
 
-  if (!ctx_->Device().IsCPU()) {
-    out_preds->SetDevice(ctx_->Device());
-  }
-
   // Cannot rely on the Resize to fill as it might skip if the size is already correct.
   auto n = static_cast<size_t>(model.learner_model_param->OutputLength() * info.num_row_);
-  out_preds->Resize(n);
+  out_preds->Resize(n, ctx_->Device());
 
   HostDeviceVector<float> const* base_margin = info.base_margin_.Data();
   if (!base_margin->Empty()) {

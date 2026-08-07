@@ -80,10 +80,10 @@ class TreeEvaluator {
     auto n_nodes = static_cast<std::size_t>(max_nidx) * 2 + 1;
     auto n = n_nodes * n_targets;
     if (lower_bounds_.Size() < n) {
-      lower_bounds_.Resize(n, -std::numeric_limits<float>::max());
+      lower_bounds_.Resize(n, -std::numeric_limits<float>::max(), device_);
     }
     if (upper_bounds_.Size() < n) {
-      upper_bounds_.Resize(n, std::numeric_limits<float>::max());
+      upper_bounds_.Resize(n, std::numeric_limits<float>::max(), device_);
     }
   }
 
@@ -92,12 +92,6 @@ class TreeEvaluator {
                 bst_target_t n_targets)
       : device_{device}, n_targets_{n_targets}, has_constraint_{p.HasMonotone()} {
     CHECK_GT(n_targets, 0);
-    if (device.IsCUDA()) {
-      lower_bounds_.SetDevice(device);
-      upper_bounds_.SetDevice(device);
-      monotone_.SetDevice(device);
-    }
-
     if (!p.monotone_constraints.empty()) {
       CHECK_LE(p.monotone_constraints.size(), n_features)
           << "The size of monotone constraint should be less or equal to the number of features.";
@@ -107,15 +101,8 @@ class TreeEvaluator {
 
     if (has_constraint_) {
       // Initialised to some small size, can grow if needed
-      lower_bounds_.Resize(256 * n_targets, -std::numeric_limits<float>::max());
-      upper_bounds_.Resize(256 * n_targets, std::numeric_limits<float>::max());
-    }
-
-    if (device_.IsCUDA()) {
-      // Pull to device early.
-      lower_bounds_.ConstDeviceSpan();
-      upper_bounds_.ConstDeviceSpan();
-      monotone_.ConstDeviceSpan();
+      lower_bounds_.Resize(256 * n_targets, -std::numeric_limits<float>::max(), device);
+      upper_bounds_.Resize(256 * n_targets, std::numeric_limits<float>::max(), device);
     }
   }
 
@@ -347,9 +334,9 @@ class TreeEvaluator {
   template <typename ParamT = TrainParam>
   auto GetEvaluator() const {
     if (device_.IsCUDA()) {
-      auto constraints = monotone_.ConstDevicePointer();
-      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDevicePointer(),
-                                    upper_bounds_.ConstDevicePointer(), has_constraint_,
+      auto constraints = monotone_.ConstDeviceSpan(device_).data();
+      return SplitEvaluator<ParamT>{constraints, lower_bounds_.ConstDeviceSpan(device_).data(),
+                                    upper_bounds_.ConstDeviceSpan(device_).data(), has_constraint_,
                                     n_targets_};
     } else {
       auto constraints = monotone_.ConstHostPointer();

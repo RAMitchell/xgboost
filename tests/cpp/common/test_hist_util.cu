@@ -281,7 +281,7 @@ TEST(HistUtil, GroupWeightsEquivalentToRowWeightsOnDevice) {
     MetaInfo info;
     info.SetInfo(ctx, "group", Make1dInterfaceTest(group_sizes.data(), group_sizes.size()));
     info.weights_.HostVector() = group_weights;
-    info.weights_.SetDevice(DeviceOrd::CUDA(0));
+    info.weights_.ConstDeviceSpan(DeviceOrd::CUDA(0));
     info.num_row_ = kRows;
     info.num_col_ = kCols;
 
@@ -340,7 +340,6 @@ TEST(HistUtil, DeviceSketchWithHessianLTR) {
     h_hess = GenerateRandomWeights(n_samples);
     std::mt19937 rng(0);
     std::shuffle(h_hess.begin(), h_hess.end(), rng);
-    hessian.SetDevice(ctx.Device());
     auto p_fmat = GetDMatrixFromData(x, n_samples, kFeatures);
     std::vector<std::vector<float>> group_weight_cases = {std::vector<float>(kGroups, 1.0f),
                                                           GenerateRandomWeights(kGroups)};
@@ -350,7 +349,7 @@ TEST(HistUtil, DeviceSketchWithHessianLTR) {
         p_fmat->Info().weights_.HostVector() = group_weights;
 
         auto cuts_hess =
-            DeviceSketchWithHessian(&ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan());
+            DeviceSketchWithHessian(&ctx, p_fmat.get(), n_bins, hessian.ConstDeviceSpan(ctx.Device()));
         p_fmat->Info().weights_.Resize(p_fmat->Info().num_row_);
         for (std::size_t i = 0; i < h_hess.size(); ++i) {
           auto gidx = dh::SegmentId(Span{gptr.data(), gptr.size()}, i);

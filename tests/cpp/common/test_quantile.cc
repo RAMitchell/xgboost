@@ -365,8 +365,8 @@ TEST_P(QuantileContainerTest, Invariants) {
   std::vector<float> hessian(c.rows, 1.0f);
   auto hess = Span<float const>{hessian};
 
-  HostSketchContainer row_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
-                                 column_size, false);
+  HostSketchContainer row_sketch(
+      &ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(), column_size, false);
   for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
     row_sketch.PushRowPage(page, m->Info(), hess);
   }
@@ -374,8 +374,8 @@ TEST_P(QuantileContainerTest, Invariants) {
   auto columns = CollectWeightedColumns(m.get());
   ValidateContainerCuts(c, row_cuts, m.get(), columns);
 
-  HostSketchContainer sorted_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
-                                    column_size, false);
+  HostSketchContainer sorted_sketch(
+      &ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(), column_size, false);
   for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
     sorted_sketch.PushColPage(page, m->Info(), hess);
   }
@@ -433,15 +433,15 @@ void DoPropertyDistributedQuantile(ContainerCase const& c) {
   std::vector<bst_idx_t> column_size(c.cols, c.rows);
   std::vector<float> hessian(c.rows, 1.0f);
   auto hess = Span<float const>{hessian};
-  HostSketchContainer row_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
-                                 column_size, false);
+  HostSketchContainer row_sketch(
+      &ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(), column_size, false);
   for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
     row_sketch.PushRowPage(page, m->Info(), hess);
   }
   auto row_cuts = row_sketch.MakeCuts(&ctx, m->Info());
 
-  HostSketchContainer sorted_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
-                                    column_size, false);
+  HostSketchContainer sorted_sketch(
+      &ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(), column_size, false);
   for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
     sorted_sketch.PushColPage(page, m->Info(), hess);
   }
@@ -478,16 +478,16 @@ void DoSameOnAllWorkersDistributedQuantile(ContainerCase const& c) {
   std::vector<bst_idx_t> column_size(c.cols, c.rows);
   std::vector<float> hessian(c.rows, 1.0f);
   auto hess = Span<float const>{hessian};
-  HostSketchContainer row_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
-                                 column_size, false);
+  HostSketchContainer row_sketch(
+      &ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(), column_size, false);
   for (auto const& page : m->GetBatches<SparsePage>(&ctx)) {
     row_sketch.PushRowPage(page, m->Info(), hess);
   }
   auto row_cuts = row_sketch.MakeCuts(&ctx, m->Info());
   AssertSameOnAllWorkers(&ctx, row_cuts);
 
-  HostSketchContainer sorted_sketch(&ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(),
-                                    column_size, false);
+  HostSketchContainer sorted_sketch(
+      &ctx, c.max_bin, m->Info().feature_types.ConstHostSpan(), column_size, false);
   for (auto const& page : m->GetBatches<SortedCSCPage>(&ctx)) {
     sorted_sketch.PushColPage(page, m->Info(), hess);
   }

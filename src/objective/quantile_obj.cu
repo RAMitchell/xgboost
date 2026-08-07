@@ -114,11 +114,9 @@ class QuantileRegression : public ObjFunction {
 
     auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
 
-    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
-    alpha_.SetDevice(ctx_->Device());
-    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan(ctx_->Device());
 
     HostDeviceVector<float> root_residual(info.num_row_, 0.0f, ctx_->Device());
     std::vector<double> scale_stats(n_targets + 1, 0.0);
@@ -151,7 +149,7 @@ class QuantileRegression : public ObjFunction {
         h_scale[target] = static_cast<float>(root_mean * root_mean);
       }
     }
-    auto scale_view = ctx_->IsCPU() ? scale.ConstHostSpan() : scale.ConstDeviceSpan();
+    auto scale_view = ctx_->IsCPU() ? scale.ConstHostSpan() : scale.ConstDeviceSpan(ctx_->Device());
 
     linalg::ElementWiseKernel(
         ctx_, gpair, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
@@ -193,7 +191,7 @@ class QuantileRegression : public ObjFunction {
           }
         },
         common::Range{0, static_cast<std::int64_t>(io_preds->Size() / n_alphas)}, ctx_->Threads(),
-        io_preds->Device())
+        ctx_->Device())
         .Eval(io_preds);
   }
 
@@ -206,8 +204,7 @@ class QuantileRegression : public ObjFunction {
 
     if (ctx_->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
-      alpha_.SetDevice(ctx_->Device());
-      auto d_alpha = alpha_.ConstDeviceSpan();
+      auto d_alpha = alpha_.ConstDeviceSpan(ctx_->Device());
       auto d_labels = info.labels.View(ctx_->Device());
       auto seg_it = dh::MakeTransformIterator<std::size_t>(
           thrust::make_counting_iterator(0ul),
@@ -224,8 +221,7 @@ class QuantileRegression : public ObjFunction {
         common::SegmentedQuantile(ctx_, d_alpha.data(), seg_it, seg_it + d_alpha.size() + 1, val_it,
                                   val_it + n, base_score->Data());
       } else {
-        info.weights_.SetDevice(ctx_->Device());
-        auto d_weights = info.weights_.ConstDeviceSpan();
+        auto d_weights = info.weights_.ConstDeviceSpan(ctx_->Device());
         auto weight_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),
                                                           [=] XGBOOST_DEVICE(std::size_t i) {
                                                             auto sample_idx = i % d_labels.Shape(0);

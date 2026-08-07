@@ -311,8 +311,6 @@ void Launch(Context const* ctx, std::uint32_t seed, HostDeviceVector<float> cons
   auto device = ctx->Device();
   dh::safe_cuda(cudaSetDevice(device.ordinal));
 
-  info.labels.SetDevice(device);
-  preds.SetDevice(device);
   out_gpair->SetDevice(ctx->Device());
   out_gpair->Reshape(preds.Size(), 1);
 
@@ -323,7 +321,7 @@ void Launch(Context const* ctx, std::uint32_t seed, HostDeviceVector<float> cons
   CHECK_NE(d_rounding.Size(), 0);
 
   auto label = info.labels.View(ctx->Device());
-  auto predts = preds.ConstDeviceSpan();
+  auto predts = preds.ConstDeviceSpan(device);
   auto gpairs = out_gpair->View(ctx->Device());
   thrust::fill_n(ctx->CUDACtx()->CTP(), gpairs.Values().data(), gpairs.Size(),
                  GradientPair{0.0f, 0.0f});
@@ -395,9 +393,6 @@ void LambdaRankGetGradientNDCG(Context const* ctx, std::uint32_t seed,
   auto const d_inv_IDCG = p_cache->InvIDCG(ctx);
   auto const discount = p_cache->Discount(ctx);
 
-  info.labels.SetDevice(device);
-  preds.SetDevice(device);
-
   auto const exp_gain = p_cache->Param().ndcg_exp_gain;
   auto delta_ndcg = [=] XGBOOST_DEVICE(float y_high, float y_low, std::size_t rank_high,
                                        std::size_t rank_low, bst_group_t g) {
@@ -466,12 +461,9 @@ void LambdaRankGetGradientMAP(Context const* ctx, std::uint32_t seed,
   auto device = ctx->Device();
   dh::safe_cuda(cudaSetDevice(device.ordinal));
 
-  info.labels.SetDevice(device);
-  predt.SetDevice(device);
-
   CHECK(p_cache);
 
-  auto d_predt = predt.ConstDeviceSpan();
+  auto d_predt = predt.ConstDeviceSpan(device);
   auto const d_sorted_idx = p_cache->SortedIdx(ctx, d_predt);
 
   MAPStat(ctx, info, d_sorted_idx, p_cache);
@@ -507,9 +499,6 @@ void LambdaRankGetGradientPairwise(Context const* ctx, std::uint32_t seed,
                                    linalg::Matrix<GradientPair>* out_gpair) {
   auto device = ctx->Device();
   dh::safe_cuda(cudaSetDevice(device.ordinal));
-
-  info.labels.SetDevice(device);
-  predt.SetDevice(device);
 
   auto delta = [] XGBOOST_DEVICE(float, float, std::size_t, std::size_t, bst_group_t) {
     return 1.0;

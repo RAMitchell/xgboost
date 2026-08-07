@@ -284,7 +284,7 @@ linalg::VectorView<float const> LearnerModelParam::BaseScore(Context const* ctx)
 
 void LearnerModelParam::Copy(LearnerModelParam const& that) {
   base_score_.Reshape(that.base_score_.Shape());
-  base_score_.Data()->SetDevice(that.base_score_.Device());
+  base_score_.Data()->Resize(base_score_.Size(), that.base_score_.Device());
   base_score_.Data()->Copy(*that.base_score_.Data());
   std::as_const(base_score_).HostView();
   if (!that.base_score_.Device().IsCPU()) {
@@ -1221,8 +1221,7 @@ class LearnerImpl : public LearnerIO {
       auto predt = prediction_container_.Cache(data, ctx_.Device());
       this->PredictRaw(data.get(), predt.get(), training, layer_begin, layer_end);
       // Copy the prediction cache to output prediction. out_preds comes from C API
-      out_preds->SetDevice(ctx_.Device());
-      out_preds->Resize(predt->predictions.Size());
+      out_preds->Resize(predt->predictions.Size(), ctx_.Device());
       out_preds->Copy(predt->predictions);
       if (!output_margin) {
         obj_->PredTransform(out_preds);

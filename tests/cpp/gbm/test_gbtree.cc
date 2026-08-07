@@ -155,8 +155,7 @@ TEST(GBTree, ChoosePredictor) {
 
   // pull data into device.
   data.HostVector();
-  data.SetDevice(DeviceOrd::CUDA(0));
-  data.DeviceSpan();
+  data.ConstDeviceSpan(DeviceOrd::CUDA(0));
   ASSERT_FALSE(data.HostCanWrite());
 
   // another new learner

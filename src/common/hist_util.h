@@ -177,14 +177,6 @@ class HistogramCuts {
     return vals[bin_idx - 1];
   }
 
-  void SetDevice(DeviceOrd d) const {
-    this->cut_ptrs_.SetDevice(d);
-    this->cut_ptrs_.ConstDevicePointer();
-
-    this->cut_values_.SetDevice(d);
-    this->cut_values_.ConstDevicePointer();
-  }
-
   void Save(common::AlignedFileWriteStream* fo) const;
   [[nodiscard]] static HistogramCuts* Load(common::AlignedResourceReadStream* fi);
 };

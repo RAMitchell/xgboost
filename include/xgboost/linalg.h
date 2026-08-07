@@ -595,13 +595,13 @@ auto MakeTensorView(Context const *ctx, Order order, common::Span<T, ext> data, 
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> *data, S &&...shape) {
-  auto span = ctx->IsCPU() ? data->HostSpan() : data->DeviceSpan();
+  auto span = ctx->Device().IsCPU() ? data->HostSpan() : data->DeviceSpan(ctx->Device());
   return MakeTensorView(ctx->Device(), span, std::forward<S>(shape)...);
 }
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> const *data, S &&...shape) {
-  auto span = ctx->IsCPU() ? data->ConstHostSpan() : data->ConstDeviceSpan();
+  auto span = ctx->Device().IsCPU() ? data->ConstHostSpan() : data->ConstDeviceSpan(ctx->Device());
   return MakeTensorView(ctx->Device(), span, std::forward<S>(shape)...);
 }
 
@@ -775,8 +775,7 @@ class Tensor {
       shape_[i] = 1;
     }
     if (!device.IsCPU()) {
-      data_.SetDevice(device);
-      data_.ConstDevicePointer();  // Pull to device;
+      data_.ConstDeviceSpan(device);  // Pull to device.
     }
     CHECK_EQ(data_.Size(), detail::CalcSize(shape_));
   }
@@ -803,13 +802,7 @@ class Tensor {
       shape_[i] = 1;
     }
     auto size = detail::CalcSize(shape_);
-    if (!device.IsCPU()) {
-      data_.SetDevice(device);
-    }
-    data_.Resize(size);
-    if (!device.IsCPU()) {
-      data_.DevicePointer();  // Pull to device
-    }
+    data_.Resize(size, device);
   }
   /**
    * Initialize from 2 host iterators.
@@ -853,24 +846,12 @@ class Tensor {
    * @brief Get a @ref TensorView for this tensor.
    */
   auto View(DeviceOrd device) {
-    if (device.IsCPU()) {
-      auto span = data_.HostSpan();
-      return TensorView<T, kDim>{span, shape_, device, order_};
-    } else {
-      data_.SetDevice(device);
-      auto span = data_.DeviceSpan();
-      return TensorView<T, kDim>{span, shape_, device, order_};
-    }
+    auto span = device.IsCPU() ? data_.HostSpan() : data_.DeviceSpan(device);
+    return TensorView<T, kDim>{span, shape_, device, order_};
   }
   auto View(DeviceOrd device) const {
-    if (device.IsCPU()) {
-      auto span = data_.ConstHostSpan();
-      return TensorView<T const, kDim>{span, shape_, device, order_};
-    } else {
-      data_.SetDevice(device);
-      auto span = data_.ConstDeviceSpan();
-      return TensorView<T const, kDim>{span, shape_, device, order_};
-    }
+    auto span = device.IsCPU() ? data_.ConstHostSpan() : data_.ConstDeviceSpan(device);
+    return TensorView<T const, kDim>{span, shape_, device, order_};
   }
 
   auto HostView() { return this->View(DeviceOrd::CPU()); }
@@ -950,7 +931,7 @@ class Tensor {
   /**
    * \brief Set device ordinal for this tensor.
    */
-  void SetDevice(DeviceOrd device) const { data_.SetDevice(device); }
+  void SetDevice(DeviceOrd device) { data_.Resize(data_.Size(), device); }
   [[nodiscard]] DeviceOrd Device() const { return data_.Device(); }
 };
 
@@ -1005,9 +986,6 @@ auto Zeros(Context const *ctx, Index &&...index) {
 // Only first axis is supported for now.
 template <typename T, int32_t D>
 void Stack(Tensor<T, D> *l, Tensor<T, D> const &r) {
-  if (r.Device().IsCUDA()) {
-    l->SetDevice(r.Device());
-  }
   l->ModifyInplace([&](HostDeviceVector<T> *data, common::Span<size_t, D> shape) {
     for (size_t i = 1; i < D; ++i) {
       if (shape[i] == 0) {
@@ -1016,7 +994,7 @@ void Stack(Tensor<T, D> *l, Tensor<T, D> const &r) {
         CHECK_EQ(shape[i], r.Shape(i));
       }
     }
-    data->Extend(*r.Data());
+    data->Extend(*r.Data(), r.Device());
     shape[0] = l->Shape(0) + r.Shape(0);
   });
 }

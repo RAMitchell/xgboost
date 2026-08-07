@@ -3,13 +3,13 @@
  */
 #ifndef XGBOOST_COMMON_RANKING_UTILS_H_
 #define XGBOOST_COMMON_RANKING_UTILS_H_
-#include <algorithm>                     // for min
-#include <cmath>                         // for log2, fabs, floor
-#include <cstddef>                       // for size_t
-#include <cstdint>                       // for uint32_t, uint8_t, int32_t
-#include <limits>                        // for numeric_limits
-#include <string>                        // for char_traits, string
-#include <vector>                        // for vector
+#include <algorithm>  // for min
+#include <cmath>      // for log2, fabs, floor
+#include <cstddef>    // for size_t
+#include <cstdint>    // for uint32_t, uint8_t, int32_t
+#include <limits>     // for numeric_limits
+#include <string>     // for char_traits, string
+#include <vector>     // for vector
 
 #include "dmlc/parameter.h"              // for FieldEntry, DMLC_DECLARE_FIELD
 #include "error_msg.h"                   // for GroupWeight, GroupSize, InvalidCUDAOrdinal
@@ -232,8 +232,8 @@ class RankingCache {
   }
   // Constructed as [1, n_samples] if group ptr is not supplied by the user
   common::Span<bst_group_t const> DataGroupPtr(Context const* ctx) const {
-    group_ptr_.SetDevice(ctx->Device());
-    return ctx->IsCUDA() ? group_ptr_.ConstDeviceSpan() : group_ptr_.ConstHostSpan();
+    return ctx->IsCUDA() ? group_ptr_.ConstDeviceSpan(ctx->Device())
+                         : group_ptr_.ConstHostSpan();
   }
 
   [[nodiscard]] auto const& Param() const { return param_; }
@@ -243,8 +243,7 @@ class RankingCache {
   // Create a rank list by model prediction
   common::Span<std::size_t const> SortedIdx(Context const* ctx, common::Span<float const> predt) {
     if (sorted_idx_cache_.Empty()) {
-      sorted_idx_cache_.SetDevice(ctx->Device());
-      sorted_idx_cache_.Resize(predt.size());
+      sorted_idx_cache_.Resize(predt.size(), ctx->Device());
     }
     if (ctx->IsCUDA()) {
       return this->MakeRankOnCUDA(ctx, predt);
@@ -257,25 +256,23 @@ class RankingCache {
   common::Span<std::size_t> SortedIdxY(Context const* ctx, std::size_t n_samples) {
     CHECK(ctx->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (y_sorted_idx_cache_.Empty()) {
-      y_sorted_idx_cache_.SetDevice(ctx->Device());
-      y_sorted_idx_cache_.Resize(n_samples);
+      y_sorted_idx_cache_.Resize(n_samples, ctx->Device());
     }
-    return y_sorted_idx_cache_.DeviceSpan();
+    return y_sorted_idx_cache_.DeviceSpan(ctx->Device());
   }
   common::Span<float> RankedY(Context const* ctx, std::size_t n_samples) {
     CHECK(ctx->IsCUDA()) << error::InvalidCUDAOrdinal();
     if (y_ranked_by_model_.Empty()) {
-      y_ranked_by_model_.SetDevice(ctx->Device());
-      y_ranked_by_model_.Resize(n_samples);
+      y_ranked_by_model_.Resize(n_samples, ctx->Device());
     }
-    return y_ranked_by_model_.DeviceSpan();
+    return y_ranked_by_model_.DeviceSpan(ctx->Device());
   }
 
   // CUDA cache getters, the cache is shared between metric and objective, some of these
   // fields are initialized lazily to avoid unnecessary allocation.
   [[nodiscard]] common::Span<std::size_t const> CUDAThreadsGroupPtr() const {
     CHECK(!threads_group_ptr_.Empty());
-    return threads_group_ptr_.ConstDeviceSpan();
+    return threads_group_ptr_.ConstDeviceSpan(threads_group_ptr_.Device());
   }
   [[nodiscard]] std::size_t CUDAThreads() const { return n_cuda_threads_; }
 
@@ -288,19 +285,18 @@ class RankingCache {
   }
   [[nodiscard]] common::Span<double> CUDACostRounding(Context const* ctx) {
     if (cost_rounding_.Size() == 0) {
-      cost_rounding_.SetDevice(ctx->Device());
-      cost_rounding_.Resize(1);
+      cost_rounding_.Resize(1, ctx->Device());
     }
-    return cost_rounding_.DeviceSpan();
+    return cost_rounding_.DeviceSpan(ctx->Device());
   }
   template <typename Type>
   common::Span<Type> MaxLambdas(Context const* ctx, std::size_t n) {
-    max_lambdas_.SetDevice(ctx->Device());
     std::size_t bytes = n * sizeof(Type);
     if (bytes != max_lambdas_.Size()) {
-      max_lambdas_.Resize(bytes);
+      max_lambdas_.Resize(bytes, ctx->Device());
     }
-    return common::Span<Type>{reinterpret_cast<Type*>(max_lambdas_.DevicePointer()), n};
+    auto storage = max_lambdas_.DeviceSpan(ctx->Device());
+    return common::Span<Type>{reinterpret_cast<Type*>(storage.data()), n};
   }
 };
 
@@ -330,12 +326,13 @@ class NDCGCache : public RankingCache {
   }
 
   linalg::VectorView<double const> InvIDCG(Context const* ctx) const {
-  // This function doesn't have sycl-specific implementation yet.
-  // For that reason we transfer data to host in case of sycl is used for propper execution.
+    // This function doesn't have sycl-specific implementation yet.
+    // For that reason we transfer data to host in case of sycl is used for propper execution.
     return inv_idcg_.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   }
   common::Span<double const> Discount(Context const* ctx) const {
-    return ctx->IsCUDA() ? discounts_.ConstDeviceSpan() : discounts_.ConstHostSpan();
+    return ctx->IsCUDA() ? discounts_.ConstDeviceSpan(ctx->Device())
+                         : discounts_.ConstHostSpan();
   }
   linalg::VectorView<double> Dcg(Context const* ctx) {
     if (dcg_.Size() == 0) {
@@ -412,10 +409,9 @@ class PreCache : public RankingCache {
 
   common::Span<double> Pre(Context const* ctx) {
     if (pre_.Empty()) {
-      pre_.SetDevice(ctx->Device());
-      pre_.Resize(this->Groups());
+      pre_.Resize(this->Groups(), ctx->Device());
     }
-    return ctx->IsCUDA() ? pre_.DeviceSpan() : pre_.HostSpan();
+    return ctx->IsCUDA() ? pre_.DeviceSpan(ctx->Device()) : pre_.HostSpan();
   }
 };
 
@@ -443,24 +439,21 @@ class MAPCache : public RankingCache {
 
   common::Span<double> NumRelevant(Context const* ctx) {
     if (n_rel_.Empty()) {
-      n_rel_.SetDevice(ctx->Device());
-      n_rel_.Resize(n_samples_);
+      n_rel_.Resize(n_samples_, ctx->Device());
     }
-    return ctx->IsCUDA() ? n_rel_.DeviceSpan() : n_rel_.HostSpan();
+    return ctx->IsCUDA() ? n_rel_.DeviceSpan(ctx->Device()) : n_rel_.HostSpan();
   }
   common::Span<double> Acc(Context const* ctx) {
     if (acc_.Empty()) {
-      acc_.SetDevice(ctx->Device());
-      acc_.Resize(n_samples_);
+      acc_.Resize(n_samples_, ctx->Device());
     }
-    return ctx->IsCUDA() ? acc_.DeviceSpan() : acc_.HostSpan();
+    return ctx->IsCUDA() ? acc_.DeviceSpan(ctx->Device()) : acc_.HostSpan();
   }
   common::Span<double> Map(Context const* ctx) {
     if (map_.Empty()) {
-      map_.SetDevice(ctx->Device());
-      map_.Resize(this->Groups());
+      map_.Resize(this->Groups(), ctx->Device());
     }
-    return ctx->IsCUDA() ? map_.DeviceSpan() : map_.HostSpan();
+    return ctx->IsCUDA() ? map_.DeviceSpan(ctx->Device()) : map_.HostSpan();
   }
 };
 

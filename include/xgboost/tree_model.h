@@ -255,15 +255,13 @@ class RegTree : public Model {
   /** @brief Get const reference to nodes */
   [[nodiscard]] common::Span<Node const> GetNodes(DeviceOrd device) const {
     CHECK(!this->IsMultiTarget());
-    return device.IsCPU() ? nodes_.ConstHostSpan()
-                          : (nodes_.SetDevice(device), nodes_.ConstDeviceSpan());
+    return device.IsCPU() ? nodes_.ConstHostSpan() : nodes_.ConstDeviceSpan(device);
   }
 
   /** @brief Get const reference to stats */
   [[nodiscard]] common::Span<RTreeNodeStat const> GetStats(DeviceOrd device) const {
     CHECK(!this->IsMultiTarget());
-    return device.IsCPU() ? stats_.ConstHostSpan()
-                          : (stats_.SetDevice(device), stats_.ConstDeviceSpan());
+    return device.IsCPU() ? stats_.ConstHostSpan() : stats_.ConstDeviceSpan(device);
   }
 
   /*! \brief get node statistics given nid */
@@ -468,12 +466,11 @@ class RegTree : public Model {
    */
   [[nodiscard]] common::Span<FeatureType const> GetSplitTypes(DeviceOrd device) const {
     return device.IsCPU() ? split_types_.ConstHostSpan()
-                          : (split_types_.SetDevice(device), split_types_.ConstDeviceSpan());
+                          : split_types_.ConstDeviceSpan(device);
   }
   [[nodiscard]] common::Span<uint32_t const> GetSplitCategories(DeviceOrd device) const {
-    return device.IsCPU()
-               ? split_categories_.ConstHostSpan()
-               : (split_categories_.SetDevice(device), split_categories_.ConstDeviceSpan());
+    return device.IsCPU() ? split_categories_.ConstHostSpan()
+                          : split_categories_.ConstDeviceSpan(device);
   }
   [[nodiscard]] auto const& GetSplitCategoriesPtr() const {
     return split_categories_segments_.ConstHostVector();
@@ -500,12 +497,8 @@ class RegTree : public Model {
     CategoricalSplitMatrix view;
     view.split_type = this->GetSplitTypes(device);
     view.categories = this->GetSplitCategories(device);
-    if (device.IsCPU()) {
-      view.node_ptr = split_categories_segments_.ConstHostSpan();
-    } else {
-      split_categories_segments_.SetDevice(device);
-      view.node_ptr = split_categories_segments_.ConstDeviceSpan();
-    }
+    view.node_ptr = device.IsCPU() ? split_categories_segments_.ConstHostSpan()
+                                   : split_categories_segments_.ConstDeviceSpan(device);
     return view;
   }
 

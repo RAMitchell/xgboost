@@ -41,12 +41,10 @@ struct CopyBatchItem {
 template <typename T>
 void CopyBatch(Context const* ctx, std::size_t size, std::vector<CopyBatchItem<T>> const& copies,
                HostDeviceVector<T>* out) {
-  out->SetDevice(ctx->Device());
+  out->Resize(size, ctx->Device());
 #if defined(XGBOOST_USE_CUDA)
   if (ctx->IsCUDA()) {
-    (void)out->DeviceSpan();
-    out->Resize(size);
-    auto dst = out->DeviceSpan();
+    auto dst = out->DeviceSpan(ctx->Device());
     std::vector<T*> dsts(copies.size());
     std::vector<T const*> srcs(copies.size());
     std::vector<std::size_t> sizes(copies.size());
@@ -60,7 +58,6 @@ void CopyBatch(Context const* ctx, std::size_t size, std::vector<CopyBatchItem<T
   }
 #endif  // defined(XGBOOST_USE_CUDA)
 
-  out->Resize(size);
   auto dst = out->HostSpan();
   for (auto const& copy : copies) {
     std::copy(copy.src.cbegin(), copy.src.cend(), dst.begin() + copy.dst_offset);
@@ -69,10 +66,9 @@ void CopyBatch(Context const* ctx, std::size_t size, std::vector<CopyBatchItem<T
 
 void ApplyLearningRate(Context const* ctx, std::size_t offset, std::size_t size, float eta,
                        HostDeviceVector<float>* values) {
-  values->SetDevice(ctx->Device());
 #if defined(XGBOOST_USE_CUDA)
   if (ctx->IsCUDA()) {
-    tree::cuda_impl::ApplyLearningRate(ctx, values->DeviceSpan().subspan(offset, size), eta);
+    tree::cuda_impl::ApplyLearningRate(ctx, values->DeviceSpan(ctx->Device()).subspan(offset, size), eta);
     return;
   }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -139,19 +135,20 @@ void MultiTargetTree::SetRoot(linalg::VectorView<float const> weight, float sum_
   CHECK(!weight.Empty());
   auto const next_nidx = RegTree::kRoot + 1;
 
-  this->weights_.SetDevice(weight.Device());
-  this->weights_.Resize(weight.Size(), DftBadValue());
+  this->weights_.Resize(weight.Size(), DftBadValue(), weight.Device());
 
   CHECK_LE(weight.Size(), this->NumTargets());
   CHECK_GE(weights_.Size(), next_nidx * weight.Size());
 
   if (weight.Device().IsCUDA()) {
-    auto out_weight = weights_.DeviceSpan().subspan(RegTree::kRoot * weight.Size(), weight.Size());
+    auto out_weight =
+        weights_.DeviceSpan(weights_.Device()).subspan(RegTree::kRoot * weight.Size(), weight.Size());
     CHECK(weight.Contiguous());
     curt::MemcpyAsync(out_weight.data(), weight.Values().data(), out_weight.size_bytes(),
                       curt::DefaultStream());
   } else {
-    auto out_weight = weights_.HostSpan().subspan(RegTree::kRoot * weight.Size(), weight.Size());
+    auto out_weight =
+        weights_.HostSpan().subspan(RegTree::kRoot * weight.Size(), weight.Size());
     for (std::size_t i = 0, n = weight.Size(); i < n; ++i) {
       out_weight[i] = weight(i);
     }

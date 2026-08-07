@@ -64,7 +64,6 @@ class GBTreeModelView {
 
     CHECK_GE(this->tree_end, this->tree_begin);
     auto n_trees = this->tree_end - this->tree_begin;
-    model.tree_info.SetDevice(device);
     this->tree_groups = model.TreeGroups(device).subspan(this->tree_begin, n_trees);
     CHECK_EQ(n_trees, this->trees_.size());
   }

@@ -255,8 +255,7 @@ void RandomDataGenerator::GenerateDense(HostDeviceVector<float>* out) const {
     }
   }
   if (device_.IsCUDA()) {
-    out->SetDevice(device_);
-    out->DeviceSpan();
+    out->DeviceSpan(device_);
   }
 }
 
@@ -377,12 +376,9 @@ void RandomDataGenerator::GenerateCSR(HostDeviceVector<float>* value,
   }
 
   if (device_.IsCUDA()) {
-    value->SetDevice(device_);
-    value->DeviceSpan();
-    row_ptr->SetDevice(device_);
-    row_ptr->DeviceSpan();
-    columns->SetDevice(device_);
-    columns->DeviceSpan();
+    value->DeviceSpan(device_);
+    row_ptr->DeviceSpan(device_);
+    columns->DeviceSpan(device_);
   }
 
   CHECK_LE(h_value.size(), rows_ * cols_);
@@ -407,10 +403,8 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
     out->Info().labels.Reshape(n_samples, n_targets);
   }
   if (device.IsCUDA()) {
-    out->Info().labels.Data()->SetDevice(device);
-    out->Info().labels.Data()->ConstDevicePointer();
-    out->Info().feature_types.SetDevice(device);
-    out->Info().feature_types.ConstDevicePointer();
+    out->Info().labels.Data()->ConstDeviceSpan(device);
+    out->Info().feature_types.ConstDeviceSpan(device);
   }
 }
 
@@ -446,13 +440,11 @@ void MakeLabels(DeviceOrd device, bst_idx_t n_samples, bst_target_t n_classes,
   }
   if (device_.IsCUDA()) {
     out->Info().labels.SetDevice(device_);
-    out->Info().feature_types.SetDevice(device_);
+    out->Info().feature_types.ConstDeviceSpan(device_);
     for (auto const& page : out->GetBatches<SparsePage>()) {
-      page.data.SetDevice(device_);
-      page.offset.SetDevice(device_);
       // pull to device
-      page.data.ConstDeviceSpan();
-      page.offset.ConstDeviceSpan();
+      page.data.ConstDeviceSpan(device_);
+      page.offset.ConstDeviceSpan(device_);
     }
   }
   if (!ft_.empty()) {

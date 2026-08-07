@@ -162,11 +162,8 @@ class MultiTargetTree : public Model {
   [[nodiscard]] MultiTargetTree* Copy(TreeParam const* param) const;
 
   common::Span<float const> LeafWeights(DeviceOrd device) const {
-    if (device.IsCPU()) {
-      return this->leaf_weights_.ConstHostSpan();
-    }
-    this->leaf_weights_.SetDevice(device);
-    return this->leaf_weights_.ConstDeviceSpan();
+    return device.IsCPU() ? this->leaf_weights_.ConstHostSpan()
+                          : this->leaf_weights_.ConstDeviceSpan(device);
   }
 
   [[nodiscard]] linalg::VectorView<float const> LeafValue(bst_node_t nidx) const {

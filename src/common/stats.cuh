@@ -162,9 +162,8 @@ void SegmentedQuantile(Context const* ctx, AlphaIt alpha_it, SegIt seg_begin, Se
   auto d_sorted_idx = dh::ToSpan(sorted_idx);
   auto val = thrust::make_permutation_iterator(val_begin, dh::tcbegin(d_sorted_idx));
 
-  quantiles->SetDevice(ctx->Device());
-  quantiles->Resize(n_segments);
-  auto d_results = linalg::MakeVec(ctx->Device(), quantiles->DeviceSpan());
+  quantiles->Resize(n_segments, ctx->Device());
+  auto d_results = linalg::MakeVec(ctx->Device(), quantiles->DeviceSpan(ctx->Device()));
 
   thrust::for_each_n(ctx->CUDACtx()->CTP(), thrust::make_counting_iterator(0ul), n_segments,
                      detail::MakeQSegOp(seg_begin, val, alpha_it, d_results));
@@ -195,9 +194,9 @@ void SegmentedQuantile(Context const* ctx, std::vector<float> const& h_alphas, S
   }
 
   auto n_alphas = h_alphas.size();
-  quantiles->SetDevice(ctx->Device());
-  quantiles->Resize(n_segments * n_alphas);
-  auto d_quantiles = linalg::MakeTensorView(ctx, quantiles->DeviceSpan(), n_segments, n_alphas);
+  quantiles->Resize(n_segments * n_alphas, ctx->Device());
+  auto d_quantiles =
+      linalg::MakeTensorView(ctx, quantiles->DeviceSpan(ctx->Device()), n_segments, n_alphas);
 
   for (std::size_t alpha_idx = 0; alpha_idx < n_alphas; ++alpha_idx) {
     auto val_begin = dh::MakeIndexTransformIter(
@@ -266,9 +265,8 @@ void SegmentedWeightedQuantile(Context const* ctx, AlphaIt alpha_it, SegIt seg_b
                                 weights_cdf.begin());
 
   auto n_segments = std::distance(seg_beg, seg_end) - 1;
-  quantiles->SetDevice(ctx->Device());
-  quantiles->Resize(n_segments);
-  auto d_results = linalg::MakeVec(ctx->Device(), quantiles->DeviceSpan());
+  quantiles->Resize(n_segments, ctx->Device());
+  auto d_results = linalg::MakeVec(ctx->Device(), quantiles->DeviceSpan(ctx->Device()));
   auto d_weight_cdf = dh::ToSpan(weights_cdf);
 
   thrust::for_each_n(
@@ -296,9 +294,9 @@ void SegmentedWeightedQuantile(Context const* ctx, std::vector<float> const& h_a
   auto n_alphas = h_alphas.size();
   std::size_t n = std::distance(w_begin, w_end);
 
-  quantiles->SetDevice(ctx->Device());
-  quantiles->Resize(n_segments * n_alphas);
-  auto d_quantiles = linalg::MakeTensorView(ctx, quantiles->DeviceSpan(), n_segments, n_alphas);
+  quantiles->Resize(n_segments * n_alphas, ctx->Device());
+  auto d_quantiles =
+      linalg::MakeTensorView(ctx, quantiles->DeviceSpan(ctx->Device()), n_segments, n_alphas);
 
   for (std::size_t alpha_idx = 0; alpha_idx < n_alphas; ++alpha_idx) {
     auto val_begin = dh::MakeIndexTransformIter(

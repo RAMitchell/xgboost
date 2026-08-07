@@ -298,7 +298,6 @@ class SquaredLogErrorRegression : public FitIntercept {
     out_gpair->Reshape(info.num_row_, this->Targets(info));
     auto gpair = out_gpair->View(ctx_->Device());
 
-    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
 
     auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
@@ -346,7 +345,6 @@ class PseudoHuberRegression : public FitIntercept {
     out_gpair->Reshape(info.num_row_, this->Targets(info));
     auto gpair = out_gpair->View(ctx_->Device());
 
-    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, this->Targets(info));
 
     auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
@@ -437,14 +435,11 @@ class ExpectileRegression : public FitIntercept {
     out_gpair->Reshape(info.num_row_, n_targets);
     auto gpair = out_gpair->View(ctx_->Device());
 
-    info.weights_.SetDevice(ctx_->Device());
     auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
 
-    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
-    alpha_.SetDevice(ctx_->Device());
-    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan(ctx_->Device());
 
     linalg::ElementWiseKernel(
         ctx_, gpair, [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
@@ -496,10 +491,8 @@ class ExpectileRegression : public FitIntercept {
     auto gpair_view = gpair.View(ctx_->Device());
 
     auto labels = info.labels.View(ctx_->Device());
-    info.weights_.SetDevice(ctx_->Device());
     auto weights = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
-    alpha_.SetDevice(ctx_->Device());
-    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan(ctx_->Device());
 
     linalg::ElementWiseKernel(ctx_, gpair_view,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
@@ -530,8 +523,8 @@ class ExpectileRegression : public FitIntercept {
     auto n_samples = io_preds->Size() / n_alphas;
     auto device = io_preds->Device();
     auto predt = linalg::MakeTensorView(
-        device, device.IsCPU() ? io_preds->HostSpan() : io_preds->DeviceSpan(), n_samples,
-        n_alphas);
+        device, device.IsCPU() ? io_preds->HostSpan() : io_preds->DeviceSpan(io_preds->Device()),
+        n_samples, n_alphas);
     auto rows = predt.Slice(linalg::All(), 0);
     linalg::ElementWiseKernel(ctx_, device, rows, [=] XGBOOST_DEVICE(std::size_t i) mutable {
       auto point = predt.Slice(i, linalg::All());
@@ -618,7 +611,6 @@ class PoissonRegression : public FitInterceptGlmLike {
     out_gpair->Reshape(info.num_row_, n_targets);
 
     auto labels = info.labels.View(ctx_->Device());
-    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
     auto gpair = out_gpair->View(ctx_->Device());
@@ -800,7 +792,6 @@ class TweedieRegression : public FitInterceptGlmLike {
     out_gpair->Reshape(info.num_row_, n_targets);
 
     auto labels = info.labels.View(ctx_->Device());
-    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
     auto gpair = out_gpair->View(ctx_->Device());
@@ -881,7 +872,6 @@ class MeanAbsoluteError : public ObjFunction {
     out_gpair->Reshape(info.num_row_, n_targets);
     auto gpair = out_gpair->View(ctx_->Device());
 
-    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
     auto weight = common::MakeOptionalWeights(ctx_->Device(), info.weights_);
 
@@ -914,7 +904,8 @@ class MeanAbsoluteError : public ObjFunction {
         h_scale[target] = static_cast<float>(root_mean * root_mean);
       }
     }
-    auto scale_view = ctx_->Device().IsCPU() ? scale.ConstHostSpan() : scale.ConstDeviceSpan();
+    auto scale_view =
+        ctx_->Device().IsCPU() ? scale.ConstHostSpan() : scale.ConstDeviceSpan(ctx_->Device());
 
     linalg::ElementWiseKernel(ctx_, labels,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {

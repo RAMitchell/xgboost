@@ -89,9 +89,9 @@ class MultiClassMetricsReduction {
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + n_data;
 
-    auto s_labels = labels.DeviceSpan();
-    auto s_preds = preds.DeviceSpan();
-    auto s_weights = weights.DeviceSpan();
+    auto s_labels = labels.ConstDeviceSpan(ctx->Device());
+    auto s_preds = preds.ConstDeviceSpan(ctx->Device());
+    auto s_weights = weights.ConstDeviceSpan(ctx->Device());
 
     bool const is_null_weight = weights.Size() == 0;
     auto s_label_error = label_error_.GetSpan<int32_t>(1);
@@ -129,10 +129,6 @@ class MultiClassMetricsReduction {
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      preds.SetDevice(ctx->Device());
-      labels.SetDevice(ctx->Device());
-      weights.SetDevice(ctx->Device());
-
       dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
       result = DeviceReduceMetrics(ctx, weights, labels, preds, n_class);
     }

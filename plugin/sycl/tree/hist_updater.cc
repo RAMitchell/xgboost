@@ -345,12 +345,11 @@ void HistUpdater<GradientSumT>::FinalizePosition(std::size_t n_samples, RegTree 
     p_out_position->Resize(0);
     return;
   }
-  p_out_position->SetDevice(ctx_->Device());
-  p_out_position->Resize(n_samples);
+  p_out_position->Resize(n_samples, ctx_->Device());
   if (n_samples == 0) {
     return;
   }
-  auto d_position = p_out_position->DeviceSpan();
+  auto d_position = p_out_position->DeviceSpan(ctx_->Device());
 
   auto const t = tree.HostScView();
   for (std::size_t nid = 0; nid < row_set_collection_.Size(); ++nid) {

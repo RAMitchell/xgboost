@@ -59,8 +59,7 @@ void TestBasic(DMatrix *dmat, Context const *ctx) {
   }
 
   std::vector<HostDeviceVector<bst_node_t>> leaf_ids(1);
-  leaf_ids.front().SetDevice(ctx->Device());
-  leaf_ids.front().Resize(h_leaf_out_predictions.size());
+  leaf_ids.front().Resize(h_leaf_out_predictions.size(), ctx->Device());
   auto &h_leaf_ids = leaf_ids.front().HostVector();
   for (std::size_t i = 0; i < h_leaf_out_predictions.size(); ++i) {
     h_leaf_ids[i] = static_cast<bst_node_t>(h_leaf_out_predictions[i]);
@@ -145,8 +144,7 @@ void TestInplacePredictionWithWeights(Context const *ctx) {
   model->weight_drop = {0.5f, 2.0f};
 
   if (ctx->IsCUDA()) {
-    data.SetDevice(ctx->Device());
-    data.ConstDeviceSpan();
+    data.ConstDeviceSpan(ctx->Device());
   }
   auto array = GetArrayInterface(&data, kRows, kCols);
   std::string array_str;
@@ -602,8 +600,7 @@ void TestVectorLeafPrediction(Context const *ctx) {
     predictor->InitOutPredictions(p_fmat->Info(), &predt_cache.predictions, model);
     if (ctx->IsCUDA()) {
       // pull data to device.
-      p_data->SetDevice(ctx->Device());
-      p_data->ConstDeviceSpan();
+      p_data->ConstDeviceSpan(ctx->Device());
     }
     auto arr = GetArrayInterface(p_data, kRows, kCols);
     std::string str;

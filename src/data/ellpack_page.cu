@@ -148,8 +148,7 @@ __global__ void CompressBinEllpackKernel(
   }
 
   bst_idx_t n_features = cuts->NumFeatures();
-  cuts->cut_ptrs_.SetDevice(ctx->Device());
-  common::Span<std::uint32_t const> dptrs = cuts->cut_ptrs_.ConstDeviceSpan();
+  common::Span<std::uint32_t const> dptrs = cuts->cut_ptrs_.ConstDeviceSpan(ctx->Device());
   using PtrT = typename decltype(dptrs)::value_type;
 
   // Calculate the number of required symbols if we treat the data as dense.
@@ -192,7 +191,6 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
-  this->cuts_->SetDevice(ctx->Device());
 
   this->InitCompressedData(ctx);
 }
@@ -207,7 +205,6 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx,
       info{CalcNumSymbols(ctx, row_stride, is_dense, this->cuts_)} {
   monitor_.Init("ellpack_page");
   curt::SetDevice(ctx->Ordinal());
-  this->cuts_->SetDevice(ctx->Device());
 
   this->InitCompressedData(ctx);
   this->CreateHistIndices(ctx, page, feature_types);
@@ -229,8 +226,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, DMatrix* p_fmat, const Batc
 
   this->InitCompressedData(ctx);
 
-  p_fmat->Info().feature_types.SetDevice(ctx->Device());
-  auto ft = p_fmat->Info().feature_types.ConstDeviceSpan();
+  auto ft = p_fmat->Info().feature_types.ConstDeviceSpan(ctx->Device());
   CHECK(p_fmat->SingleColBlock());
   for (auto const& page : p_fmat->GetBatches<SparsePage>()) {
     this->CreateHistIndices(ctx, page, ft);
@@ -458,11 +454,7 @@ void CopyGHistToEllpack(Context const* ctx, GHistIndexMatrix const& page,
 
 EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& page,
                                  common::Span<FeatureType const> ft)
-    : cuts_{[&] {
-        auto cuts = std::make_shared<common::HistogramCuts>(page.cut);
-        cuts->SetDevice(ctx->Device());
-        return cuts;
-      }()},
+    : cuts_{std::make_shared<common::HistogramCuts>(page.cut)},
       is_dense{page.IsDense()},
       base_rowid{page.base_rowid},
       n_rows{page.Size()},
@@ -494,7 +486,7 @@ EllpackPageImpl::EllpackPageImpl(Context const* ctx, GHistIndexMatrix const& pag
     common::DispatchBinType(page.index.GetBinTypeSize(), [&](auto t) {
       using T = decltype(t);
       CopyGHistToEllpack<T>(ctx, page, d_row_ptr, this->info.row_stride, accessor.NullValue(),
-                            this->NumSymbols(), this->cuts_->cut_ptrs_.ConstDeviceSpan(),
+                            this->NumSymbols(), this->cuts_->cut_ptrs_.ConstDeviceSpan(ctx->Device()),
                             d_compressed_buffer);
     });
   });
@@ -598,7 +590,7 @@ void EllpackPageImpl::CreateHistIndices(Context const* ctx, const SparsePage& ro
     dh::DeviceUVector<Entry> entries_d(n_entries);
     // copy data entries to device.
     if (row_batch.data.DeviceCanRead()) {
-      auto const& d_data = row_batch.data.ConstDeviceSpan();
+      auto const& d_data = row_batch.data.ConstDeviceSpan(ctx->Device());
       dh::safe_cuda(cudaMemcpyAsync(entries_d.data(), d_data.data() + ent_cnt_begin,
                                     n_entries * sizeof(Entry), cudaMemcpyDefault,
                                     ctx->CUDACtx()->Stream()));

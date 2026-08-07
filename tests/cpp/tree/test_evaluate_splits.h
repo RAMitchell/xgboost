@@ -46,8 +46,8 @@ inline auto MakeCutsForTest(std::vector<float> values, std::vector<uint32_t> ptr
   cuts.cut_ptrs_.HostVector() = ptrs;
 
   if (device.IsCUDA()) {
-    cuts.cut_ptrs_.SetDevice(device);
-    cuts.cut_values_.SetDevice(device);
+    cuts.cut_ptrs_.ConstDeviceSpan(device);
+    cuts.cut_values_.ConstDeviceSpan(device);
   }
 
   return cuts;

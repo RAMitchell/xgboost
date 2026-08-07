@@ -51,9 +51,6 @@ class TestEllpackPageRawFormat : public ::testing::TestWithParam<bool> {
       cuts = page.Impl()->CutsShared();
     }
 
-    ASSERT_EQ(cuts->cut_values_.Device(), ctx.Device());
-    ASSERT_TRUE(cuts->cut_values_.DeviceCanRead());
-
     auto row_stride = GetRowStride(m.get());
     EllpackCacheInfo cinfo = CInfoForTest(&ctx, m.get(), row_stride, param, cuts);
     policy.SetCuts(&ctx, cuts, ctx.Device(), cinfo);

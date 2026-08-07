@@ -84,7 +84,6 @@ void FitStump(Context const* ctx, linalg::Matrix<GradientPair> const& gpair, bst
   out->SetDevice(ctx->Device());
   out->Reshape(n_targets);
 
-  gpair.SetDevice(ctx->Device());
   auto gpair_t = gpair.View(ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device());
   ctx->IsCUDA() ? cuda_impl::FitStump(ctx, gpair_t, out->View(ctx->Device()))
                 : cpu_impl::FitStump(ctx, gpair_t, out->HostView());

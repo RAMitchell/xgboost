@@ -66,14 +66,16 @@ HistogramCuts SketchOnDMatrix(Context const *ctx, DMatrix *m, bst_bin_t max_bins
   }
 
   if (!use_sorted) {
-    HostSketchContainer container(ctx, max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
+    HostSketchContainer container(ctx, max_bins,
+                                  m->Info().feature_types.ConstHostSpan(), reduced,
                                   HostSketchContainer::UseGroup(info));
     for (auto const &page : m->GetBatches<SparsePage>()) {
       container.PushRowPage(page, info, hessian);
     }
     return container.MakeCuts(ctx, m->Info());
   } else {
-    HostSketchContainer container{ctx, max_bins, m->Info().feature_types.ConstHostSpan(), reduced,
+    HostSketchContainer container{ctx, max_bins,
+                                  m->Info().feature_types.ConstHostSpan(), reduced,
                                   HostSketchContainer::UseGroup(info)};
     for (auto const &page : m->GetBatches<SortedCSCPage>(ctx)) {
       container.PushColPage(page, info, hessian);

@@ -77,7 +77,6 @@ void MakeSketches(Context const* ctx,
         sketch = std::make_unique<common::SketchContainer>(proxy->Info().feature_types, p.max_bin,
                                                            ext_info.n_features, dh::GetDevice(ctx));
       }
-      proxy->Info().weights_.SetDevice(dh::GetDevice(ctx));
       DispatchAny(proxy, [&](auto const& value) {
         common::AdapterDeviceSketch(p_ctx, value, p.max_bin, proxy->Info(), missing, sketch.get());
       });

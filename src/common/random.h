@@ -100,8 +100,7 @@ class ColumnSampler {
    */
   void Init(Context const* ctx, int64_t num_col, HostDeviceVector<float> const& feature_weights,
             float colsample_bynode, float colsample_bylevel, float colsample_bytree) {
-    this->feature_weights_.SetDevice(ctx->Device()), feature_weights.SetDevice(ctx->Device());
-    this->feature_weights_.Resize(feature_weights.Size());
+    this->feature_weights_.Resize(feature_weights.Size(), ctx->Device());
     this->feature_weights_.Copy(feature_weights);
 
     colsample_bylevel_ = colsample_bylevel;
@@ -113,11 +112,9 @@ class ColumnSampler {
     }
     Reset();
 
-    // We process ColumnSampler on host for SYCL. So don't need to push data to device
-    if (!ctx->Device().IsSycl()) {
-      feature_set_tree_->SetDevice(ctx->Device());
-    }
-    feature_set_tree_->Resize(num_col);
+    // We process ColumnSampler on host for SYCL. So don't need to push data to device.
+    auto device = ctx->Device().IsSycl() ? DeviceOrd::CPU() : ctx->Device();
+    feature_set_tree_->Resize(num_col, device);
     if (ctx->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
       cuda_impl::InitFeatureSet(ctx, feature_set_tree_);
@@ -164,14 +161,10 @@ class ColumnSampler {
     }
     if (colsample_bynode_ == 1.0f) {
       // Level sampling
-      auto ptr = feature_set_level_[depth];
-      ptr->SetDevice(ctx->Device());
-      return ptr;
+      return feature_set_level_[depth];
     }
     // Need to sample for the node individually
-    auto ptr = ColSample(ctx, feature_set_level_[depth], colsample_bynode_);
-    ptr->SetDevice(ctx->Device());
-    return ptr;
+    return ColSample(ctx, feature_set_level_[depth], colsample_bynode_);
   }
 };
 

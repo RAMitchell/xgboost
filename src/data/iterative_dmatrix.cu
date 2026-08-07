@@ -67,8 +67,7 @@ void IterativeDMatrix::InitFromCUDA(
     });
     auto is_dense = this->IsDense();
 
-    proxy->Info().feature_types.SetDevice(dh::GetDevice(ctx));
-    auto d_feature_types = proxy->Info().feature_types.ConstDeviceSpan();
+    auto d_feature_types = proxy->Info().feature_types.ConstDeviceSpan(dh::GetDevice(ctx));
     auto new_impl = cuda_impl::DispatchAny(proxy, [&](auto const& value) {
       return EllpackPageImpl{
           &fmat_ctx_,          value, missing, is_dense, row_counts_span, d_feature_types,
@@ -112,10 +111,9 @@ BatchSet<EllpackPage> IterativeDMatrix::GetEllpackBatches(Context const* ctx,
     } else if (!fmat_ctx_.IsCUDA()) {
       fmat_ctx_ = ctx->MakeCUDA();
     }
-    this->Info().feature_types.SetDevice(fmat_ctx_.Device());
     ellpack_.reset(new EllpackPage{});
-    *ellpack_->Impl() =
-        EllpackPageImpl{&fmat_ctx_, *this->ghist_, this->Info().feature_types.ConstDeviceSpan()};
+    *ellpack_->Impl() = EllpackPageImpl{&fmat_ctx_, *this->ghist_,
+                                        this->Info().feature_types.ConstDeviceSpan(fmat_ctx_.Device())};
   }
   CHECK(ellpack_);
   auto begin_iter = BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_));

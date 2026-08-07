@@ -21,14 +21,8 @@ struct SparsePageView {
 
   SparsePageView() = default;
   explicit SparsePageView(Context const* ctx, SparsePage const& page, bst_feature_t n_features)
-      : d_data{[&] {
-          page.data.SetDevice(ctx->Device());
-          return page.data.ConstDeviceSpan();
-        }()},
-        d_row_ptr{[&] {
-          page.offset.SetDevice(ctx->Device());
-          return page.offset.ConstDeviceSpan();
-        }()},
+      : d_data{page.data.ConstDeviceSpan(ctx->Device())},
+        d_row_ptr{page.offset.ConstDeviceSpan(ctx->Device())},
         num_features{n_features} {}
 
   [[nodiscard]] __device__ float GetElement(size_t ridx, size_t fidx) const {

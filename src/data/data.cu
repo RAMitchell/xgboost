@@ -151,7 +151,7 @@ void MetaInfo::SetInfoFromCUDA(Context const* ctx, StringView key, Json array) {
     }
     case MetaField::kFeatureWeights: {
       copy_vec(&this->feature_weights);
-      auto d_feature_weights = feature_weights.ConstDeviceSpan();
+      auto d_feature_weights = feature_weights.ConstDeviceSpan(ctx->Device());
       auto valid = thrust::none_of(cuctx->CTP(), d_feature_weights.data(),
                                    d_feature_weights.data() + d_feature_weights.size(),
                                    data::WeightsCheck{});
@@ -203,15 +203,12 @@ void Gather(Context const* ctx, HostDeviceVector<T> const& in, common::Span<bst_
   if (in.Empty()) {
     return;
   }
-  in.SetDevice(ctx->Device());
-
   auto& out = *p_out;
-  out.SetDevice(ctx->Device());
-  out.Resize(ridx.size());
-  auto d_out = out.DeviceSpan();
+  out.Resize(ridx.size(), ctx->Device());
+  auto d_out = out.DeviceSpan(ctx->Device());
 
   auto cuctx = ctx->CUDACtx();
-  auto d_in = in.ConstDeviceSpan();
+  auto d_in = in.ConstDeviceSpan(ctx->Device());
   thrust::gather(cuctx->TP(), dh::tcbegin(ridx), dh::tcend(ridx), dh::tcbegin(d_in),
                  dh::tbegin(d_out));
 }

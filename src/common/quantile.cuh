@@ -90,19 +90,13 @@ class SketchContainer {
       : num_columns_{num_columns}, num_bins_{max_bin} {
     CHECK(device.IsCUDA());
     // Initialize Sketches for this dmatrix
-    this->columns_ptr_.SetDevice(device);
-    this->columns_ptr_.Resize(num_columns + 1, 0);
-    this->columns_ptr_tmp_.SetDevice(device);
-    this->columns_ptr_tmp_.Resize(num_columns + 1, 0);
+    this->columns_ptr_.Resize(num_columns + 1, 0, device);
+    this->columns_ptr_tmp_.Resize(num_columns + 1, 0, device);
 
-    this->feature_types_.Resize(feature_types.Size());
+    this->feature_types_.Resize(feature_types.Size(), device);
     this->feature_types_.Copy(feature_types);
-    // Pull to device.
-    this->feature_types_.SetDevice(device);
-    this->feature_types_.ConstDeviceSpan();
-    this->feature_types_.ConstHostSpan();
 
-    auto d_feature_types = feature_types_.ConstDeviceSpan();
+    auto d_feature_types = feature_types_.ConstDeviceSpan(device);
     has_categorical_ =
         !d_feature_types.empty() &&
         thrust::any_of(dh::tbegin(d_feature_types), dh::tend(d_feature_types), common::IsCatOp{});
@@ -181,7 +175,9 @@ class SketchContainer {
 
   Span<SketchEntry const> Data() const { return {entries_.data().get(), entries_.size()}; }
   HostDeviceVector<FeatureType> const& FeatureTypes() const { return feature_types_; }
-  Span<OffsetT const> ColumnsPtr() const { return columns_ptr_.ConstDeviceSpan(); }
+  Span<OffsetT const> ColumnsPtr() const {
+    return columns_ptr_.ConstDeviceSpan(columns_ptr_.Device());
+  }
 
   SketchContainer(SketchContainer&&) = default;
   SketchContainer& operator=(SketchContainer&&) = default;

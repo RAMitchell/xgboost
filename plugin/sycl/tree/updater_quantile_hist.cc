@@ -72,7 +72,7 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param, GradientC
                                xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
                                const std::vector<RegTree *> &trees) {
   auto gpair = in_gpair->FullGradOnly();
-  gpair->Data()->SetDevice(ctx_->Device());
+  gpair->Data()->ConstDeviceSpan(ctx_->Device());
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     updater_monitor_.Start("GmatInitialization");
     gmat_.Init(qu_, ctx_, dmat, static_cast<uint32_t>(param_.max_bin));

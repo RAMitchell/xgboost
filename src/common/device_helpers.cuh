@@ -312,11 +312,10 @@ class DoubleBuffer {
 template <typename T>
 xgboost::common::Span<T> LazyResize(xgboost::Context const *ctx,
                                     xgboost::HostDeviceVector<T> *buffer, std::size_t n) {
-  buffer->SetDevice(ctx->Device());
   if (buffer->Size() < n) {
-    buffer->Resize(n);
+    buffer->Resize(n, ctx->Device());
   }
-  return buffer->DeviceSpan().subspan(0, n);
+  return buffer->DeviceSpan(ctx->Device()).subspan(0, n);
 }
 
 /**

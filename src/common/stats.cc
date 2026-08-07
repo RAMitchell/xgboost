@@ -20,8 +20,7 @@ namespace xgboost::common {
 void Median(Context const* ctx, linalg::Matrix<float> const& t,
             HostDeviceVector<float> const& weights, linalg::Tensor<float, 1>* out) {
   if (ctx->IsCUDA()) {
-    weights.SetDevice(ctx->Device());
-    auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
+    auto opt_weights = OptionalWeights(weights.ConstDeviceSpan(ctx->Device()));
     auto t_v = t.View(ctx->Device());
     cuda_impl::Median(ctx, t_v, opt_weights, out);
     return;
@@ -112,8 +111,7 @@ void WeightedSampleMean(Context const* ctx, linalg::Matrix<float> const& v,
     SafeColl(collective::GlobalSum(ctx, h_out));
   } else {
     auto d_v = v.View(ctx->Device());
-    w.SetDevice(ctx->Device());
-    auto d_w = w.ConstDeviceSpan();
+    auto d_w = w.ConstDeviceSpan(ctx->Device());
     auto d_out = out->View(ctx->Device());
     cuda_impl::WeightedSampleMean(ctx, d_v, d_w, d_out);
   }

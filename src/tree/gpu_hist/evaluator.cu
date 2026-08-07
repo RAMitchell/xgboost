@@ -23,7 +23,7 @@ void GPUHistEvaluator::Reset(Context const *ctx, common::HistogramCuts const &cu
   tree_evaluator_ = TreeEvaluator{param, n_features, ctx->Device(), 1u};
   has_categoricals_ = cuts.HasCategorical();
   if (cuts.HasCategorical()) {
-    auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan();
+    auto ptrs = cuts.cut_ptrs_.ConstDeviceSpan(ctx->Device());
     auto beg = thrust::make_counting_iterator<size_t>(1ul);
     auto end = thrust::make_counting_iterator<size_t>(ptrs.size());
     auto to_onehot = param.max_cat_to_onehot;

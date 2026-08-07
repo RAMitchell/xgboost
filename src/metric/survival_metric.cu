@@ -85,10 +85,10 @@ class ElementWiseSurvivalMetricsReduction {
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + ndata;
 
-    auto s_label_lower_bound = labels_lower_bound.DeviceSpan();
-    auto s_label_upper_bound = labels_upper_bound.DeviceSpan();
-    auto s_preds = preds.DeviceSpan();
-    auto s_weights = weights.DeviceSpan();
+    auto s_label_lower_bound = labels_lower_bound.ConstDeviceSpan(ctx->Device());
+    auto s_label_upper_bound = labels_upper_bound.ConstDeviceSpan(ctx->Device());
+    auto s_preds = preds.ConstDeviceSpan(ctx->Device());
+    auto s_weights = weights.ConstDeviceSpan(ctx->Device());
 
     const bool is_null_weight = (weights.Size() == 0);
 
@@ -123,11 +123,6 @@ class ElementWiseSurvivalMetricsReduction {
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
-      preds.SetDevice(ctx->Device());
-      labels_lower_bound.SetDevice(ctx->Device());
-      labels_upper_bound.SetDevice(ctx->Device());
-      weights.SetDevice(ctx->Device());
-
       dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
       result = DeviceReduceMetrics(ctx, weights, labels_lower_bound, labels_upper_bound, preds);
     }

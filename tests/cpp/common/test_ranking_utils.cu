@@ -2,14 +2,14 @@
  * Copyright 2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/base.h>                          // for Args, XGBOOST_DEVICE, bst_group_t, kRtEps
-#include <xgboost/context.h>                       // for Context
-#include <xgboost/linalg.h>                        // for MakeTensorView, Vector
+#include <xgboost/base.h>     // for Args, XGBOOST_DEVICE, bst_group_t, kRtEps
+#include <xgboost/context.h>  // for Context
+#include <xgboost/linalg.h>   // for MakeTensorView, Vector
 
-#include <cstddef>                                 // for size_t
-#include <memory>                                  // for shared_ptr
-#include <numeric>                                 // for iota
-#include <vector>                                  // for vector
+#include <cstddef>  // for size_t
+#include <memory>   // for shared_ptr
+#include <numeric>  // for iota
+#include <vector>   // for vector
 
 #include "../../../src/common/algorithm.cuh"       // for SegmentedSequence
 #include "../../../src/common/cuda_context.cuh"    // for CUDAContext
@@ -70,10 +70,7 @@ void TestRankingCache(Context const* ctx) {
   HostDeviceVector<float> predt(info.num_row_, 0);
   auto& h_predt = predt.HostVector();
   std::iota(h_predt.begin(), h_predt.end(), 0.0f);
-  predt.SetDevice(ctx->Device());
-
-  auto rank_idx =
-      cache.SortedIdx(ctx, ctx->IsCPU() ? predt.ConstHostSpan() : predt.ConstDeviceSpan());
+  auto rank_idx = cache.SortedIdx(ctx, predt.ConstDeviceSpan(ctx->Device()));
 
   std::vector<std::size_t> h_rank_idx(rank_idx.size());
   dh::CopyDeviceSpanToVector(&h_rank_idx, rank_idx);

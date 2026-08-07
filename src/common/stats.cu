@@ -24,8 +24,7 @@ void Median(Context const* ctx, linalg::TensorView<float const, 2> t,
   auto n_rows = t.Shape(0);
   auto n_columns = t.Shape(1);
   HostDeviceVector<std::size_t> segments(n_columns + 1, 0);
-  segments.SetDevice(ctx->Device());
-  auto d_segments = segments.DeviceSpan();
+  auto d_segments = segments.DeviceSpan(ctx->Device());
   dh::LaunchN(d_segments.size(), ctx->CUDACtx()->Stream(),
               [=] XGBOOST_DEVICE(std::size_t i) { d_segments[i] = n_rows * i; });
   auto val_it = dh::MakeTransformIterator<float>(thrust::make_counting_iterator(0ul),

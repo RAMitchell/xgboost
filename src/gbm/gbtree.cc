@@ -230,7 +230,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
            "model.";
   }
 
-  predt->predictions.SetDevice(ctx_->Device());
+  predt->predictions.Resize(predt->predictions.Size(), ctx_->Device());
   auto const& predictor = this->GetPredictor(false, &predt->predictions, p_fmat);
   if (predt->predictions.Size() == 0 && p_fmat->Info().num_row_ != 0) {
     CHECK_EQ(predt->version, 0);
@@ -247,11 +247,10 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
                                      TreesOneGroup const& trees,
                                      linalg::MatrixView<float> out_preds) {
     CHECK_EQ(positions.size(), trees.size());
-    for (auto& position : positions) {
+    for (auto const& position : positions) {
       if (out_preds.Shape(0) != 0 && position.Size() != out_preds.Shape(0)) {
         return false;
       }
-      position.SetDevice(predt->predictions.Device());
     }
     std::vector<RegTree const*> tree_ptrs;
     tree_ptrs.reserve(trees.size());

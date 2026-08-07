@@ -414,14 +414,12 @@ MetaInfo MetaInfo::Slice(Context const* ctx, common::Span<bst_idx_t const> ridxs
   /**
    * Feature Info
    */
-  out.feature_weights.SetDevice(ctx->Device());
-  out.feature_weights.Resize(this->feature_weights.Size());
+  out.feature_weights.Resize(this->feature_weights.Size(), ctx->Device());
   out.feature_weights.Copy(this->feature_weights);
 
   out.feature_names = this->feature_names;
 
-  out.feature_types.SetDevice(ctx->Device());
-  out.feature_types.Resize(this->feature_types.Size());
+  out.feature_types.Resize(this->feature_types.Size(), ctx->Device());
   out.feature_types.Copy(this->feature_types);
 
   out.feature_type_names = this->feature_type_names;
@@ -737,14 +735,11 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
    */
   linalg::Stack(&this->labels, that.labels);
 
-  this->weights_.SetDevice(that.weights_.Device());
-  this->weights_.Extend(that.weights_);
+  this->weights_.Extend(that.weights_, that.weights_.Device());
 
-  this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.Device());
-  this->labels_lower_bound_.Extend(that.labels_lower_bound_);
+  this->labels_lower_bound_.Extend(that.labels_lower_bound_, that.labels_lower_bound_.Device());
 
-  this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.Device());
-  this->labels_upper_bound_.Extend(that.labels_upper_bound_);
+  this->labels_upper_bound_.Extend(that.labels_upper_bound_, that.labels_upper_bound_.Device());
 
   linalg::Stack(&this->base_margin_, that.base_margin_);
 
@@ -786,8 +781,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows, bool check_col
   }
 
   if (!that.feature_weights.Empty()) {
-    this->feature_weights.Resize(that.feature_weights.Size());
-    this->feature_weights.SetDevice(that.feature_weights.Device());
+    this->feature_weights.Resize(that.feature_weights.Size(), that.feature_weights.Device());
     this->feature_weights.Copy(that.feature_weights);
   }
 }

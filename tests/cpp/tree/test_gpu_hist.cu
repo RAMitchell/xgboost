@@ -44,7 +44,7 @@ void UpdateTree(Context const* ctx, GradientContainer* gpair, DMatrix* dmat, Reg
   std::vector<HostDeviceVector<bst_node_t>> position(1);
   hist_maker->Update(&param, gpair, dmat, common::Span<HostDeviceVector<bst_node_t>>{position},
                      {tree});
-  auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(), preds->Size(), 1);
+  auto cache = linalg::MakeTensorView(ctx, preds->DeviceSpan(preds->Device()), preds->Size(), 1);
   std::unique_ptr<Predictor> predictor{CreatePredictorForTest(ctx)};
   std::vector<RegTree const*> tree_ptrs{tree};
   predictor->PredictFromLeafIds(common::Span{position}, common::Span{tree_ptrs}, cache);

@@ -105,10 +105,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
       CHECK_EQ(info.weights_.Size(), n_samples)
           << "Number of weights should be equal to number of data points.";
     }
-    info.weights_.SetDevice(device);
-    auto weights = common::MakeOptionalWeights(this->ctx_->Device(), info.weights_);
+    auto weights = common::MakeOptionalWeights(device, info.weights_);
 
-    preds.SetDevice(device);
     auto predt = linalg::MakeTensorView(this->ctx_, &preds, n_samples, n_classes);
     CHECK_EQ(labels.Shape(1), 1);
     auto y1d = labels.Slice(linalg::All(), 0);
@@ -162,10 +160,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
           common::Range{0, n_samples}, this->ctx_->Threads(), device)
           .Eval(io_preds);
     } else {
-      io_preds->SetDevice(device);
       HostDeviceVector<float> max_preds;
-      max_preds.SetDevice(device);
-      max_preds.Resize(n_samples);
+      max_preds.Resize(n_samples, device);
       common::Transform<>::Init(
           [=] XGBOOST_DEVICE(size_t _idx, common::Span<const float> _preds,
                              common::Span<float> _max_preds) {

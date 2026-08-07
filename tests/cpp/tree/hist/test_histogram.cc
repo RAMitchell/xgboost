@@ -354,9 +354,10 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
     auto total_bins = gidx.cut.TotalBins();
     cat_hist.Reset(&ctx, total_bins, {kBins, 0.5}, false, &hist_param);
     cat_hist.AddHistRows(tree.HostScView(), &nodes_to_build, &dummy_sub, false);
-    cat_hist.BuildHist(0, space, gidx, row_set_collection, nodes_to_build,
-                       linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size()),
-                       force_read_by_column);
+    cat_hist.BuildHist(
+        0, space, gidx, row_set_collection, nodes_to_build,
+        linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size()),
+        force_read_by_column);
   }
   cat_hist.SyncHistogram(&ctx, tree.HostScView(), nodes_to_build, {});
 
@@ -370,9 +371,10 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
     auto total_bins = gidx.cut.TotalBins();
     onehot_hist.Reset(&ctx, total_bins, {kBins, 0.5}, false, &hist_param);
     onehot_hist.AddHistRows(tree.HostScView(), &nodes_to_build, &dummy_sub, false);
-    onehot_hist.BuildHist(0, space, gidx, row_set_collection, nodes_to_build,
-                          linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size()),
-                          force_read_by_column);
+    onehot_hist.BuildHist(
+        0, space, gidx, row_set_collection, nodes_to_build,
+        linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size()),
+        force_read_by_column);
   }
   onehot_hist.SyncHistogram(&ctx, tree.HostScView(), nodes_to_build, {});
 
@@ -534,9 +536,10 @@ class OverflowTest : public ::testing::TestWithParam<bool> {
     auto gpair = GenerateRandomGradients(Xy->Info().num_row_, 0.0, 1.0);
 
     CPUExpandEntry best;
-    hist_builder.BuildRootHist(Xy.get(), tree.HostScView(), partitioners,
-                               linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size(), 1),
-                               best, batch);
+    hist_builder.BuildRootHist(
+        Xy.get(), tree.HostScView(), partitioners,
+        linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size(), 1), best,
+        batch);
 
     best.split.Update(1.0f, 1, split_cond, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
     tree.ExpandNode(best.nid, best.split.SplitIndex(), best.split.split_value, false,

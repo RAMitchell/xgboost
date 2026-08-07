@@ -12,11 +12,7 @@ namespace xgboost::tree {
 namespace {
 template <typename T>
 auto DispatchPtr(DeviceOrd device, HostDeviceVector<T> const& vec) {
-  if (device.IsCPU()) {
-    return vec.ConstHostPointer();
-  }
-  vec.SetDevice(device);
-  return vec.ConstDevicePointer();
+  return device.IsCPU() ? vec.ConstHostSpan().data() : vec.ConstDeviceSpan(device).data();
 }
 
 auto DispatchWeight(DeviceOrd device, RegTree const* tree) {

@@ -187,14 +187,15 @@ class MultiTargetHistMaker {
       cat_storage_size =
           common::CatBitField::ComputeStorageSize(common::AsCat(this->cuts_->MaxCategory()) + 1);
     }
-    return MultiEvaluateSplitSharedInputs{d_roundings,
-                                          this->cuts_->cut_ptrs_.ConstDeviceSpan(),
-                                          this->cuts_->cut_values_.ConstDevicePointer(),
-                                          this->feature_types_,
-                                          cat_storage_size,
-                                          this->cuts_->TotalBins(),
-                                          max_active_feature,
-                                          d_param};
+    return MultiEvaluateSplitSharedInputs{
+        d_roundings,
+        this->cuts_->cut_ptrs_.ConstDeviceSpan(this->ctx_->Device()),
+        this->cuts_->cut_values_.ConstDeviceSpan(this->ctx_->Device()).data(),
+        this->feature_types_,
+        cat_storage_size,
+        this->cuts_->TotalBins(),
+        max_active_feature,
+        d_param};
   }
 
  public:
@@ -211,14 +212,13 @@ class MultiTargetHistMaker {
     this->interaction_constraints_->Reset(this->ctx_);
 
     // Cache feature types on device for categorical split detection.
-    p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-    this->feature_types_ = p_fmat->Info().feature_types.ConstDeviceSpan();
+    this->feature_types_ = p_fmat->Info().feature_types.ConstDeviceSpan(ctx_->Device());
 
     /**
      * Evaluator
      */
-    this->evaluator_.Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(), this->feature_types_,
-                           this->param_, gpair_all->Shape(1));
+    this->evaluator_.Reset(ctx_, this->cuts_->cut_ptrs_.ConstDeviceSpan(this->ctx_->Device()),
+                           this->feature_types_, this->param_, gpair_all->Shape(1));
 
     /**
      * Initialize the gradient matrix
@@ -281,8 +281,8 @@ class MultiTargetHistMaker {
     // Evaluate root split
     auto node_hist = this->histogram_.GetNodeHistogram(RegTree::kRoot);
     auto sampled_features = column_sampler_->GetFeatureSet(ctx_, 0);
-    common::Span<bst_feature_t const> feature_set =
-        interaction_constraints_->Query(sampled_features->ConstDeviceSpan(), RegTree::kRoot);
+    common::Span<bst_feature_t const> feature_set = interaction_constraints_->Query(
+        sampled_features->ConstDeviceSpan(ctx_->Device()), RegTree::kRoot);
     MultiEvaluateSplitInputs input{RegTree::kRoot, 0, d_root_sum, feature_set, node_hist};
 
     auto shared_inputs = MakeSharedInputs(static_cast<bst_feature_t>(feature_set.size()));
@@ -580,13 +580,13 @@ class MultiTargetHistMaker {
       auto child_depth = candidate.depth + 1;
       auto left_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(left_sampled_features);
-      common::Span<bst_feature_t const> left_feature_set =
-          interaction_constraints_->Query(left_sampled_features->ConstDeviceSpan(), left_nidx);
+      common::Span<bst_feature_t const> left_feature_set = interaction_constraints_->Query(
+          left_sampled_features->ConstDeviceSpan(ctx_->Device()), left_nidx);
 
       auto right_sampled_features = column_sampler_->GetFeatureSet(ctx_, child_depth);
       feature_sets.emplace_back(right_sampled_features);
-      common::Span<bst_feature_t const> right_feature_set =
-          interaction_constraints_->Query(right_sampled_features->ConstDeviceSpan(), right_nidx);
+      common::Span<bst_feature_t const> right_feature_set = interaction_constraints_->Query(
+          right_sampled_features->ConstDeviceSpan(ctx_->Device()), right_nidx);
 
       // Make sure no allocation is happening.
       // The parent sum is calculated in the last apply tree split.
@@ -619,9 +619,8 @@ class MultiTargetHistMaker {
                         HostDeviceVector<bst_node_t>* p_out_position) {
     xgboost_NVTX_FN_RANGE();
 
-    p_out_position->SetDevice(ctx_->Device());
-    p_out_position->Resize(p_fmat->Info().num_row_);
-    auto d_out_position = p_out_position->DeviceSpan();
+    p_out_position->Resize(p_fmat->Info().num_row_, ctx_->Device());
+    auto d_out_position = p_out_position->DeviceSpan(ctx_->Device());
     auto sampling = this->sampler_.GetSamplingInfo();
 
     for (std::size_t k = 0, n = partitioners_.Size(); k < n; ++k) {

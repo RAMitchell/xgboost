@@ -255,8 +255,7 @@ TEST(MetaInfo, Validate) {
   EXPECT_THROW(info.Validate(DeviceOrd::CUDA(1)), dmlc::Error);
 
   xgboost::HostDeviceVector<xgboost::bst_group_t> d_groups{groups};
-  d_groups.SetDevice(FstCU());
-  d_groups.DevicePointer();  // pull to device
+  d_groups.ConstDeviceSpan(FstCU());  // pull to device
   std::string arr_interface_str{ArrayInterfaceStr(xgboost::linalg::MakeVec(
       d_groups.ConstDevicePointer(), d_groups.Size(), xgboost::DeviceOrd::CUDA(0)))};
   EXPECT_THROW(info.SetInfo(ctx, "group", xgboost::StringView{arr_interface_str}), dmlc::Error);
@@ -309,7 +308,6 @@ class TestMetaInfo : public ::testing::TestWithParam<std::tuple<bst_target_t, bo
     info.labels.Reshape(info.num_row_, n_targets);
 
     HostDeviceVector<bst_idx_t> ridx(info.num_row_ / 2, 0);
-    ridx.SetDevice(ctx->Device());
     auto h_ridx = ridx.HostSpan();
     for (std::size_t i = 0, j = 0; i < ridx.Size(); i++, j += 2) {
       h_ridx[i] = j;
@@ -321,7 +319,8 @@ class TestMetaInfo : public ::testing::TestWithParam<std::tuple<bst_target_t, bo
       std::iota(h_w.begin(), h_w.end(), 0);
     }
 
-    auto out = info.Slice(ctx, ctx->IsCPU() ? h_ridx : ridx.ConstDeviceSpan(), /*nnz=*/256);
+    auto ridx_span = ctx->IsCPU() ? ridx.ConstHostSpan() : ridx.ConstDeviceSpan(ctx->Device());
+    auto out = info.Slice(ctx, ridx_span, /*nnz=*/256);
 
     ASSERT_EQ(info.labels.Device(), ctx->Device());
     auto h_y = info.labels.HostView();

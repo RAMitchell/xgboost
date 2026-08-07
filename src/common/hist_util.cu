@@ -53,8 +53,7 @@ void RemoveDuplicatedCategories(Context const* ctx, MetaInfo const& info,
                                 dh::device_vector<Entry>* p_sorted_entries,
                                 dh::device_vector<float>* p_sorted_weights,
                                 dh::caching_device_vector<size_t>* p_column_sizes_scan) {
-  info.feature_types.SetDevice(ctx->Device());
-  auto d_feature_types = info.feature_types.ConstDeviceSpan();
+  auto d_feature_types = info.feature_types.ConstDeviceSpan(ctx->Device());
   CHECK(!d_feature_types.empty());
   auto& column_sizes_scan = *p_column_sizes_scan;
   auto& sorted_entries = *p_sorted_entries;
@@ -142,8 +141,7 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
     CHECK_EQ(sample_weight.size(), info.num_row_);
     entry_weight.resize(sorted_entries.size());
     auto d_temp_weight = dh::ToSpan(entry_weight);
-    page.offset.SetDevice(ctx->Device());
-    auto row_ptrs = page.offset.ConstDeviceSpan();
+    auto row_ptrs = page.offset.ConstDeviceSpan(ctx->Device());
     thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), entry_weight.size(),
                        [=] __device__(std::size_t idx) {
                          std::size_t element_idx = idx + begin;
@@ -181,37 +179,37 @@ void ProcessWeightedBatch(Context const* ctx, const SparsePage& page, MetaInfo c
 }
 
 // Unify group weight, Hessian, and sample weight into sample weight.
-[[nodiscard]] Span<float const> UnifyWeight(CUDAContext const* cuctx, MetaInfo const& info,
-                                            common::Span<float const> hessian,
+[[nodiscard]] Span<float const> UnifyWeight(CUDAContext const* cuctx, DeviceOrd device,
+                                            MetaInfo const& info, common::Span<float const> hessian,
                                             HostDeviceVector<float>* p_out_weight) {
   if (hessian.empty()) {
     if (info.IsRanking() && !info.weights_.Empty()) {
       dh::device_vector<bst_group_t> group_ptr(info.group_ptr_);
       auto d_group_ptr = dh::ToSpan(group_ptr);
       CHECK_GE(d_group_ptr.size(), 2) << "Must have at least 1 group for ranking.";
-      auto d_weight = info.weights_.ConstDeviceSpan();
+      auto d_weight = info.weights_.ConstDeviceSpan(device);
       CHECK_EQ(d_weight.size(), d_group_ptr.size() - 1)
           << "Weight size should equal to number of groups.";
-      p_out_weight->Resize(info.num_row_);
-      auto d_weight_out = p_out_weight->DeviceSpan();
+      p_out_weight->Resize(info.num_row_, device);
+      auto d_weight_out = p_out_weight->DeviceSpan(device);
 
       thrust::for_each_n(cuctx->CTP(), thrust::make_counting_iterator(0ul), d_weight_out.size(),
                          [=] XGBOOST_DEVICE(std::size_t i) {
                            auto gidx = dh::SegmentId(d_group_ptr, i);
                            d_weight_out[i] = d_weight[gidx];
                          });
-      return p_out_weight->ConstDeviceSpan();
+      return p_out_weight->ConstDeviceSpan(device);
     } else {
-      return info.weights_.ConstDeviceSpan();
+      return info.weights_.ConstDeviceSpan(device);
     }
   }
 
   // sketch with hessian as weight
-  p_out_weight->Resize(info.num_row_);
-  auto d_weight_out = p_out_weight->DeviceSpan();
+  p_out_weight->Resize(info.num_row_, device);
+  auto d_weight_out = p_out_weight->DeviceSpan(device);
   if (!info.weights_.Empty()) {
     // merge sample weight with hessian
-    auto d_weight = info.weights_.ConstDeviceSpan();
+    auto d_weight = info.weights_.ConstDeviceSpan(device);
     if (info.IsRanking()) {
       dh::device_vector<bst_group_t> group_ptr(info.group_ptr_);
       CHECK_EQ(hessian.size(), d_weight_out.size());
@@ -244,17 +242,14 @@ HistogramCuts DeviceSketchWithHessian(Context const* ctx, DMatrix* p_fmat, bst_b
                                       Span<float const> hessian) {
   auto const& info = p_fmat->Info();
   bool has_weight = !info.weights_.Empty();
-  info.feature_types.SetDevice(ctx->Device());
 
-  HostDeviceVector<float> weight;
-  weight.SetDevice(ctx->Device());
+  HostDeviceVector<float> weight{0, 0.0f, ctx->Device()};
 
   auto sketch_batch_num_elements = detail::kSketchBatchNumElements;
 
   CUDAContext const* cuctx = ctx->CUDACtx();
 
-  info.weights_.SetDevice(ctx->Device());
-  auto d_weight = UnifyWeight(cuctx, info, hessian, &weight);
+  auto d_weight = UnifyWeight(cuctx, ctx->Device(), info, hessian, &weight);
 
   SketchContainer sketch_container(info.feature_types, max_bin, info.num_col_, ctx->Device());
   CHECK_EQ(has_weight || !hessian.empty(), !d_weight.empty());

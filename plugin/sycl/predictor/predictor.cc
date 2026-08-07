@@ -57,12 +57,6 @@ class DeviceModel {
   HostDeviceVector<size_t> first_node_position;
   HostDeviceVector<int> tree_group;
 
-  void SetDevice(DeviceOrd device) {
-    nodes.SetDevice(device);
-    first_node_position.SetDevice(device);
-    tree_group.SetDevice(device);
-  }
-
   void Init(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end) {
     int n_nodes = 0;
     first_node_position.Resize((tree_end - tree_begin) + 1);
@@ -183,14 +177,12 @@ class Predictor : public xgboost::Predictor {
     }
 
     auto* out_preds = &predts->predictions;
-    device_model.SetDevice(ctx_->Device());
     qu_ = device_manager.GetQueue(ctx_->Device());
     if (device_ != ctx_->Device()) {
       device_ = ctx_->Device();
       device_prop_ = DeviceProperties(qu_->get_device());
     }
 
-    out_preds->SetDevice(ctx_->Device());
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
@@ -236,7 +228,7 @@ class Predictor : public xgboost::Predictor {
           << "Multi-target leaf-id prediction is not implemented for SYCL.";
       CHECK_EQ(out_preds.Shape(1), 1);
 
-      auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan();
+      auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan(ctx_->Device());
       CHECK_EQ(d_leaf_ids.size(), out_preds.Shape(0));
 
       auto const h_nodes = p_tree->GetNodes(DeviceOrd::CPU());
@@ -338,9 +330,10 @@ class Predictor : public xgboost::Predictor {
                            const size_t* row_ptr, size_t num_rows, size_t num_features,
                            size_t num_group, size_t tree_begin, size_t tree_end,
                            float sparsity) const {
-    const Node* nodes = device_model.nodes.ConstDevicePointer();
-    const size_t* first_node_position = device_model.first_node_position.ConstDevicePointer();
-    const int* tree_group = device_model.tree_group.ConstDevicePointer();
+    const Node* nodes = device_model.nodes.ConstDeviceSpan(ctx_->Device()).data();
+    const size_t* first_node_position =
+        device_model.first_node_position.ConstDeviceSpan(ctx_->Device()).data();
+    const int* tree_group = device_model.tree_group.ConstDeviceSpan(ctx_->Device()).data();
 
     size_t block_size = GetBlockSize(device_model.nodes.Size(), num_features, num_rows, sparsity);
     size_t n_blocks = num_rows / block_size + (num_rows % block_size > 0);
@@ -386,9 +379,10 @@ class Predictor : public xgboost::Predictor {
   void PredictKernel(::sycl::event* event, const Entry* data, float* out_predictions,
                      const size_t* row_ptr, size_t num_rows, size_t num_features, size_t num_group,
                      size_t tree_begin, size_t tree_end, float sparsity) const {
-    const Node* nodes = device_model.nodes.ConstDevicePointer();
-    const size_t* first_node_position = device_model.first_node_position.ConstDevicePointer();
-    const int* tree_group = device_model.tree_group.ConstDevicePointer();
+    const Node* nodes = device_model.nodes.ConstDeviceSpan(ctx_->Device()).data();
+    const size_t* first_node_position =
+        device_model.first_node_position.ConstDeviceSpan(ctx_->Device()).data();
+    const int* tree_group = device_model.tree_group.ConstDeviceSpan(ctx_->Device()).data();
 
     size_t block_size = GetBlockSize(device_model.nodes.Size(), num_features, num_rows, sparsity);
     size_t n_blocks = num_rows / block_size + (num_rows % block_size > 0);
@@ -458,13 +452,11 @@ class Predictor : public xgboost::Predictor {
     int num_group = model.learner_model_param->num_output_group;
     int num_features = dmat->Info().num_col_;
 
-    float* out_predictions = out_preds->DevicePointer();
+    float* out_predictions = out_preds->DeviceSpan(ctx_->Device()).data();
     ::sycl::event event;
     for (auto& batch : dmat->GetBatches<SparsePage>()) {
-      batch.data.SetDevice(ctx_->Device());
-      batch.offset.SetDevice(ctx_->Device());
-      const Entry* data = batch.data.ConstDevicePointer();
-      const size_t* row_ptr = batch.offset.ConstDevicePointer();
+      const Entry* data = batch.data.ConstDeviceSpan(ctx_->Device()).data();
+      const size_t* row_ptr = batch.offset.ConstDeviceSpan(ctx_->Device()).data();
       size_t batch_size = batch.Size();
       if (batch_size > 0) {
         const auto base_rowid = batch.base_rowid;

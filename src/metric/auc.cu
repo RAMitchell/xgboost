@@ -92,7 +92,7 @@ std::tuple<double, double, double> BinaryAUC(Context const *ctx, common::Span<fl
                                              common::Span<size_t const> d_sorted_idx, Fn area_fn,
                                              std::shared_ptr<DeviceAUCCache> cache) {
   auto labels = info.labels.View(ctx->Device());
-  auto weights = info.weights_.ConstDeviceSpan();
+  auto weights = info.weights_.ConstDeviceSpan(ctx->Device());
   dh::safe_cuda(cudaSetDevice(ctx->Ordinal()));
 
   CHECK_NE(labels.Size(), 0);
@@ -322,7 +322,7 @@ double MultiAUC(Context const *ctx, MetaInfo const &info, common::Span<uint32_t>
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
 
   auto labels = info.labels.View(ctx->Device());
-  auto weights = info.weights_.ConstDeviceSpan();
+  auto weights = info.weights_.ConstDeviceSpan(ctx->Device());
 
   size_t n_samples = labels.Shape(0);
 
@@ -510,7 +510,7 @@ std::pair<double, std::uint32_t> RankingAUC(Context const *ctx, common::Span<flo
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
   common::SegmentedArgSort<false, false>(ctx, d_labels.Values(), d_group_ptr, d_sorted_idx);
 
-  auto d_weights = info.weights_.ConstDeviceSpan();
+  auto d_weights = info.weights_.ConstDeviceSpan(ctx->Device());
 
   dh::caching_device_vector<size_t> threads_group_ptr(group_ptr.size(), 0);
   auto d_threads_group_ptr = dh::ToSpan(threads_group_ptr);
@@ -606,7 +606,7 @@ std::tuple<double, double, double> BinaryPRAUC(Context const *ctx, common::Span<
   common::ArgSort<false>(ctx, predts, d_sorted_idx);
 
   auto labels = info.labels.View(ctx->Device());
-  auto d_weights = info.weights_.ConstDeviceSpan();
+  auto d_weights = info.weights_.ConstDeviceSpan(ctx->Device());
   auto get_weight = common::OptionalWeights{d_weights};
   auto it = dh::MakeTransformIterator<Pair>(thrust::make_counting_iterator(0ul), [=] XGBOOST_DEVICE(
                                                                                      size_t i) {
@@ -643,7 +643,7 @@ double MultiPRAUC(Context const *ctx, common::Span<float const> predts, MetaInfo
   MultiSortedIdx(ctx, predts, d_output_ptr, cache);
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
 
-  auto d_weights = info.weights_.ConstDeviceSpan();
+  auto d_weights = info.weights_.ConstDeviceSpan(ctx->Device());
 
   /**
    * Get total positive/negative
@@ -695,7 +695,7 @@ std::pair<double, uint32_t> RankingPRAUCImpl(Context const *ctx, common::Span<fl
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
 
   auto labels = info.labels.View(ctx->Device());
-  auto weights = info.weights_.ConstDeviceSpan();
+  auto weights = info.weights_.ConstDeviceSpan(ctx->Device());
 
   uint32_t n_groups = static_cast<uint32_t>(info.group_ptr_.size() - 1);
 
@@ -826,7 +826,7 @@ std::pair<double, std::uint32_t> RankingPRAUC(Context const *ctx, common::Span<f
   /**
    * Get total positive/negative for each group.
    */
-  auto d_weights = info.weights_.ConstDeviceSpan();
+  auto d_weights = info.weights_.ConstDeviceSpan(ctx->Device());
   dh::caching_device_vector<cuda::std::pair<double, double>> totals(n_groups);
   auto key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),

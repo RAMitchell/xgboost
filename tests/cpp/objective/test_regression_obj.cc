@@ -450,8 +450,7 @@ void TestExpectileRegressionInitEstimation(const Context* ctx) {
   MetaInfo info;
   info.num_row_ = 10;
   info.labels.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
-    data->SetDevice(ctx->Device());
-    data->Resize(info.num_row_);
+    data->Resize(info.num_row_, ctx->Device());
     shape[0] = info.num_row_;
     shape[1] = 1;
 

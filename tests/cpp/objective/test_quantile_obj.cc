@@ -96,7 +96,6 @@ void TestQuantile(Context const* ctx) {
   std::unique_ptr<ObjFunction> transform{ObjFunction::Create("reg:quantileerror", ctx)};
   transform->Configure(transform_args);
   HostDeviceVector<float> crossing{{0.0f, 2.0f, 1.0f, -1.0f, 3.0f, 2.0f}};
-  crossing.SetDevice(ctx->Device());
   transform->PredTransform(&crossing);
   std::vector<float> const expected{0.0f, 1.0f, 2.0f, -1.0f, 2.0f, 3.0f};
   ASSERT_EQ(crossing.HostVector(), expected);
@@ -110,8 +109,7 @@ void TestQuantileIntercept(Context const* ctx) {
   MetaInfo info;
   info.num_row_ = 10;
   info.labels.ModifyInplace([&](HostDeviceVector<float>* data, common::Span<std::size_t> shape) {
-    data->SetDevice(ctx->Device());
-    data->Resize(info.num_row_);
+    data->Resize(info.num_row_, ctx->Device());
     shape[0] = info.num_row_;
     shape[1] = 1;
 

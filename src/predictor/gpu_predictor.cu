@@ -322,9 +322,10 @@ class LaunchConfig {
     auto kernel = PredictKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                 HasMissing(), EncAccessorT>;
     auto d_tree_groups = d_model.tree_groups;
-    this->Launch<Loader>(
-        kernel, std::move(batch), d_model.Trees(), predictions->DeviceSpan().subspan(batch_offset),
-        d_tree_groups, tree_weights, n_features, this->UseShared(), d_model.n_groups, missing, acc);
+    this->Launch<Loader>(kernel, std::move(batch), d_model.Trees(),
+                         predictions->DeviceSpan(this->ctx_->Device()).subspan(batch_offset),
+                         d_tree_groups, tree_weights, n_features, this->UseShared(),
+                         d_model.n_groups, missing, acc);
   }
 
   [[nodiscard]] bool UseShared() const { return shared_memory_bytes_ != 0; }
@@ -356,8 +357,7 @@ class LaunchConfig {
         fn(Loader{}, std::forward<SparsePageView>(batch));
       }
     } else {
-      p_fmat->Info().feature_types.SetDevice(ctx_->Device());
-      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
+      auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan(ctx_->Device());
 
       for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx_, StaticBatch(true))) {
         page.Impl()->Visit(ctx_, feature_types, [&](auto&& batch) {
@@ -411,7 +411,6 @@ class GPUPredictor : public xgboost::Predictor {
     if (tree_end - tree_begin == 0) {
       return;
     }
-    out_preds->SetDevice(ctx_->Device());
     auto const& info = p_fmat->Info();
 
     DeviceModel d_model{this->ctx_->Device(), model,    false,
@@ -458,7 +457,6 @@ class GPUPredictor : public xgboost::Predictor {
     auto const* tree_weights =
         tree_weights_override == nullptr ? model.TreeWeights() : tree_weights_override;
     if (tree_weights != nullptr) {
-      weights.SetDevice(ctx_->Device());
       weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
                                   tree_weights->cbegin() + tree_end);
       pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
@@ -475,7 +473,6 @@ class GPUPredictor : public xgboost::Predictor {
         << "XGBoost is running on device: " << this->ctx_->Device().Name() << ", "
         << "but data is on: " << m->Device().Name();
     this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
-    out_preds->predictions.SetDevice(m->Device());
     using BatchT = common::GetValueT<decltype(std::declval<Adapter>().Value())>;
 
     auto n_features = model.learner_model_param->num_feature;
@@ -523,7 +520,6 @@ class GPUPredictor : public xgboost::Predictor {
     auto pred_weights = common::OptionalWeights{1.0f};
     auto const* tree_weights = model.TreeWeights();
     if (tree_weights != nullptr) {
-      weights.SetDevice(ctx_->Device());
       weights.HostVector().assign(tree_weights->cbegin() + tree_begin,
                                   tree_weights->cbegin() + tree_end);
       pred_weights = common::MakeOptionalWeights(ctx_->Device(), weights);
@@ -574,8 +570,7 @@ class GPUPredictor : public xgboost::Predictor {
     const MetaInfo& info = p_fmat->Info();
     bst_idx_t n_samples = info.num_row_;
     tree_end = GetTreeLimit(model.trees, tree_end);
-    predictions->SetDevice(ctx_->Device());
-    predictions->Resize(n_samples * tree_end);
+    predictions->Resize(n_samples * tree_end, ctx_->Device());
 
     DeviceModel d_model{ctx_->Device(), model, false, 0, tree_end, CopyViews{this->ctx_}};
 
@@ -592,11 +587,11 @@ class GPUPredictor : public xgboost::Predictor {
         auto n_rows = batch.NumRows();
         auto kernel = PredictLeafKernel<typename Loader::Type, common::GetValueT<decltype(batch)>,
                                         Config::HasMissing(), typename Config::EncAccessorT>;
-        cfg.template Launch<Loader>(kernel, std::move(batch), d_model.Trees(),
-                                    predictions->DeviceSpan().subspan(batch_offset),
-                                    d_model.tree_begin, d_model.tree_end, n_features,
-                                    cfg.UseShared(), std::numeric_limits<float>::quiet_NaN(),
-                                    std::forward<typename Config::EncAccessorT>(acc));
+        cfg.template Launch<Loader>(
+            kernel, std::move(batch), d_model.Trees(),
+            predictions->DeviceSpan(this->ctx_->Device()).subspan(batch_offset), d_model.tree_begin,
+            d_model.tree_end, n_features, cfg.UseShared(), std::numeric_limits<float>::quiet_NaN(),
+            std::forward<typename Config::EncAccessorT>(acc));
 
         batch_offset += n_rows * n_trees;
       });
@@ -614,7 +609,7 @@ class GPUPredictor : public xgboost::Predictor {
     for (std::size_t tree_idx = 0; tree_idx < trees.size(); ++tree_idx) {
       auto const* p_tree = trees[tree_idx];
       CHECK(p_tree);
-      auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan();
+      auto d_leaf_ids = leaf_ids[tree_idx].ConstDeviceSpan(ctx_->Device());
       CHECK_EQ(d_leaf_ids.size(), out_preds.Shape(0));
 
       if (!p_tree->IsMultiTarget()) {

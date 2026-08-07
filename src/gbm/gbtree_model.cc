@@ -175,6 +175,6 @@ void GBTreeModel::CommitModelGroup(TreesOneGroup&& new_trees, bst_target_t group
 
 common::Span<bst_target_t const> GBTreeModel::TreeGroups(DeviceOrd device) const {
   return device.IsCPU() ? this->tree_info.ConstHostSpan()
-                        : (this->tree_info.SetDevice(device), this->tree_info.ConstDeviceSpan());
+                        : this->tree_info.ConstDeviceSpan(device);
 }
 }  // namespace xgboost::gbm

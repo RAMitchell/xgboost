@@ -49,14 +49,12 @@ class HingeObj : public FitIntercept {
     out_gpair->Reshape(info.num_row_, n_targets);
     auto gpair = out_gpair->View(ctx_->Device());
 
-    preds.SetDevice(ctx_->Device());
     auto predt = linalg::MakeTensorView(ctx_, &preds, info.num_row_, n_targets);
 
     auto labels = info.labels.View(ctx_->Device());
 
-    info.weights_.SetDevice(ctx_->Device());
     common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
+                                                 : info.weights_.ConstDeviceSpan(ctx_->Device())};
 
     linalg::ElementWiseKernel(this->ctx_, labels,
                               [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {

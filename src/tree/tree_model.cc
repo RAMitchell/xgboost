@@ -949,8 +949,7 @@ RegTree* RegTree::Copy() const {
   ptr->param_ = this->param_;
 
   auto copy = [](auto* lhs, auto const& rhs) {
-    lhs->SetDevice(rhs.Device());
-    lhs->Resize(rhs.Size());
+    lhs->Resize(rhs.Size(), rhs.Device());
     lhs->Copy(rhs);
   };
 

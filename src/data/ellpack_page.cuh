@@ -68,8 +68,8 @@ struct EllpackAccessorImpl {
         gidx_iter{gidx_iter},
         feature_types{feature_types} {
     if (ctx->IsCUDA()) {
-      gidx_fvalue_map = cuts->cut_values_.ConstDeviceSpan();
-      feature_segments = cuts->cut_ptrs_.ConstDevicePointer();
+      gidx_fvalue_map = cuts->cut_values_.ConstDeviceSpan(ctx->Device());
+      feature_segments = cuts->cut_ptrs_.ConstDeviceSpan(ctx->Device()).data();
     } else {
       gidx_fvalue_map = cuts->cut_values_.ConstHostSpan();
       feature_segments = cuts->cut_ptrs_.ConstHostPointer();

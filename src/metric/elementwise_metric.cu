@@ -184,10 +184,8 @@ class PseudoErrorLoss : public MetricNoCache {
     CHECK_EQ(info.labels.Shape(0), info.num_row_);
     auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
     auto labels = info.labels.View(device);
-    preds.SetDevice(device);
-    auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan() : preds.ConstHostSpan();
-    info.weights_.SetDevice(device);
-    common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
+    auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan(device) : preds.ConstHostSpan();
+    common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan(device)
                                                    : info.weights_.ConstHostSpan());
     float slope = this->param_.huber_slope;
     CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
@@ -338,11 +336,9 @@ struct EvalEWiseBase : public MetricNoCache {
     }
     auto device = ctx_->Device().IsSycl() ? DeviceOrd::CPU() : ctx_->Device();
     auto labels = info.labels.View(device);
-    info.weights_.SetDevice(device);
-    common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
+    common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan(device)
                                                    : info.weights_.ConstHostSpan());
-    preds.SetDevice(device);
-    auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan() : preds.ConstHostSpan();
+    auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan(device) : preds.ConstHostSpan();
 
     auto d_policy = policy_;
     auto result =
@@ -436,17 +432,14 @@ class QuantileError : public MetricNoCache {
 
     auto const* ctx = ctx_;
     auto y_true = info.labels.View(ctx->Device());
-    preds.SetDevice(ctx->Device());
-    alpha_.SetDevice(ctx->Device());
-    auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan(ctx->Device());
     std::size_t n_targets = info.labels.Shape(1);
     CHECK_NE(n_targets, 0);
     auto y_predt = linalg::MakeTensorView(ctx, &preds, static_cast<std::size_t>(info.num_row_),
                                           alpha_.Size(), n_targets);
 
-    info.weights_.SetDevice(ctx->Device());
     common::OptionalWeights weight{ctx->IsCPU() ? info.weights_.ConstHostSpan()
-                                                : info.weights_.ConstDeviceSpan()};
+                                                : info.weights_.ConstDeviceSpan(ctx->Device())};
 
     auto result = Reduce(
         ctx, info,
@@ -523,17 +516,14 @@ class ExpectileError : public MetricNoCache {
 
     auto const* ctx = ctx_;
     auto y_true = info.labels.View(ctx->Device());
-    preds.SetDevice(ctx->Device());
-    alpha_.SetDevice(ctx->Device());
-    auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan(ctx->Device());
     std::size_t n_targets = info.labels.Shape(1);
     CHECK_NE(n_targets, 0);
     auto y_predt = linalg::MakeTensorView(ctx, &preds, static_cast<std::size_t>(info.num_row_),
                                           alpha_.Size(), n_targets);
 
-    info.weights_.SetDevice(ctx->Device());
     common::OptionalWeights weight{ctx->IsCPU() ? info.weights_.ConstHostSpan()
-                                                : info.weights_.ConstDeviceSpan()};
+                                                : info.weights_.ConstDeviceSpan(ctx->Device())};
 
     auto result = Reduce(
         ctx, info,

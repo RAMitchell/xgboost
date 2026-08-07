@@ -48,7 +48,7 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(Context const* ctx,
     this->InitializeSparsePage(ctx);  // reset after use.
     batch_param_ = param;
 
-    auto ft = this->Info().feature_types.ConstDeviceSpan();
+    auto ft = this->Info().feature_types.ConstDeviceSpan(ctx->Device());
     if (on_host_ && std::get_if<EllpackHostPtr>(&ellpack_page_source_) == nullptr) {
       ellpack_page_source_.emplace<EllpackHostPtr>(nullptr);
     }

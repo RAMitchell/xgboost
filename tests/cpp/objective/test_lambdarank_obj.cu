@@ -2,10 +2,10 @@
  * Copyright 2023 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
-#include <xgboost/context.h>                     // for Context
+#include <xgboost/context.h>  // for Context
 
-#include <cstdint>                               // for uint32_t
-#include <vector>                                // for vector
+#include <cstdint>  // for uint32_t
+#include <vector>   // for vector
 
 #include "../../../src/common/cuda_context.cuh"  // for CUDAContext
 #include "../../../src/objective/lambdarank_obj.cuh"
@@ -51,7 +51,7 @@ void TestGPUMakePair() {
         p_cache->CUDAThreadsGroupPtr(),
         rank_idx,
         info.labels.View(ctx.Device()),
-        predt.ConstDeviceSpan(),
+        predt.ConstDeviceSpan(ctx.Device()),
         linalg::MatrixView<GradientPair>{common::Span<GradientPair>{}, {0}, DeviceOrd::CUDA(0)},
         dg,
         nullptr,
@@ -63,7 +63,7 @@ void TestGPUMakePair() {
   {
     param.UpdateAllowUnknown(Args{{"lambdarank_pair_method", "topk"}});
     auto p_cache = std::make_shared<ltr::NDCGCache>(&ctx, info, param);
-    auto rank_idx = p_cache->SortedIdx(&ctx, predt.ConstDeviceSpan());
+    auto rank_idx = p_cache->SortedIdx(&ctx, predt.ConstDeviceSpan(ctx.Device()));
 
     ASSERT_EQ(p_cache->CUDAThreads(), 3568);
 
@@ -81,7 +81,7 @@ void TestGPUMakePair() {
   {
     param.UpdateAllowUnknown(Args{{"lambdarank_pair_method", "mean"}});
     auto p_cache = std::make_shared<ltr::NDCGCache>(&ctx, info, param);
-    auto rank_idx = p_cache->SortedIdx(&ctx, predt.ConstDeviceSpan());
+    auto rank_idx = p_cache->SortedIdx(&ctx, predt.ConstDeviceSpan(ctx.Device()));
     auto y_sorted_idx = cuda_impl::SortY(&ctx, info, rank_idx, p_cache);
 
     ASSERT_FALSE(param.HasTruncation());
@@ -103,7 +103,7 @@ void TestGPUMakePair() {
   {
     param.UpdateAllowUnknown(Args{{"lambdarank_num_pair_per_sample", "2"}});
     auto p_cache = std::make_shared<ltr::NDCGCache>(&ctx, info, param);
-    auto rank_idx = p_cache->SortedIdx(&ctx, predt.ConstDeviceSpan());
+    auto rank_idx = p_cache->SortedIdx(&ctx, predt.ConstDeviceSpan(ctx.Device()));
     auto y_sorted_idx = cuda_impl::SortY(&ctx, info, rank_idx, p_cache);
 
     auto args = make_args(p_cache, rank_idx, y_sorted_idx);
@@ -137,7 +137,9 @@ void RankItemCountImpl(std::vector<std::uint32_t> const &sorted_items, CountFunc
 TEST(LambdaRank, RankItemCountOnLeft) {
   // Items sorted descendingly
   std::vector<std::uint32_t> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
-  auto wrapper = [](auto const &...args) { return cuda_impl::CountNumItemsToTheLeftOf(args...); };
+  auto wrapper = [](auto const &...args) {
+    return cuda_impl::CountNumItemsToTheLeftOf(args...);
+  };
   RankItemCountImpl(sorted_items, wrapper, 10, static_cast<uint32_t>(0));
   RankItemCountImpl(sorted_items, wrapper, 6, static_cast<uint32_t>(2));
   RankItemCountImpl(sorted_items, wrapper, 4, static_cast<uint32_t>(3));
@@ -148,7 +150,9 @@ TEST(LambdaRank, RankItemCountOnLeft) {
 TEST(LambdaRank, RankItemCountOnRight) {
   // Items sorted descendingly
   std::vector<std::uint32_t> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
-  auto wrapper = [](auto const &...args) { return cuda_impl::CountNumItemsToTheRightOf(args...); };
+  auto wrapper = [](auto const &...args) {
+    return cuda_impl::CountNumItemsToTheRightOf(args...);
+  };
   RankItemCountImpl(sorted_items, wrapper, 10, static_cast<uint32_t>(11));
   RankItemCountImpl(sorted_items, wrapper, 6, static_cast<uint32_t>(10));
   RankItemCountImpl(sorted_items, wrapper, 4, static_cast<uint32_t>(6));

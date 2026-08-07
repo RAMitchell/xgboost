@@ -142,8 +142,7 @@ TEST(SparsePageDMatrix, RetainEllpackPage) {
   for (auto it = begin; it != end; ++it) {
     iterators.push_back(it.Page());
     gidx_buffers.emplace_back();
-    gidx_buffers.back().SetDevice(ctx.Device());
-    gidx_buffers.back().Resize((*it).Impl()->gidx_buffer.size());
+    gidx_buffers.back().Resize((*it).Impl()->gidx_buffer.size(), ctx.Device());
     auto d_dst = gidx_buffers.back().DevicePointer();
     auto const& d_src = (*it).Impl()->gidx_buffer;
     dh::safe_cuda(cudaMemcpyAsync(d_dst, d_src.data(), d_src.size_bytes(), cudaMemcpyDefault));

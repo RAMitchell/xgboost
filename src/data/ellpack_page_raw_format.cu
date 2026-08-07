@@ -101,7 +101,6 @@ template <typename T>
   xgboost_NVTX_FN_RANGE_C(252, 198, 3);
 
   auto* impl = page->Impl();
-  CHECK(this->cuts_->cut_values_.DeviceCanRead());
 
   auto stream = ctx_->CUDACtx()->Stream();
 

@@ -152,8 +152,7 @@ template <typename T>
   recv_segments->resize(sizes.size() + 1);
   detail::AllgatherVOffset(sizes, common::Span{recv_segments->data(), recv_segments->size()});
   auto total_bytes = std::accumulate(sizes.cbegin(), sizes.cend(), 0LL);
-  recv->SetDevice(data.Device());
-  recv->Resize(total_bytes);
+  recv->Resize(total_bytes, data.Device());
 
   auto s_segments = common::Span{recv_segments->data(), recv_segments->size()};
 
@@ -162,7 +161,8 @@ template <typename T>
 
   return backend->AllgatherV(
       ctx, comm.Ctx(ctx, data.Device()), erased, common::Span{sizes.data(), sizes.size()},
-      s_segments, data.Device().IsCUDA() ? recv->DeviceSpan() : recv->HostSpan(),
+      s_segments,
+      data.Device().IsCUDA() ? recv->DeviceSpan(recv->Device()) : recv->HostSpan(),
       data.Device().IsCUDA() ? AllgatherVAlgo::kBcast : AllgatherVAlgo::kRing);
 }
 

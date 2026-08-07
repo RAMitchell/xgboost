@@ -78,12 +78,11 @@ struct CatContainerImpl {
   void Finalize() {
     this->columns_v.clear();
     for (auto const& col : this->columns) {
-      std::visit(enc::Overloaded{[this](CatStrArray const& str) {
-                                   this->columns_v.emplace_back(enc::CatStrArrayView(str));
-                                 },
-                                 [this](auto&& values) {
-                                   this->columns_v.emplace_back(common::Span{values});
-                                 }},
+      std::visit(enc::Overloaded{
+                     [this](CatStrArray const& str) {
+                       this->columns_v.emplace_back(enc::CatStrArrayView(str));
+                     },
+                     [this](auto&& values) { this->columns_v.emplace_back(common::Span{values}); }},
                  col);
     }
   }
@@ -115,23 +114,14 @@ class CatContainer {
   void CopyCommon(Context const* ctx, CatContainer const& that) {
     auto device = ctx->Device();
 
-    that.sorted_idx_.SetDevice(device);
-    this->sorted_idx_.SetDevice(device);
-    this->sorted_idx_.Resize(that.sorted_idx_.Size());
+    this->sorted_idx_.Resize(that.sorted_idx_.Size(), device);
     this->sorted_idx_.Copy(that.sorted_idx_);
 
-    this->feature_segments_.SetDevice(device);
-    that.feature_segments_.SetDevice(device);
-    this->feature_segments_.Resize(that.feature_segments_.Size());
+    this->feature_segments_.Resize(that.feature_segments_.Size(), device);
     this->feature_segments_.Copy(that.feature_segments_);
 
     this->n_total_cats_ = that.n_total_cats_;
 
-    if (!device.IsCPU()) {
-      // Pull to device
-      this->sorted_idx_.ConstDevicePointer();
-      this->feature_segments_.ConstDevicePointer();
-    }
   }
 
   [[nodiscard]] enc::HostColumnsView HostViewImpl() const {
@@ -139,8 +129,8 @@ class CatContainer {
     if (this->n_total_cats_ != 0) {
       CHECK(!this->cpu_impl_->columns_v.empty());
     }
-    return {common::Span{this->cpu_impl_->columns_v}, this->feature_segments_.ConstHostSpan(),
-            this->n_total_cats_};
+    return {common::Span{this->cpu_impl_->columns_v},
+            this->feature_segments_.ConstHostSpan(), this->n_total_cats_};
   }
 
  public:
@@ -186,8 +176,7 @@ class CatContainer {
     if (ctx->IsCPU()) {
       return this->sorted_idx_.ConstHostSpan();
     } else {
-      sorted_idx_.SetDevice(ctx->Device());
-      return this->sorted_idx_.ConstDeviceSpan();
+      return this->sorted_idx_.ConstDeviceSpan(ctx->Device());
     }
   }
   /**

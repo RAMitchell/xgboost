@@ -1034,7 +1034,7 @@ void LaunchQuadratureShapTasks(Context const* ctx, Loader loader, bst_idx_t base
   auto nodes = thrust::raw_pointer_cast(compressed.nodes.data());
   auto leaf_values = thrust::raw_pointer_cast(compressed.leaf_values.data());
   auto categories = thrust::raw_pointer_cast(compressed.categories.data());
-  auto phis = out_contribs->DeviceSpan().data();
+  auto phis = out_contribs->DeviceSpan(out_contribs->Device()).data();
   auto n_tasks = compressed.trees.size() * row_tiles;
   auto grids = common::DivRoundUp(n_tasks, static_cast<std::size_t>(kGpuQuadratureWarpsPerBlock));
   QuadratureShapTaskKernel<DepthCap, kHasRowMask>
@@ -1136,7 +1136,7 @@ void LaunchQuadratureShapInteractionTasks(Context const* ctx, Loader loader, bst
   auto nodes = thrust::raw_pointer_cast(compressed.nodes.data());
   auto leaf_values = thrust::raw_pointer_cast(compressed.leaf_values.data());
   auto categories = thrust::raw_pointer_cast(compressed.categories.data());
-  auto phis = out_contribs->DeviceSpan().data();
+  auto phis = out_contribs->DeviceSpan(out_contribs->Device()).data();
   auto n_tasks = compressed.trees.size() * row_tiles;
   auto grids = common::DivRoundUp(n_tasks, static_cast<std::size_t>(kGpuQuadratureWarpsPerBlock));
   QuadratureShapInteractionTaskKernel<DepthCap, kHasRowMask>
@@ -1175,8 +1175,7 @@ void DispatchByBatchLoader(Context const* ctx, DMatrix* p_fmat, bst_feature_t n_
       fn(std::move(loader), page.base_rowid);
     }
   } else {
-    p_fmat->Info().feature_types.SetDevice(ctx->Device());
-    auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan();
+    auto feature_types = p_fmat->Info().feature_types.ConstDeviceSpan(ctx->Device());
 
     for (auto const& page : p_fmat->GetBatches<EllpackPage>(ctx, StaticBatch(true))) {
       page.Impl()->Visit(ctx, feature_types, [&](auto&& batch) {
@@ -1220,8 +1219,7 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
   CHECK_NE(ngroup, 0);
   auto const ncolumns = model.learner_model_param->num_feature + 1;
   auto dim_size = ncolumns * ngroup;
-  out_contribs->SetDevice(ctx->Device());
-  out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
+  out_contribs->Resize(p_fmat->Info().num_row_ * dim_size, ctx->Device());
   out_contribs->Fill(0.0f);
 
   auto prepared =
@@ -1242,10 +1240,9 @@ void ShapValues(Context const* ctx, DMatrix* p_fmat, HostDeviceVector<float>* ou
                                      prepared.compressed[3], prepared.rule, out_contribs);
   });
 
-  p_fmat->Info().base_margin_.SetDevice(ctx->Device());
-  auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
+  auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan(ctx->Device());
   auto base_score = model.learner_model_param->BaseScore(ctx);
-  auto phis = out_contribs->DeviceSpan();
+  auto phis = out_contribs->DeviceSpan(out_contribs->Device());
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
     auto [_, gid] = linalg::UnravelIndex(idx, n_samples, ngroup);
@@ -1268,8 +1265,7 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
   CHECK_NE(ngroup, 0);
   auto const ncolumns = model.learner_model_param->num_feature + 1;
   auto dim_size = ncolumns * ncolumns * ngroup;
-  out_contribs->SetDevice(ctx->Device());
-  out_contribs->Resize(p_fmat->Info().num_row_ * dim_size);
+  out_contribs->Resize(p_fmat->Info().num_row_ * dim_size, ctx->Device());
   out_contribs->Fill(0.0f);
 
   auto prepared = PrepareGpuQuadratureModel(model, tree_end, ngroup, tree_weights,
@@ -1291,10 +1287,9 @@ void ShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
                                                 out_contribs);
   });
 
-  p_fmat->Info().base_margin_.SetDevice(ctx->Device());
-  auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan();
+  auto margin = p_fmat->Info().base_margin_.Data()->ConstDeviceSpan(ctx->Device());
   auto base_score = model.learner_model_param->BaseScore(ctx);
-  auto phis = out_contribs->DeviceSpan();
+  auto phis = out_contribs->DeviceSpan(out_contribs->Device());
   auto n_samples = p_fmat->Info().num_row_;
   dh::LaunchN(n_samples * ngroup, ctx->CUDACtx()->Stream(), [=] __device__(std::size_t idx) {
     auto [ridx, gid] = linalg::UnravelIndex(idx, n_samples, ngroup);

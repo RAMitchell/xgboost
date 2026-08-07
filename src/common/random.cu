@@ -63,45 +63,40 @@ void SampleFeature(Context const *ctx, bst_feature_t n_features,
                    HostDeviceVector<bst_feature_t> *idx_buffer) {
   CUDAContext const *cuctx = ctx->CUDACtx();
   auto &new_features = *p_new_features;
-  new_features.SetDevice(ctx->Device());
-  p_features->SetDevice(ctx->Device());
   CHECK_LE(n_features, p_features->Size());
 
   auto seed = ctx->Rng()();
 
   if (!feature_weights.Empty()) {
     CHECK_LE(p_features->Size(), feature_weights.Size());
-    idx_buffer->SetDevice(ctx->Device());
-    feature_weights.SetDevice(ctx->Device());
-
-    auto d_old_features = p_features->DeviceSpan();
+    auto d_old_features = p_features->ConstDeviceSpan(ctx->Device());
     auto d_weight_buffer = dh::LazyResize(ctx, weight_buffer, d_old_features.size());
     // Filter weights according to the existing feature index.
-    auto d_feature_weight = feature_weights.ConstDeviceSpan();
+    auto d_feature_weight = feature_weights.ConstDeviceSpan(ctx->Device());
     auto it = thrust::make_permutation_iterator(dh::tcbegin(d_feature_weight),
                                                 dh::tcbegin(d_old_features));
     thrust::copy_n(cuctx->CTP(), it, d_old_features.size(), dh::tbegin(d_weight_buffer));
-    new_features.Resize(n_features);
+    new_features.Resize(n_features, ctx->Device());
     WeightedSamplingWithoutReplacement(ctx, d_old_features, d_weight_buffer,
-                                       new_features.DeviceSpan(), idx_buffer, seed);
+                                       new_features.DeviceSpan(ctx->Device()), idx_buffer, seed);
   } else {
-    new_features.Resize(p_features->Size());
+    new_features.Resize(p_features->Size(), ctx->Device());
     new_features.Copy(*p_features);
-    auto d_feat = new_features.DeviceSpan();
+    auto d_feat = new_features.DeviceSpan(ctx->Device());
     thrust::default_random_engine rng;
     rng.seed(seed);
     thrust::shuffle(cuctx->CTP(), dh::tbegin(d_feat), dh::tend(d_feat), rng);
     new_features.Resize(n_features);
   }
 
-  auto d_new_features = new_features.DeviceSpan();
+  auto d_new_features = new_features.DeviceSpan(ctx->Device());
   thrust::sort(cuctx->CTP(), dh::tbegin(d_new_features), dh::tend(d_new_features));
 }
 
 void InitFeatureSet(Context const *ctx,
                     std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features) {
   CUDAContext const *cuctx = ctx->CUDACtx();
-  auto d_features = p_features->DeviceSpan();
+  auto d_features = p_features->DeviceSpan(ctx->Device());
   thrust::sequence(cuctx->CTP(), dh::tbegin(d_features), dh::tend(d_features), 0);
 }
 }  // namespace xgboost::common::cuda_impl

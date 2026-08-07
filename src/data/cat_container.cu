@@ -157,9 +157,8 @@ CatContainer::CatContainer(Context const* ctx, enc::DeviceColumnsView const& df,
   this->is_ref_ = is_ref;
   this->n_total_cats_ = df.n_total_cats;
 
-  this->feature_segments_.SetDevice(ctx->Device());
-  this->feature_segments_.Resize(df.feature_segments.size());
-  auto d_segs = this->feature_segments_.DeviceSpan();
+  this->feature_segments_.Resize(df.feature_segments.size(), ctx->Device());
+  auto d_segs = this->feature_segments_.DeviceSpan(ctx->Device());
   thrust::copy_n(ctx->CUDACtx()->CTP(), dh::tcbegin(df.feature_segments),
                  df.feature_segments.size(), dh::tbegin(d_segs));
 
@@ -167,8 +166,7 @@ CatContainer::CatContainer(Context const* ctx, enc::DeviceColumnsView const& df,
   // device data. Remove this along with the one in the device cuDF adapter.
   this->cu_impl_->CopyFrom(ctx, df);
 
-  this->sorted_idx_.SetDevice(ctx->Device());
-  this->sorted_idx_.Resize(0);
+  this->sorted_idx_.Resize(0, ctx->Device());
   if (this->n_total_cats_ > 0) {
     CHECK(this->DeviceCanRead());
     CHECK(!this->HostCanRead());
@@ -259,9 +257,8 @@ void CatContainer::Sort(Context const* ctx) {
   } else {
     auto view = this->DeviceView(ctx);
     CHECK(!view.Empty()) << view.n_total_cats;
-    this->sorted_idx_.SetDevice(ctx->Device());
-    this->sorted_idx_.Resize(view.n_total_cats);
-    enc::SortNames(cuda_impl::EncPolicy, view, this->sorted_idx_.DeviceSpan());
+    this->sorted_idx_.Resize(view.n_total_cats, ctx->Device());
+    enc::SortNames(cuda_impl::EncPolicy, view, this->sorted_idx_.DeviceSpan(ctx->Device()));
   }
 }
 
@@ -280,8 +277,7 @@ void CatContainer::Sort(Context const* ctx) {
   CHECK(ctx->IsCUDA());
   std::lock_guard guard{device_mu_};
   if (!this->DeviceCanRead()) {
-    this->feature_segments_.SetDevice(ctx->Device());
-    this->feature_segments_.ConstDeviceSpan();
+    this->feature_segments_.ConstDeviceSpan(ctx->Device());
     // Lazy copy to device
     auto h_view = this->HostViewImpl();
     this->cu_impl_->CopyFrom(ctx, h_view);
@@ -293,7 +289,7 @@ void CatContainer::Sort(Context const* ctx) {
     CHECK(!this->cu_impl_->columns_v.empty());
     CHECK_EQ(this->feature_segments_.Size(), this->cu_impl_->columns_v.size() + 1);
   }
-  return {dh::ToSpan(this->cu_impl_->columns_v), this->feature_segments_.ConstDeviceSpan(),
-          this->n_total_cats_};
+  return {dh::ToSpan(this->cu_impl_->columns_v),
+          this->feature_segments_.ConstDeviceSpan(ctx->Device()), this->n_total_cats_};
 }
 }  // namespace xgboost

@@ -29,10 +29,8 @@ struct OptionalWeights {
 
 inline OptionalWeights MakeOptionalWeights(DeviceOrd device,
                                            HostDeviceVector<float> const& weights) {
-  if (!device.IsCPU()) {
-    weights.SetDevice(device);
-  }
-  return OptionalWeights{device.IsCPU() ? weights.ConstHostSpan() : weights.ConstDeviceSpan()};
+  return OptionalWeights{device.IsCPU() ? weights.ConstHostSpan()
+                                               : weights.ConstDeviceSpan(device)};
 }
 
 [[nodiscard]] double SumOptionalWeights(Context const* ctx, OptionalWeights const& weights,

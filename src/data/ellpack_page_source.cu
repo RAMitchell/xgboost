@@ -576,8 +576,7 @@ void ExtEllpackPageSourceImpl<F>::Fetch() {
     CHECK_EQ(this->Iter(), iter);
     cuda_impl::DispatchAny(proxy_, [this](auto const& value) {
       CHECK(this->proxy_->Ctx()->IsCUDA()) << "All batches must use the same device type.";
-      proxy_->Info().feature_types.SetDevice(dh::GetDevice(this->ctx_));
-      auto d_feature_types = proxy_->Info().feature_types.ConstDeviceSpan();
+      auto d_feature_types = proxy_->Info().feature_types.ConstDeviceSpan(dh::GetDevice(this->ctx_));
       auto n_samples = value.NumRows();
       if (this->GetCuts()->HasCategorical()) {
         CHECK(!d_feature_types.empty());

@@ -113,12 +113,10 @@ struct FeatureGroups {
   explicit FeatureGroups(const common::HistogramCuts& cuts) { this->InitSingle(cuts); }
 
   [[nodiscard]] FeatureGroupsAccessor DeviceAccessor(DeviceOrd device) const {
-    feature_segments.SetDevice(device);
-    bin_segments.SetDevice(device);
-    return {feature_segments.ConstDeviceSpan(), bin_segments.ConstDeviceSpan(), max_group_bins};
+    return {feature_segments.ConstDeviceSpan(device), bin_segments.ConstDeviceSpan(device), max_group_bins};
   }
 
-private:
+ private:
   void InitSingle(const common::HistogramCuts& cuts);
 };
 

@@ -13,12 +13,13 @@
  *
  * Initialization/Allocation:<br/>
  * One can choose to initialize the vector on CPU or GPU during constructor.
- * (use the 'devices' argument) Or, can choose to use the 'Resize' method to
- * allocate/resize memory explicitly, and use the 'SetDevice' method
- * to specify the device.
+ * (use the 'device' argument). The device-aware 'Resize' overloads can also be
+ * used to allocate/resize memory explicitly on a specified device.
  *
  * Accessing underlying data:<br/>
- * Use 'HostVector' method to explicitly query for the underlying std::vector.
+ * Use 'HostSpan' and 'ConstHostSpan' for host access. Use 'DeviceSpan' and
+ * 'ConstDeviceSpan' with an accelerator ordinal for device access. Use 'HostVector' to
+ * explicitly query for the underlying std::vector.
  * If you need the raw device pointer, use the 'DevicePointer' method. For perf
  * implications of these calls, see below.
  *
@@ -105,17 +106,23 @@ class HostDeviceVector {
   [[nodiscard]] std::size_t Size() const;
   [[nodiscard]] std::size_t SizeBytes() const { return this->Size() * sizeof(T); }
   [[nodiscard]] DeviceOrd Device() const;
-  common::Span<T> DeviceSpan();
-  common::Span<const T> ConstDeviceSpan() const;
-  common::Span<const T> DeviceSpan() const { return ConstDeviceSpan(); }
+  common::Span<T> HostSpan() { return common::Span<T>{HostVector()}; }
+  common::Span<T const> ConstHostSpan() const { return common::Span<T const>{ConstHostVector()}; }
+  common::Span<T> DeviceSpan(DeviceOrd device) {
+    CHECK(!device.IsCPU());
+    this->BindDevice(device);
+    return this->DeviceSpan();
+  }
+  common::Span<T const> ConstDeviceSpan(DeviceOrd device) const {
+    CHECK(!device.IsCPU());
+    this->BindDevice(device);
+    return this->ConstDeviceSpan();
+  }
   T* DevicePointer();
   const T* ConstDevicePointer() const;
   const T* DevicePointer() const { return ConstDevicePointer(); }
 
   T* HostPointer() { return HostVector().data(); }
-  common::Span<T> HostSpan() { return common::Span<T>{HostVector()}; }
-  common::Span<T const> HostSpan() const { return common::Span<T const>{HostVector()}; }
-  common::Span<T const> ConstHostSpan() const { return HostSpan(); }
   const T* ConstHostPointer() const { return ConstHostVector().data(); }
   const T* HostPointer() const { return ConstHostPointer(); }
 
@@ -125,6 +132,15 @@ class HostDeviceVector {
   void Copy(std::initializer_list<T> other);
 
   void Extend(const HostDeviceVector<T>& other);
+  /** @brief Extend on the specified device. */
+  void Extend(const HostDeviceVector<T>& other, DeviceOrd device) {
+    if (device.IsCPU()) {
+      this->HostSpan();
+    } else {
+      this->DeviceSpan(device);
+    }
+    this->Extend(other);
+  }
 
   std::vector<T>& HostVector();
   const std::vector<T>& ConstHostVector() const;
@@ -136,15 +152,26 @@ class HostDeviceVector {
   [[nodiscard]] bool DeviceCanWrite() const;
   [[nodiscard]] GPUAccess DeviceAccess() const;
 
-  void SetDevice(DeviceOrd device) const;
-
   void Resize(std::size_t new_size);
+  void Resize(std::size_t new_size, DeviceOrd device) {
+    this->BindDevice(device);
+    this->Resize(new_size);
+  }
   /** @brief Resize and initialize the data if the new size is larger than the old size. */
   void Resize(std::size_t new_size, T v);
+  /** @brief Resize on the specified device and initialize newly allocated data. */
+  void Resize(std::size_t new_size, T v, DeviceOrd device) {
+    this->BindDevice(device);
+    this->Resize(new_size, v);
+  }
 
   using value_type = T;  // NOLINT
 
  private:
+  void BindDevice(DeviceOrd device) const;
+  common::Span<T> DeviceSpan();
+  common::Span<T const> ConstDeviceSpan() const;
+
   HostDeviceVectorImpl<T>* impl_;
 };
 

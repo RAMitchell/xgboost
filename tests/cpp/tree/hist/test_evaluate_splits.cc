@@ -423,8 +423,8 @@ class TestHistMultiEvaluator : public ::testing::Test {
     }
     tree_.SetRoot(weight.HostView(), root_sum_hess);
 
-    evaluator_->EvaluateSplits(histogram_ptrs_, cuts_, info_.feature_types.ConstHostSpan(),
-                               &entries_);
+    evaluator_->EvaluateSplits(histogram_ptrs_, cuts_,
+                               info_.feature_types.ConstHostSpan(), &entries_);
   }
 
   void ApplyTreeSplit() {

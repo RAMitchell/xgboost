@@ -216,11 +216,11 @@ void TestGPUHistogramCategorical(size_t num_categories) {
   dh::device_vector<GradientPairInt64> cat_hist(num_categories);
 
   auto gpair = GenerateRandomGradients(kRows, 0, 2);
-  gpair.SetDevice(DeviceOrd::CUDA(0));
-  GradientQuantiserGroup quantiser_group{&ctx,
-                                         linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan())};
+  GradientQuantiserGroup quantiser_group{
+      &ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan(ctx.Device()))};
   linalg::Matrix<GradientPairInt64> gpairs_i64;
-  CalcQuantizedGpairs(&ctx, linalg::MakeTensorView(&ctx, gpair.ConstDeviceSpan(), gpair.Size(), 1),
+  CalcQuantizedGpairs(&ctx,
+                      linalg::MakeTensorView(&ctx, gpair.ConstDeviceSpan(ctx.Device()), gpair.Size(), 1),
                       quantiser_group.DeviceSpan(), &gpairs_i64);
   /**
    * Generate hist with cat data.
@@ -342,10 +342,9 @@ TEST(Histogram, Quantiser) {
   auto ctx = MakeCUDACtx(0);
   std::size_t n_samples{16};
   HostDeviceVector<GradientPair> gpair(n_samples, GradientPair{1.0, 1.0});
-  gpair.SetDevice(ctx.Device());
 
-  GradientQuantiserGroup quantiser_group{&ctx,
-                                         linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan())};
+  GradientQuantiserGroup quantiser_group{
+      &ctx, linalg::MakeVec(ctx.Device(), gpair.ConstDeviceSpan(ctx.Device()))};
   auto quantiser = quantiser_group[0];
   for (auto v : gpair.ConstHostVector()) {
     auto gh = quantiser.ToFloatingPoint(quantiser.ToFixedPoint(v));

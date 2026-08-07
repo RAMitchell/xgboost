@@ -96,7 +96,8 @@ void TestExternalMemory() {
   std::vector<CPUExpandEntry> candidates{{0, 0}};
 
   auto gpair = GenerateRandomGradients(p_fmat->Info().num_row_);
-  auto t_gpair = linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), p_fmat->Info().num_row_, 1);
+  auto t_gpair =
+      linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), p_fmat->Info().num_row_, 1);
   std::vector<bst_node_t> position(p_fmat->Info().num_row_);
 
   auto param = BatchParam{max_bin, TrainParam::DftSparseThreshold()};

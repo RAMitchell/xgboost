@@ -80,8 +80,7 @@ class TestPredictionCache : public ::testing::Test {
       std::vector<HostDeviceVector<bst_node_t>> position(1);
       updater->Update(&param, &gpair, Xy_.get(), position, trees);
       HostDeviceVector<float> out_prediction_cached;
-      out_prediction_cached.SetDevice(ctx->Device());
-      out_prediction_cached.Resize(n_samples_);
+      out_prediction_cached.Resize(n_samples_, ctx->Device());
       auto cache =
           linalg::MakeTensorView(ctx, &out_prediction_cached, out_prediction_cached.Size(), 1);
       if (position.front().Size() == n_samples_) {

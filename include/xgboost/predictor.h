@@ -9,7 +9,6 @@
 #include <xgboost/base.h>     // for bst_tree_t
 #include <xgboost/cache.h>    // for DMatrixCache
 #include <xgboost/context.h>  // for Context
-#include <xgboost/context.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/linalg.h>
@@ -58,7 +57,7 @@ class PredictionContainer : public DMatrixCache<PredictionCacheEntry> {
   std::shared_ptr<PredictionCacheEntry> Cache(std::shared_ptr<DMatrix> m, DeviceOrd device) {
     auto p_cache = this->CacheItem(m);
     if (!device.IsCPU()) {
-      p_cache->predictions.SetDevice(device);
+      p_cache->predictions.ConstDeviceSpan(device);
     }
     return p_cache;
   }

@@ -98,10 +98,9 @@ class HostDeviceVectorImpl {
 
   void Copy(HostDeviceVectorImpl<T>* other) {
     CHECK_EQ(Size(), other->Size());
-    SetDevice(other->device_);
-    // Data is on host.
-    if (HostCanWrite() && other->HostCanWrite()) {
-      std::copy(other->data_h_.begin(), other->data_h_.end(), data_h_.begin());
+    if (HostCanWrite()) {
+      auto const& other_h = other->ConstHostVector();
+      std::copy(other_h.cbegin(), other_h.cend(), data_h_.begin());
       return;
     }
     SetDevice();
@@ -129,18 +128,23 @@ class HostDeviceVectorImpl {
   void Extend(HostDeviceVectorImpl* other) {
     auto ori_size = this->Size();
     this->Resize(ori_size + other->Size(), T{});
-    if (HostCanWrite() && other->HostCanRead()) {
+    if (HostCanWrite()) {
       auto& h_vec = this->HostVector();
-      auto& other_vec = other->HostVector();
+      auto const& other_vec = other->ConstHostVector();
       CHECK_EQ(h_vec.size(), ori_size + other->Size());
       std::copy(other_vec.cbegin(), other_vec.cend(), h_vec.begin() + ori_size);
+      return;
+    }
+
+    SetDevice();
+    auto dst = this->DevicePointer() + ori_size;
+    if (other->HostCanRead()) {
+      dh::safe_cuda(cudaMemcpyAsync(dst, other->data_h_.data(), other->Size() * sizeof(T),
+                                    cudaMemcpyDefault, curt::DefaultStream()));
     } else {
-      auto ptr = other->ConstDevicePointer();
-      SetDevice();
       CHECK_EQ(this->Device(), other->Device());
-      dh::safe_cuda(cudaMemcpyAsync(this->DevicePointer() + ori_size, ptr,
-                                    other->Size() * sizeof(T), cudaMemcpyDeviceToDevice,
-                                    curt::DefaultStream()));
+      dh::safe_cuda(cudaMemcpyAsync(dst, other->ConstDevicePointer(), other->Size() * sizeof(T),
+                                    cudaMemcpyDefault, curt::DefaultStream()));
     }
   }
 
@@ -154,7 +158,7 @@ class HostDeviceVectorImpl {
     return data_h_;
   }
 
-  void SetDevice(DeviceOrd device) {
+  void BindDevice(DeviceOrd device) {
     if (device_ == device) {
       return;
     }
@@ -407,8 +411,8 @@ GPUAccess HostDeviceVector<T>::DeviceAccess() const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::SetDevice(DeviceOrd device) const {
-  impl_->SetDevice(device);
+void HostDeviceVector<T>::BindDevice(DeviceOrd device) const {
+  impl_->BindDevice(device);
 }
 
 template <typename T>

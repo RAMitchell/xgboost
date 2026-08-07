@@ -159,8 +159,7 @@ size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows);
 template <typename AdapterBatch, typename BatchIter>
 void MakeEntriesFromAdapter(CUDAContext const* cuctx, AdapterBatch const& batch,
                             BatchIter batch_iter, Range1d range, float missing, size_t columns,
-                            DeviceOrd device,
-                            dh::caching_device_vector<size_t>* column_sizes_scan,
+                            DeviceOrd device, dh::caching_device_vector<size_t>* column_sizes_scan,
                             dh::device_vector<Entry>* sorted_entries) {
   auto entry_iter = dh::MakeTransformIterator<Entry>(
       thrust::make_counting_iterator(0llu), [=] __device__(size_t idx) {
@@ -247,8 +246,7 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
                                   size_t end, SketchContainer* sketch_container,
                                   bst_idx_t approx_n_samples) {
   curt::SetDevice(ctx->Ordinal());
-  info.weights_.SetDevice(ctx->Device());
-  auto weights = info.weights_.ConstDeviceSpan();
+  auto weights = info.weights_.ConstDeviceSpan(ctx->Device());
 
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
       thrust::make_counting_iterator(0llu),
@@ -275,24 +273,20 @@ void ProcessWeightedSlidingWindow(Context const* ctx, Batch batch, MetaInfo cons
           bst_group_t group_idx = dh::SegmentId(d_group_ptr, ridx);
           return weights[group_idx];
         });
-    auto retit = thrust::copy_if(cuctx->CTP(),
-                                 weight_iter + begin, weight_iter + end,
-                                 batch_iter + begin,
-                                 d_temp_weights.data(),  // output
-                                 is_valid);
+    auto retit =
+        thrust::copy_if(cuctx->CTP(), weight_iter + begin, weight_iter + end, batch_iter + begin,
+                        d_temp_weights.data(),  // output
+                        is_valid);
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   } else {
     CHECK_EQ(batch.NumRows(), weights.size());
     auto const weight_iter = dh::MakeTransformIterator<float>(
         thrust::make_counting_iterator(0lu),
-        [=]__device__(size_t idx) -> float {
-          return weights[batch.GetElement(idx).row_idx];
-        });
-    auto retit = thrust::copy_if(cuctx->CTP(),
-                                 weight_iter + begin, weight_iter + end,
-                                 batch_iter + begin,
-                                 d_temp_weights.data(),  // output
-                                 is_valid);
+        [=] __device__(size_t idx) -> float { return weights[batch.GetElement(idx).row_idx]; });
+    auto retit =
+        thrust::copy_if(cuctx->CTP(), weight_iter + begin, weight_iter + end, batch_iter + begin,
+                        d_temp_weights.data(),  // output
+                        is_valid);
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   }
 

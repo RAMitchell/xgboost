@@ -214,7 +214,6 @@ class EllpackFormatPolicy {
   explicit EllpackFormatPolicy(bool has_hmm) : has_hmm_{has_hmm} {}
 
   [[nodiscard]] auto CreatePageFormat(BatchParam const& param) const {
-    CHECK_EQ(cuts_->cut_values_.Device(), device_);
     std::unique_ptr<FormatT> fmt{new EllpackPageRawFormat{ctx_, cuts_, device_, param, has_hmm_}};
     return fmt;
   }
@@ -314,7 +313,6 @@ class EllpackPageSourceImpl : public PageSourceIncMixIn<EllpackPage, F> {
         param_{std::move(cinfo.param)},
         feature_types_{feature_types} {
     this->source_ = source;
-    cuts->SetDevice(ctx->Device());
     this->SetCuts(ctx, std::move(cuts), ctx->Device(), cinfo);
     this->Fetch();
   }
@@ -356,7 +354,6 @@ class ExtEllpackPageSourceImpl : public ExtQantileSourceMixin<EllpackPage, Forma
         proxy_{proxy},
         info_{info},
         ext_info_{std::move(ext_info)} {
-    cuts->SetDevice(ctx->Device());
     this->SetCuts(ctx, std::move(cuts), ctx->Device(), cinfo);
     CHECK(!this->cache_info_->written);
     this->source_->Reset();
