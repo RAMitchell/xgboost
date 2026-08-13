@@ -52,7 +52,7 @@ TEST(Categorical, MinimalSet) {
   auto Xy =
       RandomDataGenerator{kRows, kCols, 0.0}.Type(types).MaxCategory(kCat).GenerateDMatrix(true);
 
-  std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure({{"max_depth", "1"}});
   learner->Configure({{"tree_method", "hist"}});
   learner->Configure();
@@ -78,7 +78,7 @@ TEST(Categorical, MinimalSet) {
   }
 
   {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->LoadModel(model);
     std::vector<float> data = {static_cast<float>(v)};
     auto test = GetDMatrixFromData(data, data.size(), kCols);

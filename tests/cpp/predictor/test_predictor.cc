@@ -208,7 +208,7 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
     h_label[i] = i % kClasses;
   }
 
-  learner.reset(Learner::Create({}));
+  learner.reset(Learner::Create());
   learner->Configure(Args{{"objective", "multi:softprob"},
                           {"num_feature", std::to_string(kCols)},
                           {"num_class", std::to_string(kClasses)},
@@ -223,7 +223,7 @@ void TestTrainingPrediction(Context const *ctx, size_t rows, size_t bins,
   Json model{Object{}};
   learner->SaveModel(&model);
 
-  learner.reset(Learner::Create({}));
+  learner.reset(Learner::Create());
   learner->LoadModel(model);
   learner->Configure({{"device", ctx->DeviceName()}});
   learner->Configure();
@@ -245,7 +245,7 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
   auto gen = RandomDataGenerator{rows, cols, 0.5}.Device(ctx->Device()).Classes(kClasses);
   std::shared_ptr<DMatrix> m = gen.GenerateDMatrix(true);
 
-  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
 
   learner->Configure({{"num_parallel_tree", "4"}});
   learner->Configure({{"num_class", std::to_string(kClasses)}});
@@ -301,7 +301,7 @@ void TestInplacePrediction(Context const *ctx, std::shared_ptr<DMatrix> x, bst_i
 namespace {
 std::unique_ptr<Learner> LearnerForTest(Context const *ctx, std::shared_ptr<DMatrix> dmat,
                                         size_t iters, size_t forest = 1) {
-  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure(Args{{"num_parallel_tree", std::to_string(forest)},
                           {"device", ctx->IsSycl() ? "cpu" : ctx->DeviceName()}});
   for (size_t i = 0; i < iters; ++i) {
@@ -508,7 +508,7 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   Json model{Object{}};
   learner->SaveModel(&model);
 
-  learner.reset(Learner::Create({Xy}));
+  learner.reset(Learner::Create());
   learner->LoadModel(model);
   learner->Configure({{"device", ctx->DeviceName()}});
   learner->Configure();

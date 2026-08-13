@@ -62,16 +62,17 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
-   * Create a new Booster with empty stage.
+   * Create a configured Booster and initialize its model state from training data.
    *
-   * @param params  Model parameters that are used to build the Booster
-   * @param cacheMats Cached DMatrix entries that help increase the speed of Booster prediction
+   * @param params Complete initial model parameters
+   * @param dtrain Training matrix, or null when loading a model
+   * @param customObjective Whether training uses custom gradients
    *
    * @throws XGBoostError native error
    */
-  Booster(Map<String, Object> params, DMatrix[] cacheMats) throws XGBoostError {
-    init(cacheMats);
-    setParams(params);
+  Booster(Map<String, Object> params, DMatrix dtrain, boolean customObjective)
+      throws XGBoostError {
+    init(dtrain, params, customObjective);
   }
 
   /**
@@ -84,7 +85,7 @@ public class Booster implements Serializable, KryoSerializable {
     if (modelPath == null) {
       throw new NullPointerException("modelPath : null");
     }
-    Booster ret = new Booster(new HashMap<>(), new DMatrix[0]);
+    Booster ret = new Booster(new HashMap<>(), null, false);
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModel(ret.handle, modelPath));
     return ret;
   }
@@ -99,7 +100,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError
    */
   static Booster loadModel(byte[] buffer) throws XGBoostError {
-    Booster ret = new Booster(new HashMap<>(), new DMatrix[0]);
+    Booster ret = new Booster(new HashMap<>(), null, false);
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(ret.handle, buffer));
     return ret;
   }
@@ -125,18 +126,25 @@ public class Booster implements Serializable, KryoSerializable {
     if (params == null || params.isEmpty()) {
       return;
     }
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSetParams(handle,
+        makeConfiguration(params, false)));
+  }
 
+  private static String makeConfiguration(Map<String, Object> params, boolean customObjective)
+      throws XGBoostError {
+    if (params == null) {
+      params = new HashMap<>();
+    }
     List<List<String>> entries = new ArrayList<>(params.size());
     for (Map.Entry<String, Object> entry : params.entrySet()) {
       entries.add(Arrays.asList(entry.getKey(), entry.getValue().toString()));
     }
     Map<String, Object> config = new HashMap<>();
     config.put("params", entries);
+    config.put("custom_objective", customObjective);
 
-    ObjectMapper mapper = new ObjectMapper();
     try {
-      String json = mapper.writeValueAsString(config);
-      XGBoostJNI.checkCall(XGBoostJNI.XGBoosterSetParams(handle, json));
+      return new ObjectMapper().writeValueAsString(config);
     } catch (JsonProcessingException ex) {
       throw new XGBoostError("Failed to encode booster parameters.", ex);
     }
@@ -879,16 +887,17 @@ public class Booster implements Serializable, KryoSerializable {
 
   /**
    * Internal initialization function.
-   * @param cacheMats The cached DMatrix.
-   * @throws XGBoostError
+   * @param dtrain The training DMatrix, or null when loading a model.
+   * @param params Complete initial model parameters.
+   * @param customObjective Whether training uses custom gradients.
+   * @throws XGBoostError native error
    */
-  private void init(DMatrix[] cacheMats) throws XGBoostError {
-    long[] handles = null;
-    if (cacheMats != null) {
-      handles = dmatrixsToHandles(cacheMats);
-    }
+  private void init(DMatrix dtrain, Map<String, Object> params, boolean customObjective)
+      throws XGBoostError {
     long[] out = new long[1];
-    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterCreate(handles, out));
+    long dtrainHandle = dtrain == null ? 0 : dtrain.getHandle();
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterCreate(
+        dtrainHandle, makeConfiguration(params, customObjective), out));
 
     handle = out[0];
   }
@@ -921,7 +930,7 @@ public class Booster implements Serializable, KryoSerializable {
   private void readObject(java.io.ObjectInputStream in)
           throws IOException, ClassNotFoundException {
     try {
-      this.init(null);
+      this.init(null, new HashMap<>(), false);
       this.version = in.readInt();
       byte[] bytes = (byte[])in.readObject();
       XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(this.handle, bytes));
@@ -960,7 +969,7 @@ public class Booster implements Serializable, KryoSerializable {
   @Override
   public void read(Kryo kryo, Input input) {
     try {
-      this.init(null);
+      this.init(null, new HashMap<>(), false);
       int serObjSize = input.readInt();
       this.version = input.readInt();
       byte[] bytes = new byte[serObjSize];

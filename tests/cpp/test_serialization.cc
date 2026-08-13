@@ -164,7 +164,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
   // Train for kIters.
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-    std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure(args);
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat);
@@ -180,7 +180,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
   std::vector<std::string> dumped_1;
   {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-    std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Load(fi.get());
     learner->Configure();
     dumped_1 = learner->DumpModel(fmap, true, "json");
@@ -195,7 +195,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     {
       // Continue the previous training with another kIters
       std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-      std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+      std::unique_ptr<Learner> learner{Learner::Create()};
       learner->Load(fi.get());
       // verify the loaded model doesn't change.
       std::string serialised_model_tmp;
@@ -217,7 +217,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 
     {
       // Train 2 * kIters in one go
-      std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+      std::unique_ptr<Learner> learner{Learner::Create()};
       learner->Configure(args);
       for (int32_t iter = 0; iter < 2 * kIters; ++iter) {
         learner->UpdateOneIter(iter, p_dmat);
@@ -245,7 +245,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
   {
     // Continue the previous training but on data from device.
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-    std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Load(fi.get());
     learner->Configure();
 
@@ -439,7 +439,7 @@ TEST_F(SerializationTest, ConfigurationCount) {
 
   std::string model_str;
   {
-    auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
+    auto learner = std::unique_ptr<Learner>(Learner::Create());
 
     learner->Configure(Args{{"tree_method", "hist"}, {"device", "cuda"}});
 
@@ -452,7 +452,7 @@ TEST_F(SerializationTest, ConfigurationCount) {
 
   {
     common::MemoryBufferStream fi(&model_str);
-    auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
+    auto learner = std::unique_ptr<Learner>(Learner::Create());
     learner->Load(&fi);
     for (size_t i = 0; i < 10; ++i) {
       learner->UpdateOneIter(i, p_dmat);

@@ -135,7 +135,7 @@ TEST(GBTree, WrongUpdater) {
 
   p_dmat->Info().labels.Reshape(kRows);
 
-  auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
+  auto learner = std::unique_ptr<Learner>(Learner::Create());
   // Hist can not be used for updating tree.
   learner->Configure(Args{{"tree_method", "hist"}, {"process_type", "update"}});
   ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
@@ -155,7 +155,7 @@ TEST(GBTree, ChoosePredictor) {
   auto const& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
   p_dmat->Info().labels.Reshape(kRows);
 
-  auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
+  auto learner = std::unique_ptr<Learner>(Learner::Create());
   learner->Configure(Args{{"tree_method", "hist"}, {"device", "cuda"}});
   for (size_t i = 0; i < 4; ++i) {
     learner->UpdateOneIter(i, p_dmat);
@@ -169,7 +169,7 @@ TEST(GBTree, ChoosePredictor) {
     learner->Save(fo.get());
   }
   // a new learner
-  learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
+  learner = std::unique_ptr<Learner>(Learner::Create());
   {
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
     learner->Load(fi.get());
@@ -189,7 +189,7 @@ TEST(GBTree, ChoosePredictor) {
   ASSERT_FALSE(data.HostCanWrite());
 
   // another new learner
-  learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
+  learner = std::unique_ptr<Learner>(Learner::Create());
   learner->Configure(Args{{"tree_method", "hist"}, {"device", "cuda"}});
   for (size_t i = 0; i < 4; ++i) {
     learner->UpdateOneIter(i, p_dmat);
@@ -205,7 +205,7 @@ TEST(GBTree, ChooseTreeMethod) {
 
   auto with_update = [&](std::optional<std::string> device,
                          std::optional<std::string> tree_method) {
-    auto learner = std::unique_ptr<Learner>(Learner::Create({Xy}));
+    auto learner = std::unique_ptr<Learner>(Learner::Create());
     if (tree_method.has_value()) {
       learner->Configure({{"tree_method", tree_method.value()}});
     }
@@ -225,7 +225,7 @@ TEST(GBTree, ChooseTreeMethod) {
   };
 
   auto with_boost = [&](std::optional<std::string> device, std::optional<std::string> tree_method) {
-    auto learner = std::unique_ptr<Learner>(Learner::Create({Xy}));
+    auto learner = std::unique_ptr<Learner>(Learner::Create());
     learner->Configure({{"boost_from_average", "0"}});
     if (tree_method.has_value()) {
       learner->Configure({{"tree_method", tree_method.value()}});
@@ -498,7 +498,7 @@ class Dart : public testing::TestWithParam<char const*> {
     }
     p_mat->SetInfo("label", Make1dInterfaceTest(labels.data(), kRows));
 
-    auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+    auto learner = std::unique_ptr<Learner>(Learner::Create());
     learner->Configure({{"booster", "dart"}});
     learner->Configure({{"rate_drop", "0.5"}});
     learner->Configure();
@@ -553,7 +553,7 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
   auto m = RandomDataGenerator{kRows, kCols, 0}.Classes(kClasses).GenerateDMatrix(true);
 
   int32_t kIters = 10;
-  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   Args args{{"booster", booster},
             {"tree_method", "hist"},
             {"num_parallel_tree", std::to_string(kForest)},
@@ -688,7 +688,7 @@ TEST(GBTree, FeatureScore) {
   size_t n_samples = 1000, n_features = 10, n_classes = 4;
   auto m = RandomDataGenerator{n_samples, n_features, 0.5}.Classes(n_classes).GenerateDMatrix(true);
 
-  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure({{"num_class", std::to_string(n_classes)}});
 
   learner->Configure();
@@ -725,7 +725,7 @@ TEST(GBTree, PredictRange) {
   size_t n_samples = 1000, n_features = 10, n_classes = 4;
   auto m = RandomDataGenerator{n_samples, n_features, 0.5}.Classes(n_classes).GenerateDMatrix(true);
 
-  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure({{"num_class", std::to_string(n_classes)}});
 
   learner->Configure();
@@ -772,7 +772,7 @@ TEST(GBTree, InplacePredictionError) {
     std::shared_ptr<DMatrix> p_fmat =
         RandomDataGenerator{n_samples, n_features, 0.5f}.Batches(2).GenerateSparsePageDMatrix(
             "cache", true);
-    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure(Args{{"booster", booster}, {"device", ctx->DeviceName()}});
     learner->Configure();
     for (std::int32_t i = 0; i < 3; ++i) {
@@ -815,7 +815,7 @@ TEST(GBTree, InplacePredictionError) {
       CHECK(p_fmat);
 #endif  // defined(XGBOOST_USE_CUDA)
     }
-    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure(Args{{"booster", booster},
                             {"max_bin", std::to_string(max_bins)},
                             {"device", ctx->DeviceName()}});

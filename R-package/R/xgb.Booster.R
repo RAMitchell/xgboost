@@ -1,21 +1,41 @@
+.xgb.booster.config <- function(value, custom_objective = FALSE) {
+  p <- as.list(value)
+  if (length(p) > 0L) {
+    if (is.null(names(p)) || any(nchar(names(p)) == 0)) {
+      stop("parameter names cannot be empty strings")
+    }
+    names(p) <- gsub(".", "_", names(p), fixed = TRUE)
+    p <- lapply(p, function(x) {
+      if (is.vector(x) && length(x) == 1) {
+        return(as.character(x)[1])
+      }
+      jsonlite::toJSON(x, auto_unbox = TRUE)
+    })
+  }
+  params <- Map(function(name, value) unname(list(name, value)), names(p), p)
+  jsonlite::toJSON(
+    list(params = unname(params), custom_objective = custom_objective),
+    auto_unbox = TRUE
+  )
+}
+
 # Construct an internal XGBoost Booster and get its current number of rounds.
 # internal utility function
 # Note: the number of rounds in the C booster gets reset to zero when changing
-# key booster parameters like 'process_type=update', but in some cases, when
+# key booster parameters like `process_type=update`, but in some cases, when
 # replacing previous iterations, it needs to make a check that the new number
-# of iterations doesn't exceed the previous ones, hence it keeps track of the
+# of iterations does not exceed the previous ones, hence it keeps track of the
 # current number of iterations before resetting the parameters in order to
 # perform the check later on.
-xgb.Booster <- function(params, cachelist, modelfile) {
-  if (typeof(cachelist) != "list" ||
-      !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
-    stop("cachelist must be a list of xgb.DMatrix objects")
+xgb.Booster <- function(params, dtrain, modelfile, custom_objective = FALSE) {
+  if (!is.null(dtrain) && !inherits(dtrain, "xgb.DMatrix")) {
+    stop("dtrain must be an xgb.DMatrix object or NULL")
   }
-  ## Load existing model, dispatch for on disk model file and in memory buffer
   if (!is.null(modelfile)) {
     if (is.character(modelfile)) {
-      ## A filename
-      bst <- .Call(XGBoosterCreate_R, cachelist)
+      bst <- .Call(
+        XGBoosterCreate_R, NULL, .xgb.booster.config(list())
+      )
       modelfile <- path.expand(modelfile)
       .Call(XGBoosterLoadModel_R, xgb.get.handle(bst), enc2utf8(modelfile[1]))
       niter <- xgb.get.num.boosted.rounds(bst)
@@ -24,27 +44,22 @@ xgb.Booster <- function(params, cachelist, modelfile) {
       }
       return(list(bst = bst, niter = niter))
     } else if (is.raw(modelfile)) {
-      ## A memory buffer
       bst <- xgb.load.raw(modelfile)
       niter <- xgb.get.num.boosted.rounds(bst)
       xgb.model.parameters(bst) <- params
       return(list(bst = bst, niter = niter))
     } else if (inherits(modelfile, "xgb.Booster")) {
-      ## A booster object
       bst <- .Call(XGDuplicate_R, modelfile)
       niter <- xgb.get.num.boosted.rounds(bst)
       xgb.model.parameters(bst) <- params
       return(list(bst = bst, niter = niter))
-    } else {
-      stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
+    stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
   }
-  ## Create new model
-  bst <- .Call(XGBoosterCreate_R, cachelist)
-  if (length(params) > 0) {
-    xgb.model.parameters(bst) <- params
-  }
-  return(list(bst = bst, niter = 0L))
+  bst <- .Call(
+    XGBoosterCreate_R, dtrain, .xgb.booster.config(params, custom_objective)
+  )
+  list(bst = bst, niter = 0L)
 }
 
 # Check whether xgb.Booster handle is null
@@ -842,21 +857,8 @@ xgb.config <- function(object) {
 #' @export
 `xgb.model.parameters<-` <- function(object, value) {
   if (length(value) == 0) return(object)
-  p <- as.list(value)
-  if (is.null(names(p)) || any(nchar(names(p)) == 0)) {
-    stop("parameter names cannot be empty strings")
-  }
-  names(p) <- gsub(".", "_", names(p), fixed = TRUE)
-  p <- lapply(p, function(x) {
-    if (is.vector(x) && length(x) == 1) {
-      return(as.character(x)[1])
-    } else {
-      return(jsonlite::toJSON(x, auto_unbox = TRUE))
-    }
-  })
   handle <- xgb.get.handle(object)
-  params <- Map(function(name, value) unname(list(name, value)), names(p), p)
-  config <- jsonlite::toJSON(list(params = unname(params)), auto_unbox = TRUE)
+  config <- .xgb.booster.config(value)
   .Call(XGBoosterSetParams_R, handle, config)
   return(object)
 }

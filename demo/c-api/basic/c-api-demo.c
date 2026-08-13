@@ -6,6 +6,7 @@
  */
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h> /* uint32_t,uint64_t */
 #include <stdio.h>
@@ -23,18 +24,24 @@
   }
 
 /* Make Json encoded array interface. */
-static void MakeArrayInterface(size_t data, size_t n, char const* typestr, size_t length,
+static void MakeArrayInterface(void const* data, size_t n, char const* typestr, size_t length,
                                char* out) {
-  static char const kTemplate[] =
-      "{\"data\": [%lu, true], \"shape\": [%lu, %lu], \"typestr\": \"%s\", \"version\": 3}";
+  static char const kTemplate[] = "{\"data\": [%" PRIuPTR
+                                  ", true], \"shape\": [%zu, %zu], "
+                                  "\"typestr\": \"%s\", \"version\": 3}";
+  union {
+    void const* pointer;
+    uintptr_t integer;
+  } data_ptr = {data};
+  size_t const one = 1;
   memset(out, '\0', length);
-  sprintf(out, kTemplate, data, n, 1ul, typestr);
+  snprintf(out, length, kTemplate, data_ptr.integer, n, one, typestr);
 }
 /* Make Json encoded DMatrix configuration. */
 static void MakeConfig(int n_threads, size_t length, char* out) {
   static char const kTemplate[] = "{\"missing\": NaN, \"nthread\": %d}";
   memset(out, '\0', length);
-  sprintf(out, kTemplate, n_threads);
+  snprintf(out, length, kTemplate, n_threads);
 }
 /* Make Json encoded DMatrix URI configuration. */
 static void MakeDMatrixConfig(char const* uri, int silent, size_t length, char* out) {
@@ -60,18 +67,13 @@ int main() {
   // create the booster
   BoosterHandle booster;
   DMatrixHandle eval_dmats[2] = {dtrain, dtest};
-  safe_xgboost(XGBoosterCreate(eval_dmats, 2, &booster));
-
-  // configure the training
-  // available parameters are described here:
-  //   https://xgboost.readthedocs.io/en/latest/parameter.html
-  safe_xgboost(XGBoosterSetParam(booster, "device", use_gpu ? "cuda" : "cpu"));
-
-  safe_xgboost(XGBoosterSetParam(booster, "objective", "binary:logistic"));
-  safe_xgboost(XGBoosterSetParam(booster, "min_child_weight", "1"));
-  safe_xgboost(XGBoosterSetParam(booster, "gamma", "0.1"));
-  safe_xgboost(XGBoosterSetParam(booster, "max_depth", "3"));
-  safe_xgboost(XGBoosterSetParam(booster, "verbosity", silent ? "0" : "1"));
+  char booster_config[512];
+  snprintf(booster_config, sizeof(booster_config),
+           "{\"params\":[[\"device\",\"%s\"],[\"objective\",\"binary:logistic\"],"
+           "[\"min_child_weight\",\"1\"],[\"gamma\",\"0.1\"],"
+           "[\"max_depth\",\"3\"],[\"verbosity\",\"%d\"]]}",
+           use_gpu ? "cuda" : "cpu", silent ? 0 : 1);
+  safe_xgboost(XGBoosterCreate(dtrain, booster_config, &booster));
 
   // train and evaluate for 10 iterations
   int n_trees = 10;
@@ -85,7 +87,7 @@ int main() {
 
   bst_ulong num_feature = 0;
   safe_xgboost(XGBoosterGetNumFeature(booster, &num_feature));
-  printf("num_feature: %lu\n", (unsigned long)(num_feature));
+  printf("num_feature: %" PRIu64 "\n", num_feature);
 
   // predict
   bst_ulong out_len = 0;
@@ -153,12 +155,12 @@ int main() {
 
     DMatrixHandle dmat;
     char j_indptr[128];
-    MakeArrayInterface((size_t)indptr, 2ul, "<u8", sizeof(j_indptr), j_indptr);
+    MakeArrayInterface(indptr, 2ul, "<u8", sizeof(j_indptr), j_indptr);
     char j_indices[128];
-    MakeArrayInterface((size_t)indices, sizeof(indices) / sizeof(uint32_t), "<u4",
-                       sizeof(j_indices), j_indices);
+    MakeArrayInterface(indices, sizeof(indices) / sizeof(uint32_t), "<u4", sizeof(j_indices),
+                       j_indices);
     char j_data[128];
-    MakeArrayInterface((size_t)data, sizeof(data) / sizeof(float), "<f4", sizeof(j_data), j_data);
+    MakeArrayInterface(data, sizeof(data) / sizeof(float), "<f4", sizeof(j_data), j_data);
 
     char j_config[64];
     MakeConfig(0, sizeof(j_config), j_config);
@@ -193,12 +195,12 @@ int main() {
                           1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 
     char j_indptr[128];
-    MakeArrayInterface((size_t)indptr, 128ul, "<u8", sizeof(j_indptr), j_indptr);
+    MakeArrayInterface(indptr, 128ul, "<u8", sizeof(j_indptr), j_indptr);
     char j_indices[128];
-    MakeArrayInterface((size_t)indices, sizeof(indices) / sizeof(unsigned), "<u4",
-                       sizeof(j_indices), j_indices);
+    MakeArrayInterface(indices, sizeof(indices) / sizeof(unsigned), "<u4", sizeof(j_indices),
+                       j_indices);
     char j_data[128];
-    MakeArrayInterface((size_t)data, sizeof(data) / sizeof(float), "<f4", sizeof(j_data), j_data);
+    MakeArrayInterface(data, sizeof(data) / sizeof(float), "<f4", sizeof(j_data), j_data);
 
     char j_config[64];
     MakeConfig(0, sizeof(j_config), j_config);

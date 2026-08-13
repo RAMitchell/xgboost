@@ -222,7 +222,7 @@ void CheckShapOutput(DMatrix* dmat, Args const& model_args) {
   size_t const kCols = dmat->Info().num_col_;
 
   std::shared_ptr<DMatrix> p_dmat{dmat, [](DMatrix*) {}};
-  std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure(model_args);
   learner->Configure();
   for (size_t i = 0; i < 2; ++i) {
@@ -253,7 +253,7 @@ void CheckDartShapOutput(Context const* ctx) {
   auto dmat = RandomDataGenerator(kRows, kCols, 0.0).Device(ctx->Device()).GenerateDMatrix();
   SetLabels(dmat.get(), 1);
 
-  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure(Args{{"booster", "dart"},
                           {"objective", "binary:logistic"},
                           {"max_depth", "3"},
@@ -441,7 +441,7 @@ TEST(Predictor, ApproxContribsBasic) {
   auto args = BaseParams(&ctx, "reg:squarederror", "3");
   args.emplace_back("tree_method", "approx");
 
-  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure(args);
   learner->Configure();
   for (size_t i = 0; i < 3; ++i) {
@@ -485,7 +485,7 @@ TEST(Predictor, ShapIterationRange) {
                   .Device(ctx.Device())
                   .Classes(kClasses)
                   .GenerateDMatrix(true);
-  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure(Args{{"num_parallel_tree", std::to_string(kForest)},
                           {"device", ctx.IsSycl() ? "cpu" : ctx.DeviceName()}});
   for (size_t i = 0; i < kIters; ++i) {

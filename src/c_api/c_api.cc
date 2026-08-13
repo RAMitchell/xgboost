@@ -56,6 +56,21 @@ void ValidateCAPIDataSplitMode(std::int64_t data_split_mode) {
   CHECK_EQ(data_split_mode, 0)
       << "Column-wise data split has been removed. Please use row-wise data split instead.";
 }
+Args ParseBoosterParams(Json const &config) {
+  CHECK(IsA<Object>(config)) << "Booster parameter configuration must be a JSON object.";
+  auto const &params = get<Array const>(config["params"]);
+
+  Args args;
+  args.reserve(params.size());
+  for (auto const &j_param : params) {
+    CHECK(IsA<Array>(j_param)) << "Each booster parameter must be a JSON array.";
+    auto const &pair = get<Array const>(j_param);
+    CHECK_EQ(pair.size(), 2) << "Each booster parameter must contain a name and value.";
+    args.emplace_back(get<String const>(pair[0]), get<String const>(pair[1]));
+  }
+  return args;
+}
+
 }  // namespace
 
 XGB_DLL void XGBoostVersion(int *major, int *minor, int *patch) {
@@ -1027,16 +1042,19 @@ XGB_DLL int XGDMatrixGetQuantileCut(DMatrixHandle const handle, char const *conf
 }
 
 // xgboost implementation
-XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[], xgboost::bst_ulong len,
-                            BoosterHandle *out) {
+XGB_DLL int XGBoosterCreate(DMatrixHandle dtrain, char const *config, BoosterHandle *out) {
   API_BEGIN();
-  std::vector<std::shared_ptr<DMatrix>> mats;
-  for (xgboost::bst_ulong i = 0; i < len; ++i) {
-    xgboost_CHECK_C_ARG_PTR(dmats);
-    mats.push_back(*static_cast<std::shared_ptr<DMatrix> *>(dmats[i]));
-  }
+  xgboost_CHECK_C_ARG_PTR(config);
   xgboost_CHECK_C_ARG_PTR(out);
-  *out = Learner::Create(mats);
+
+  Json j_config{Json::Load(StringView{config})};
+  auto args = ParseBoosterParams(j_config);
+  auto custom_objective = OptionalArg<Boolean>(j_config, "custom_objective", false);
+  std::shared_ptr<DMatrix> train;
+  if (dtrain) {
+    train = *static_cast<std::shared_ptr<DMatrix> *>(dtrain);
+  }
+  *out = Learner::Create(args, std::move(train), !custom_objective);
   API_END();
 }
 
@@ -1076,18 +1094,7 @@ XGB_DLL int XGBoosterSetParams(BoosterHandle handle, char const *config) {
   CHECK_HANDLE();
   xgboost_CHECK_C_ARG_PTR(config);
   Json j_config{Json::Load(StringView{config})};
-  CHECK(IsA<Object>(j_config)) << "Booster parameter configuration must be a JSON object.";
-  auto const &params = get<Array const>(j_config["params"]);
-
-  Args args;
-  args.reserve(params.size());
-  for (auto const &j_param : params) {
-    CHECK(IsA<Array>(j_param)) << "Each booster parameter must be a JSON array.";
-    auto const &pair = get<Array const>(j_param);
-    CHECK_EQ(pair.size(), 2) << "Each booster parameter must contain a name and value.";
-    args.emplace_back(get<String const>(pair[0]), get<String const>(pair[1]));
-  }
-  static_cast<Learner *>(handle)->Configure(args);
+  static_cast<Learner *>(handle)->Configure(ParseBoosterParams(j_config));
   API_END();
 }
 

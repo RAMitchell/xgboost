@@ -185,21 +185,10 @@ public class XGBoost {
     bestIteration = 0;
     metrics = metrics == null ? new float[evalNames.length][numRounds] : metrics;
 
-    //collect all data matrixs
-    DMatrix[] allMats;
-    if (evalMats.length > 0) {
-      allMats = new DMatrix[evalMats.length + 1];
-      allMats[0] = dtrain;
-      System.arraycopy(evalMats, 0, allMats, 1, evalMats.length);
-    } else {
-      allMats = new DMatrix[1];
-      allMats[0] = dtrain;
-    }
-
-    //initialize booster
+    // initialize booster
     if (booster == null) {
       // Start training on a new booster
-      booster = new Booster(params, allMats);
+      booster = new Booster(params, dtrain, obj != null);
       booster.setFeatureNames(dtrain.getFeatureNames());
       booster.setFeatureTypes(dtrain.getFeatureTypes());
     } else {
@@ -449,7 +438,7 @@ public class XGBoost {
       String[] metrics,
       IObjective obj,
       IEvaluation eval) throws XGBoostError {
-    CVPack[] cvPacks = makeNFold(data, nfold, params, metrics);
+    CVPack[] cvPacks = makeNFold(data, nfold, params, metrics, obj != null);
     String[] evalHist = new String[round];
     String[] results = new String[cvPacks.length];
     for (int i = 0; i < round; i++) {
@@ -486,7 +475,8 @@ public class XGBoost {
    * @throws XGBoostError native error
    */
   private static CVPack[] makeNFold(DMatrix data, int nfold, Map<String, Object> params,
-                                    String[] evalMetrics) throws XGBoostError {
+                                    String[] evalMetrics, boolean customObjective)
+      throws XGBoostError {
     List<Integer> samples = genRandPermutationNums(0, (int) data.rowNum());
     int step = samples.size() / nfold;
     int[] testSlice = new int[step];
@@ -513,7 +503,7 @@ public class XGBoost {
 
       DMatrix dtrain = data.slice(trainSlice);
       DMatrix dtest = data.slice(testSlice);
-      CVPack cvPack = new CVPack(dtrain, dtest, params);
+      CVPack cvPack = new CVPack(dtrain, dtest, params, customObjective);
       //set eval types
       if (evalMetrics != null) {
         for (String type : evalMetrics) {
@@ -589,10 +579,10 @@ public class XGBoost {
      * @param params parameters
      * @throws XGBoostError native error
      */
-    public CVPack(DMatrix dtrain, DMatrix dtest, Map<String, Object> params)
-            throws XGBoostError {
+    public CVPack(DMatrix dtrain, DMatrix dtest, Map<String, Object> params,
+                  boolean customObjective) throws XGBoostError {
       dmats = new DMatrix[]{dtrain, dtest};
-      booster = new Booster(params, dmats);
+      booster = new Booster(params, dtrain, customObjective);
       names = new String[]{"train", "test"};
       this.dtrain = dtrain;
       this.dtest = dtest;

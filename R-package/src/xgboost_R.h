@@ -285,10 +285,11 @@ XGB_DLL SEXP XGDMatrixNumNonMissing_R(SEXP handle);
 XGB_DLL SEXP XGDMatrixGetDataAsCSR_R(SEXP handle);
 
 /*!
- * \brief create xgboost learner
- * \param dmats a list of dmatrix handles that will be cached
+ * \brief create a configured xgboost learner
+ * \param dtrain training DMatrix, or NULL for model loading
+ * \param config JSON parameter batch and custom-objective flag
  */
-XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats);
+XGB_DLL SEXP XGBoosterCreate_R(SEXP dtrain, SEXP config);
 
 /*!
  * \brief copy information about features from a DMatrix into a Booster

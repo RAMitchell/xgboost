@@ -608,24 +608,19 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixNumNonMis
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterCreate
- * Signature: ([J)J
+ * Signature: (JLjava/lang/String;[J)I
  */
-JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterCreate(JNIEnv *jenv,
-                                                                              jclass jcls,
-                                                                              jlongArray jhandles,
-                                                                              jlongArray jout) {
-  std::vector<DMatrixHandle> handles;
-  if (jhandles != nullptr) {
-    size_t len = jenv->GetArrayLength(jhandles);
-    std::unique_ptr<jlong, Deleter<jlong>> cjhandles{
-        jenv->GetLongArrayElements(jhandles, nullptr),
-        [&](jlong *ptr) { jenv->ReleaseLongArrayElements(jhandles, ptr, 0); }};
-    for (size_t i = 0; i < len; ++i) {
-      handles.push_back(reinterpret_cast<DMatrixHandle>(cjhandles.get()[i]));
-    }
-  }
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterCreate(
+    JNIEnv *jenv, jclass jcls, jlong jdtrain, jstring jconfig, jlongArray jout) {
+  auto dtrain = reinterpret_cast<DMatrixHandle>(jdtrain);
+  std::unique_ptr<char const, Deleter<char const>> config{
+      jenv->GetStringUTFChars(jconfig, nullptr), [&](char const *ptr) {
+        if (ptr) {
+          jenv->ReleaseStringUTFChars(jconfig, ptr);
+        }
+      }};
   BoosterHandle result;
-  int ret = XGBoosterCreate(dmlc::BeginPtr(handles), handles.size(), &result);
+  int ret = XGBoosterCreate(dtrain, config.get(), &result);
   JVM_CHECK_CALL(ret);
   setHandle(jenv, jout, result);
   return ret;

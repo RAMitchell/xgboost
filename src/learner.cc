@@ -868,6 +868,12 @@ class LearnerIO : public LearnerConfiguration {
 class LearnerImpl : public LearnerIO {
  public:
   LearnerImpl() = default;
+  LearnerImpl(Args const& args, std::shared_ptr<DMatrix> train, bool estimate_intercept) {
+    this->Configure(args);
+    if (train) {
+      this->InitializeModel(*train, estimate_intercept);
+    }
+  }
   ~LearnerImpl() override {
     auto local_map = LearnerAPIThreadLocalStore::Get();
     if (local_map->find(this) != local_map->cend()) {
@@ -1130,9 +1136,11 @@ class LearnerImpl : public LearnerIO {
 
 constexpr int32_t LearnerImpl::kRandSeedMagic;
 
-Learner* Learner::Create(const std::vector<std::shared_ptr<DMatrix>>&) {
-  auto learner = std::make_unique<LearnerImpl>();
-  learner->Configure();
+Learner* Learner::Create(Args const& args, std::shared_ptr<DMatrix> train,
+                         bool estimate_intercept) {
+  auto learner = std::make_unique<LearnerImpl>(args, std::move(train), estimate_intercept);
   return learner.release();
 }
+
+Learner* Learner::Create() { return Learner::Create({}, nullptr, false); }
 }  // namespace xgboost

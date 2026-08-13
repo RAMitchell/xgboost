@@ -199,10 +199,9 @@ Sample examples along with Code snippet to use C API functions
 .. code-block:: c
 
   BoosterHandle booster;
-  const int eval_dmats_size;
-  // We assume that training and test data have been loaded into 'train' and 'test'
-  DMatrixHandle eval_dmats[eval_dmats_size] = {train, test};
-  safe_xgboost(XGBoosterCreate(eval_dmats, eval_dmats_size, &booster));
+  // We assume that training data has been loaded into 'train'.
+  const char *config = "{\"params\":[],\"custom_objective\":false}";
+  safe_xgboost(XGBoosterCreate(train, config, &booster));
 
 
 4. For each ``DMatrix`` object, set the labels using :cpp:func:`XGDMatrixSetFloatInfo`. Later you can access the label using :cpp:func:`XGDMatrixGetFloatInfo`.
@@ -324,7 +323,7 @@ Sample examples along with Code snippet to use C API functions
     const char *model_path = "/path/of/model.json";
 
     // create booster handle first
-    safe_xgboost(XGBoosterCreate(NULL, 0, &booster));
+    safe_xgboost(XGBoosterCreate(NULL, "{\"params\":[]}", &booster));
 
     // set the model parameters here
 

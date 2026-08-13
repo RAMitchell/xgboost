@@ -978,18 +978,20 @@ XGB_DLL int XGDMatrixGetQuantileCut(DMatrixHandle const handle, char const *conf
  */
 
 /**
- * @brief Create a XGBoost learner (booster)
+ * @brief Create a configured XGBoost learner (booster).
  *
- * @param dmats matrices that are set to be cached by the booster.
- * @param len length of dmats
- * @param out handle to the result booster
+ * The configuration is a JSON object with a `params` array containing the complete initial
+ * parameter batch and a `custom_objective` Boolean. When `dtrain` is non-null, it is
+ * explicitly treated as the training matrix and is used to initialize data-derived model state.
+ * Pass null only when constructing a handle that will immediately load an existing model.
  *
- * @return 0 when success, -1 when failure happens
+ * @param dtrain Training matrix, or null for model loading.
+ * @param config JSON-encoded initial parameter batch and custom-objective flag.
+ * @param out Handle to the result booster.
+ *
+ * @return 0 when success, -1 when failure happens.
  */
-XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[], bst_ulong len, BoosterHandle *out);
-/**
- * @example c-api-demo.c
- */
+XGB_DLL int XGBoosterCreate(DMatrixHandle dtrain, char const *config, BoosterHandle *out);
 
 /**
  * @brief Delete the booster.

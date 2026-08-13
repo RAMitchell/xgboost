@@ -65,7 +65,7 @@ TEST(IO, LoadSequentialFile) {
   // Generate a JSON file.
   size_t constexpr kRows = 1000, kCols = 100;
   std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
-  std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure({{"tree_method", "hist"}});
   learner->Configure();
 

@@ -53,8 +53,7 @@ enum class PredictionType : std::uint8_t {  // NOLINT
  *  The Load/Save function corresponds to the model used in python/R.
  *  @code
  *
- *  std::unique_ptr<Learner> learner{Learner::Create(cache_mats)};
- *  learner->Configure(configs);
+ *  std::unique_ptr<Learner> learner{Learner::Create(configs, train_mat, true)};
  *
  *  for (int iter = 0; iter < max_iter; ++iter) {
  *    learner->UpdateOneIter(iter, train_mat);
@@ -239,11 +238,15 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   virtual void Reset() = 0;
   /*!
-   * \brief Create a new instance of learner.
-   * \param cache_data Matrices accepted for compatibility with the public booster creation APIs.
+   * \brief Create a configured learner and optionally initialize its model from training data.
+   * \param args Complete initial parameter set.
+   * \param train Training matrix used to derive model state. May be null for model loading.
+   * \param estimate_intercept Whether to estimate the intercept from the training labels.
    * \return Created learner.
    */
-  static Learner* Create(const std::vector<std::shared_ptr<DMatrix>>& cache_data);
+  static Learner* Create(Args const& args, std::shared_ptr<DMatrix> train, bool estimate_intercept);
+  /** \brief Create an empty learner for model or configuration loading. */
+  static Learner* Create();
   /**
    * \brief Return the context object of this Booster.
    */

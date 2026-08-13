@@ -946,7 +946,7 @@ SEXP XGBAltrepDeserializer_R(SEXP /*unused*/, SEXP R_state) {
   SEXP R_altrepped_obj = Rf_protect(XGBMakeEmptyAltrep());
   R_API_BEGIN();
   BoosterHandle handle = nullptr;
-  CHECK_CALL(XGBoosterCreate(nullptr, 0, &handle));
+  CHECK_CALL(XGBoosterCreate(nullptr, R"({"params":[]})", &handle));
   int res_code = XGBoosterUnserializeFromBuffer(handle, RAW(R_state), Rf_xlength(R_state));
   if (res_code != 0) {
     XGBoosterFree(handle);
@@ -979,7 +979,7 @@ SEXP XGBAltrepDuplicate_R(SEXP R_altrepped_obj, Rboolean deep) {
     CHECK_CALL(XGBoosterSerializeToBuffer(R_ExternalPtrAddr(R_altrep_data1(R_altrepped_obj)),
                                           &serialized_length, &serialized_bytes));
     BoosterHandle new_handle = nullptr;
-    CHECK_CALL(XGBoosterCreate(nullptr, 0, &new_handle));
+    CHECK_CALL(XGBoosterCreate(nullptr, R"({"params":[]})", &new_handle));
     int res_code = XGBoosterUnserializeFromBuffer(new_handle, serialized_bytes, serialized_length);
     if (res_code != 0) {
       XGBoosterFree(new_handle);
@@ -1005,24 +1005,19 @@ XGB_DLL void XGBInitializeAltrepClass_R(DllInfo *dll) {
   R_set_altrep_Duplicate_method(XGBAltrepPointerClass, XGBAltrepDuplicate_R);
 }
 
-XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats) {
+XGB_DLL SEXP XGBoosterCreate_R(SEXP dtrain, SEXP config) {
   SEXP out = Rf_protect(XGBMakeEmptyAltrep());
+  SEXP config_ = Rf_protect(Rf_asChar(config));
   R_API_BEGIN();
-  R_xlen_t len = Rf_xlength(dmats);
-  BoosterHandle handle;
-
-  int res_code;
-  {
-    std::vector<void *> dvec(len);
-    for (R_xlen_t i = 0; i < len; ++i) {
-      dvec[i] = R_ExternalPtrAddr(VECTOR_ELT(dmats, i));
-    }
-    res_code = XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle);
+  DMatrixHandle dtrain_handle{nullptr};
+  if (!Rf_isNull(dtrain)) {
+    dtrain_handle = R_ExternalPtrAddr(dtrain);
   }
-  CHECK_CALL(res_code);
+  BoosterHandle handle;
+  CHECK_CALL(XGBoosterCreate(dtrain_handle, CHAR(config_), &handle));
   XGBAltrepSetPointer(out, handle);
   R_API_END();
-  Rf_unprotect(1);
+  Rf_unprotect(2);
   return out;
 }
 

@@ -56,7 +56,7 @@ TEST(Learner, Basic) {
   using Arg = std::pair<std::string, std::string>;
   auto args = {Arg("tree_method", "exact")};
   auto mat_ptr = RandomDataGenerator{10, 10, 0.0f}.GenerateDMatrix();
-  auto learner = std::unique_ptr<Learner>(Learner::Create({mat_ptr}));
+  auto learner = std::unique_ptr<Learner>(Learner::Create());
   Json initial_config{Object{}};
   EXPECT_NO_THROW(learner->SaveConfig(&initial_config));
   learner->Configure(args);
@@ -72,7 +72,7 @@ TEST(Learner, Basic) {
 
 TEST(Learner, ConfigureArguments) {
   auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
-  auto learner = std::unique_ptr<Learner>{Learner::Create({p_mat})};
+  auto learner = std::unique_ptr<Learner>{Learner::Create()};
 
   learner->Configure(
       {{"objective", "reg:absoluteerror"}, {"eval_metric", "mae"}, {"eval_metric", "rmse"}});
@@ -89,7 +89,7 @@ TEST(Learner, ParameterValidation) {
   size_t constexpr kCols = 1;
   auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
 
-  auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+  auto learner = std::unique_ptr<Learner>(Learner::Create());
 
   testing::internal::CaptureStderr();
   learner->Configure(Args{{"validate_parameters", "1"},
@@ -108,7 +108,7 @@ TEST(Learner, ParameterValidation) {
 TEST(Learner, ParameterValidationUsesConsumedParameters) {
   auto p_mat = RandomDataGenerator{1, 1, 0}.GenerateDMatrix(true);
   auto configure = [&p_mat](Args params) {
-    auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+    auto learner = std::unique_ptr<Learner>(Learner::Create());
     params.emplace_back("validate_parameters", "1");
     params.emplace_back("verbosity", "1");
     testing::internal::CaptureStderr();
@@ -142,7 +142,7 @@ TEST(Learner, ParameterValidationUsesConsumedParameters) {
 TEST(Learner, DeprecatedGblinearBooster) {
   auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
 
-  std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
 
   testing::internal::CaptureStderr();
   learner->Configure({{"booster", "gblinear"}, {"verbosity", "2"}});
@@ -174,7 +174,7 @@ TEST(Learner, CheckGroup) {
   p_mat->SetInfo("label", Make1dInterfaceTest(labels.data(), kNumRows));
 
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {p_mat};
-  auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
+  auto learner = std::unique_ptr<Learner>(Learner::Create());
   learner->Configure({Arg{"objective", "rank:pairwise"}});
   EXPECT_NO_THROW(learner->UpdateOneIter(0, p_mat));
 
@@ -191,7 +191,7 @@ TEST(Learner, CheckMultiBatch) {
   ASSERT_FALSE(p_fmat->SingleColBlock());
 
   std::vector<std::shared_ptr<DMatrix>> mat{p_fmat};
-  auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
+  auto learner = std::unique_ptr<Learner>(Learner::Create());
   learner->Configure(Args{{"objective", "binary:logistic"}});
   learner->UpdateOneIter(0, p_fmat);
 }
@@ -199,7 +199,7 @@ TEST(Learner, CheckMultiBatch) {
 TEST(Learner, Configuration) {
   std::string const emetric = "eval_metric";
   {
-    std::unique_ptr<Learner> learner{Learner::Create({nullptr})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{emetric, "auc"}});
     learner->Configure({{emetric, "rmsle"}});
     learner->Configure({{"foo", "bar"}});
@@ -211,7 +211,7 @@ TEST(Learner, Configuration) {
 
   {
     auto p_mat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
-    std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{emetric, "auc"}, {emetric, "rmse"}, {emetric, "mae"}});
 
     Json config{Object{}};
@@ -222,7 +222,7 @@ TEST(Learner, Configuration) {
 
 TEST(Learner, PoissonMaxDeltaStepIsGeneric) {
   auto p_mat = RandomDataGenerator{1, 1, 0.0f}.GenerateDMatrix();
-  std::unique_ptr<Learner> learner{Learner::Create({p_mat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure({{"objective", "count:poisson"}});
 
   auto max_delta_step = [&] {
@@ -240,7 +240,7 @@ TEST(Learner, PoissonMaxDeltaStepIsGeneric) {
 TEST(Learner, ModelInitializedByTrainingData) {
   auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
   auto eval = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
-  auto learner = std::unique_ptr<Learner>{Learner::Create({train, eval})};
+  auto learner = std::unique_ptr<Learner>{Learner::Create()};
   learner->Configure({{"objective", "reg:absoluteerror"}});
 
   EXPECT_EQ(learner->GetNumFeature(), 0);
@@ -250,7 +250,7 @@ TEST(Learner, ModelInitializedByTrainingData) {
   std::string snapshot;
   common::MemoryBufferStream out{&snapshot};
   EXPECT_NO_THROW(learner->Save(&out));
-  auto restored = std::unique_ptr<Learner>{Learner::Create({train})};
+  auto restored = std::unique_ptr<Learner>{Learner::Create()};
   common::MemoryBufferStream in{&snapshot};
   EXPECT_NO_THROW(restored->Load(&in));
   EXPECT_EQ(restored->GetNumFeature(), 0);
@@ -268,19 +268,9 @@ TEST(Learner, ModelInitializedByTrainingData) {
   EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
 }
 
-TEST(Learner, ConstructorMatricesDoNotAffectModelInitialization) {
-  auto cached = RandomDataGenerator{8, 4, 0.0f}.Targets(2).GenerateDMatrix(true);
-  auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
-  auto learner = std::unique_ptr<Learner>{Learner::Create({cached})};
-
-  EXPECT_NO_THROW(learner->UpdateOneIter(0, train));
-  EXPECT_EQ(learner->GetNumFeature(), train->Info().num_col_);
-  EXPECT_EQ(learner->Groups(), 1);
-}
-
 TEST(Learner, LoadPendingModelInputsFromOldSnapshot) {
   auto train = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix(true);
-  auto learner = std::unique_ptr<Learner>{Learner::Create({train})};
+  auto learner = std::unique_ptr<Learner>{Learner::Create()};
   learner->Configure({{"objective", "reg:absoluteerror"}, {"base_score", "1.3"}});
 
   std::string snapshot;
@@ -296,7 +286,7 @@ TEST(Learner, LoadPendingModelInputsFromOldSnapshot) {
   Json::Dump(memory_snapshot, &serialized, std::ios::binary);
   std::string old_snapshot{serialized.cbegin(), serialized.cend()};
 
-  auto restored = std::unique_ptr<Learner>{Learner::Create({train})};
+  auto restored = std::unique_ptr<Learner>{Learner::Create()};
   common::MemoryBufferStream in{&old_snapshot};
   restored->Load(&in);
   EXPECT_EQ(restored->GetNumFeature(), 0);
@@ -320,7 +310,7 @@ TEST(Learner, JsonModelIO) {
   CHECK_NE(p_dmat->Info().num_col_, 0);
 
   {
-    std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure();
     Json uninitialized{Object()};
     EXPECT_THROW(learner->SaveModel(&uninitialized), dmlc::Error);
@@ -344,7 +334,7 @@ TEST(Learner, JsonModelIO) {
   }
 
   {
-    std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat);
     }
@@ -374,7 +364,7 @@ TEST(Learner, ConfigIO) {
   std::string eval_res_0;
   std::string eval_res_1;
   {
-    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure(Args{{"eval_metric", "ndcg"}, {"eval_metric", "map"}});
     learner->Configure();
     learner->UpdateOneIter(0, p_fmat);
@@ -386,14 +376,14 @@ TEST(Learner, ConfigIO) {
 
   {
     common::MemoryBufferStream fi(&serialised_model_tmp);
-    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Load(&fi);
     eval_res_1 = learner->EvalOneIter(0, {p_fmat}, {"Train"});
   }
   ASSERT_EQ(eval_res_0, eval_res_1);
 
   {
-    std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->LoadConfig(config);
 
     Json loaded{Object{}};
@@ -403,12 +393,12 @@ TEST(Learner, ConfigIO) {
 }
 
 TEST(Learner, LoadConfigReplacesComponents) {
-  auto source = std::unique_ptr<Learner>{Learner::Create({})};
+  auto source = std::unique_ptr<Learner>{Learner::Create()};
   source->Configure({{"objective", "reg:absoluteerror"}, {"booster", "gblinear"}});
   Json config{Object{}};
   source->SaveConfig(&config);
 
-  auto loaded = std::unique_ptr<Learner>{Learner::Create({})};
+  auto loaded = std::unique_ptr<Learner>{Learner::Create()};
   loaded->LoadConfig(config);
   Json loaded_config{Object{}};
   loaded->SaveConfig(&loaded_config);
@@ -436,7 +426,7 @@ TEST(Learner, MultiThreadedPredict) {
   std::shared_ptr<DMatrix> p_data{RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
   CHECK_NE(p_data->Info().num_col_, 0);
 
-  std::shared_ptr<Learner> learner{Learner::Create({p_dmat})};
+  std::shared_ptr<Learner> learner{Learner::Create()};
   learner->Configure();
   learner->UpdateOneIter(0, p_dmat);
 
@@ -480,14 +470,14 @@ TEST(Learner, GPUConfiguration) {
   p_dmat->Info().labels.Data()->HostVector() = labels;
   p_dmat->Info().labels.Reshape(kRows);
   {
-    std::unique_ptr<Learner> learner{Learner::Create(mat)};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure(
         {Arg{"booster", "gblinear"}, Arg{"updater", "coord_descent"}, Arg{"device", "cuda"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
-    std::unique_ptr<Learner> learner{Learner::Create(mat)};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({Arg{"tree_method", "hist"}, {"device", "cuda"}});
     learner->Configure();
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
@@ -495,14 +485,14 @@ TEST(Learner, GPUConfiguration) {
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
-    std::unique_ptr<Learner> learner{Learner::Create(mat)};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({Arg{"tree_method", "hist"}, Arg{"device", "cuda"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CUDA(0));
   }
   {
     // with CPU algorithm
-    std::unique_ptr<Learner> learner{Learner::Create(mat)};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({Arg{"tree_method", "hist"}});
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->Ctx()->Device(), DeviceOrd::CPU());
@@ -512,7 +502,7 @@ TEST(Learner, GPUConfiguration) {
 
 TEST(Learner, Seed) {
   auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix();
-  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   auto seed = std::numeric_limits<int64_t>::max();
   learner->Configure({{"seed", std::to_string(seed)}});
   learner->Configure();
@@ -529,7 +519,7 @@ TEST(Learner, Seed) {
 
 TEST(Learner, ConstantSeed) {
   auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
-  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   // Use exact as it doesn't initialize column sampler at construction, which alters the rng.
   learner->Configure({{"tree_method", "exact"}});
   learner->Configure();
@@ -582,7 +572,7 @@ TEST(Learner, FeatureInfo) {
 
   Json model{Object()};
   {
-    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure();
     learner->UpdateOneIter(0, m);
     learner->SetFeatureNames(names);
@@ -598,7 +588,7 @@ TEST(Learner, FeatureInfo) {
   }
 
   {
-    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->LoadModel(model);
 
     learner->GetFeatureNames(&out_names);
@@ -616,7 +606,7 @@ TEST(Learner, MultiTarget) {
                                        [](auto i, auto) { return i; });
 
   {
-    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure();
     learner->UpdateOneIter(0, m);
 
@@ -626,7 +616,7 @@ TEST(Learner, MultiTarget) {
               std::to_string(kTargets));
   }
   {
-    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     // unsupported objective.
     EXPECT_THROW({ learner->Configure({{"objective", "multi:softprob"}}); }, dmlc::Error);
   }
@@ -644,7 +634,7 @@ class InitBaseScore : public ::testing::Test {
 
  public:
   void TestUpdateConfig() {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{"objective", "reg:absoluteerror"}});
     learner->UpdateOneIter(0, Xy_);
     Json config{Object{}};
@@ -662,7 +652,7 @@ class InitBaseScore : public ::testing::Test {
 
     Json model{Object{}};
     learner->SaveModel(&model);
-    learner.reset(Learner::Create({}));
+    learner.reset(Learner::Create());
     learner->LoadModel(model);
     learner->Configure();
     learner->UpdateOneIter(2, Xy1);
@@ -684,7 +674,7 @@ class InitBaseScore : public ::testing::Test {
   }
 
   void TestBoostFromAvgParam() {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{"objective", "reg:absoluteerror"}});
     learner->Configure({{"base_score", "1.3"}});
     Json config(Object{});
@@ -717,7 +707,7 @@ class InitBaseScore : public ::testing::Test {
   }
 
   void TestInitAfterLoad() {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{"objective", "reg:absoluteerror"}});
     learner->Configure();
 
@@ -731,7 +721,7 @@ class InitBaseScore : public ::testing::Test {
     ASSERT_FALSE(std::isnan(base_score[0]));
     ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
 
-    learner.reset(Learner::Create({Xy_}));
+    learner.reset(Learner::Create());
     learner->LoadModel(model);
     Json config(Object{});
     learner->SaveConfig(&config);
@@ -745,7 +735,7 @@ class InitBaseScore : public ::testing::Test {
   }
 
   void TestInitWithPredt() {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{"objective", "reg:absoluteerror"}});
     HostDeviceVector<float> predt;
     EXPECT_THROW(learner->Predict(Xy_, false, &predt, 0, 0), dmlc::Error);
@@ -764,7 +754,7 @@ class InitBaseScore : public ::testing::Test {
     ASSERT_FALSE(std::isnan(base_score[0]));
     ASSERT_NE(base_score[0], ObjFunction::DefaultBaseScore());
 
-    learner.reset(Learner::Create({Xy_}));
+    learner.reset(Learner::Create());
     learner->Configure({{"objective", "reg:absoluteerror"}});
     EXPECT_NO_THROW(learner->Predict(Xy_, false, &predt, 0, 0, true));
     learner->SaveConfig(&config);
@@ -787,7 +777,7 @@ class InitBaseScore : public ::testing::Test {
   void TestUpdateProcess() {
     // Check that when training continuation is performed with update, the base score is
     // not re-evaluated.
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{"objective", "reg:absoluteerror"}});
     learner->Configure();
 
@@ -799,7 +789,7 @@ class InitBaseScore : public ::testing::Test {
     ASSERT_FALSE(std::isnan(base_score[0]));
 
     auto Xy1 = RandomDataGenerator{100, Cols(), 0}.Seed(321).GenerateDMatrix(true);
-    learner.reset(Learner::Create({Xy1}));
+    learner.reset(Learner::Create());
     learner->LoadModel(model);
     learner->Configure({{"process_type", "update"}});
     learner->Configure({{"updater", "refresh"}});
@@ -813,6 +803,25 @@ class InitBaseScore : public ::testing::Test {
     ASSERT_EQ(base_score, base_score1);
   }
 };
+
+TEST_F(InitBaseScore, ConstructorInitializesModelState) {
+  Args params{{"objective", "reg:absoluteerror"}};
+  std::unique_ptr<Learner> learner{Learner::Create(params, Xy_, true)};
+  EXPECT_EQ(learner->GetNumFeature(), Cols());
+
+  Json config{Object{}};
+  learner->SaveConfig(&config);
+  auto base_score = GetBaseScore(config);
+  ASSERT_EQ(base_score.size(), 1);
+  EXPECT_NE(base_score[0], ObjFunction::DefaultBaseScore());
+  EXPECT_NO_THROW(learner->Reset());
+
+  learner.reset(Learner::Create(params, Xy_, false));
+  learner->SaveConfig(&config);
+  base_score = GetBaseScore(config);
+  ASSERT_EQ(base_score.size(), 1);
+  EXPECT_EQ(base_score[0], ObjFunction::DefaultBaseScore());
+}
 
 TEST_F(InitBaseScore, TestUpdateConfig) { this->TestUpdateConfig(); }
 

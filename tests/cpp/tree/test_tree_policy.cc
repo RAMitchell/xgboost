@@ -26,7 +26,7 @@ class TestGrowPolicy : public ::testing::Test {
         RandomDataGenerator{n_samples_, n_features_, sparsity_}.Targets(n_targets).GenerateDMatrix(
             true);
 
-    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{"tree_method", tree_method}});
     learner->Configure({{"device", ctx->DeviceName()}});
     if (max_leaves >= 0) {

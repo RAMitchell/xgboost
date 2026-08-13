@@ -40,7 +40,7 @@ void TestInplaceFallback(Context const* ctx) {
   Xy->SetInfo("label", y);
 
   // learner is configured to the device specified by ctx
-  std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure({{"device", ctx->DeviceName()}});
   for (std::int32_t i = 0; i < 3; ++i) {
     learner->UpdateOneIter(i, Xy);

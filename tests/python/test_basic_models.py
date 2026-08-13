@@ -171,7 +171,7 @@ class TestModels:
 
     def test_set_param_batch(self) -> None:
         dtrain, _ = tm.load_agaricus(__file__)
-        booster = xgb.Booster(cache=[dtrain])
+        booster = xgb.Booster(dtrain=dtrain)
 
         booster.set_param([("eval_metric", "mae"), ("eval_metric", "rmse")])
         config = json.loads(booster.save_config())

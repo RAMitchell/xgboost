@@ -1758,34 +1758,58 @@ class Booster:
     def __init__(
         self,
         params: Optional[BoosterParam] = None,
-        cache: Optional[Sequence[DMatrix]] = None,
+        dtrain: Optional[DMatrix] = None,
         model_file: Optional[Union["Booster", bytearray, os.PathLike, str]] = None,
+        *,
+        custom_objective: bool = False,
     ) -> None:
         """
         Parameters
         ----------
         params :
-            Parameters for boosters.
-        cache :
-            List of cache items.
+            Complete initial parameters for the booster.
+        dtrain :
+            Training matrix used to initialize data-derived model state.
         model_file :
-            Path to the model file if it's string or PathLike.
+            Path to the model file if it is a string or PathLike.
+        custom_objective :
+            Whether training uses custom gradients, which disables intercept estimation.
         """
-        cache = cache if cache is not None else []
-        for d in cache:
-            if not isinstance(d, DMatrix):
-                raise TypeError(f"Invalid cache item: {type(d).__name__}", cache)
+        if dtrain is not None and not isinstance(dtrain, DMatrix):
+            raise TypeError(f"Invalid training matrix: {type(dtrain).__name__}")
 
-        dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
+        params = params or {}
+
+        def prepare_parameters(
+            feature_names: Optional[FeatureNames],
+        ) -> List[Tuple[str, str]]:
+            params_processed = _configure_metrics(params.copy())
+            params_processed = self._configure_constraints(
+                params_processed, feature_names
+            )
+            if dtrain is not None or model_file is not None or params:
+                if isinstance(params_processed, list):
+                    params_processed.append(("validate_parameters", True))
+                else:
+                    params_processed["validate_parameters"] = True
+            if isinstance(params_processed, dict):
+                return self._prepare_parameters(params_processed.items())
+            return self._prepare_parameters(params_processed)
+
+        prepared: List[Tuple[str, str]] = []
+        if model_file is None:
+            prepared = prepare_parameters(
+                (dtrain.feature_names or []) if dtrain is not None else []
+            )
+        constructor_dtrain = dtrain if model_file is None else None
         self.handle: Optional[ctypes.c_void_p] = ctypes.c_void_p()
         _check_call(
             _LIB.XGBoosterCreate(
-                dmats, c_bst_ulong(len(cache)), ctypes.byref(self.handle)
+                constructor_dtrain.handle if constructor_dtrain is not None else None,
+                make_jcargs(params=prepared, custom_objective=custom_objective),
+                ctypes.byref(self.handle),
             )
         )
-        for d in cache:
-            # Validate feature only after the feature names are saved into booster.
-            self._assign_dmatrix_features(d)
 
         if isinstance(model_file, Booster):
             assert self.handle is not None
@@ -1800,24 +1824,13 @@ class Booster:
             self.__dict__.update(state)
         elif isinstance(model_file, (str, os.PathLike, bytearray)):
             self.load_model(model_file)
-        elif model_file is None:
-            pass
-        else:
+        elif model_file is not None:
             raise TypeError("Unknown type:", model_file)
 
-        params = params or {}
-        params_processed = _configure_metrics(params.copy())
-        params_processed = self._configure_constraints(params_processed)
-        if isinstance(params_processed, list):
-            params_processed.append(("validate_parameters", True))
-        else:
-            params_processed["validate_parameters"] = True
-
-        if isinstance(params_processed, dict):
-            prepared = self._prepare_parameters(params_processed.items())
-        else:
-            prepared = self._prepare_parameters(params_processed)
-        if cache or model_file is not None or params:
+        if dtrain is not None:
+            self._assign_dmatrix_features(dtrain)
+        if model_file is not None:
+            prepared = prepare_parameters(self.feature_names)
             self._set_params(prepared)
 
     @staticmethod
@@ -1839,7 +1852,9 @@ class Booster:
             )
 
     def _transform_monotone_constrains(
-        self, value: Union[Dict[str, int], str, Tuple[int, ...]]
+        self,
+        value: Union[Dict[str, int], str, Tuple[int, ...]],
+        feature_names: Optional[FeatureNames] = None,
     ) -> Union[Tuple[int, ...], str]:
         if isinstance(value, str):
             return value
@@ -1847,7 +1862,10 @@ class Booster:
             return value
 
         constrained_features = set(value.keys())
-        feature_names = self.feature_names or []
+        feature_names = (
+            feature_names if feature_names is not None else self.feature_names
+        )
+        feature_names = feature_names or []
         if not constrained_features.issubset(set(feature_names)):
             raise ValueError(
                 "Constrained features are not a subset of training data feature names"
@@ -1856,12 +1874,17 @@ class Booster:
         return tuple(value.get(name, 0) for name in feature_names)
 
     def _transform_interaction_constraints(
-        self, value: Union[Sequence[Sequence[str]], str]
+        self,
+        value: Union[Sequence[Sequence[str]], str],
+        feature_names: Optional[FeatureNames] = None,
     ) -> Union[str, List[List[int]]]:
         if isinstance(value, str):
             return value
+        feature_names = (
+            feature_names if feature_names is not None else self.feature_names
+        )
         feature_idx_mapping = {
-            name: idx for idx, name in enumerate(self.feature_names or [])
+            name: idx for idx, name in enumerate(feature_names or [])
         }
 
         try:
@@ -1876,7 +1899,11 @@ class Booster:
                 "Constrained features are not a subset of training data feature names"
             ) from e
 
-    def _configure_constraints(self, params: BoosterParam) -> BoosterParam:
+    def _configure_constraints(
+        self,
+        params: BoosterParam,
+        feature_names: Optional[FeatureNames] = None,
+    ) -> BoosterParam:
         if isinstance(params, dict):
             # we must use list in the internal code as there can be multiple metrics
             # with the same parameter name `eval_metric` (same key for dictionary).
@@ -1887,9 +1914,15 @@ class Booster:
                 continue
 
             if name == "monotone_constraints":
-                params[idx] = (name, self._transform_monotone_constrains(value))
+                params[idx] = (
+                    name,
+                    self._transform_monotone_constrains(value, feature_names),
+                )
             elif name == "interaction_constraints":
-                params[idx] = (name, self._transform_interaction_constraints(value))
+                params[idx] = (
+                    name,
+                    self._transform_interaction_constraints(value, feature_names),
+                )
 
         return params
 
@@ -1919,10 +1952,9 @@ class Booster:
         handle = state["handle"]
         if handle is not None:
             buf = handle
-            dmats = c_array(ctypes.c_void_p, [])
             handle = ctypes.c_void_p()
             _check_call(
-                _LIB.XGBoosterCreate(dmats, c_bst_ulong(0), ctypes.byref(handle))
+                _LIB.XGBoosterCreate(None, make_jcargs(params=[]), ctypes.byref(handle))
             )
             length = c_bst_ulong(len(buf))
             ptr = (ctypes.c_char * len(buf)).from_buffer(buf)

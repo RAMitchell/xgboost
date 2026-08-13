@@ -50,7 +50,7 @@ xgb.load <- function(modelfile) {
 
   bst <- xgb.Booster(
     params = list(),
-    cachelist = list(),
+    dtrain = NULL,
     modelfile = modelfile
   )
   bst <- bst$bst

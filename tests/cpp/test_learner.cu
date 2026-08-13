@@ -45,7 +45,7 @@ TEST(Learner, Reset) {
   auto verbosity = GlobalConfigThreadLocalStore::Get()->verbosity;
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto p_fmat = RandomDataGenerator{1024, 32, 0.0}.GenerateDMatrix(true);
-  std::unique_ptr<Learner> learner{Learner::Create({p_fmat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure({{"device", DeviceSym::CUDA()}});
   learner->Configure();
   for (std::int32_t i = 0; i < 2; ++i) {

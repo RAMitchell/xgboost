@@ -29,7 +29,7 @@ class TestPredictionCache : public ::testing::Test {
 
   void RunLearnerTest(Context const* ctx, std::string updater_name, float subsample,
                       std::string const& grow_policy, std::string const& strategy) {
-    std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+    std::unique_ptr<Learner> learner{Learner::Create()};
     learner->Configure({{"device", ctx->DeviceName()}});
     learner->Configure({{"updater", updater_name}});
     learner->Configure({{"multi_strategy", strategy}});
@@ -50,7 +50,7 @@ class TestPredictionCache : public ::testing::Test {
 
     HostDeviceVector<float> out_prediction;
     {
-      std::unique_ptr<Learner> learner{Learner::Create({Xy_})};
+      std::unique_ptr<Learner> learner{Learner::Create()};
       learner->LoadModel(model);
       learner->Predict(Xy_, false, &out_prediction, 0, 0);
     }

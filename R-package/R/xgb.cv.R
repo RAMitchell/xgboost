@@ -215,8 +215,9 @@ xgb.cv <- function(params = xgb.params(), data, nrounds, nfold,
     }
     bst <- xgb.Booster(
       params = params,
-      cachelist = list(dtrain, dtest),
-      modelfile = NULL
+      dtrain = dtrain,
+      modelfile = NULL,
+      custom_objective = is.function(objective)
     )
     bst <- bst$bst
     list(dtrain = dtrain, bst = bst, evals = list(train = dtrain, test = dtest), index = folds[[k]])

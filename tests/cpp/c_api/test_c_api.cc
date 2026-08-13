@@ -97,7 +97,7 @@ TEST(CAPI, SetParams) {
   auto p_dmat = RandomDataGenerator{8, 4, 0.0f}.GenerateDMatrix();
   std::array<DMatrixHandle, 1> mats{&p_dmat};
   BoosterHandle booster;
-  ASSERT_EQ(XGBoosterCreate(mats.data(), mats.size(), &booster), 0);
+  ASSERT_EQ(XGBoosterCreate(nullptr, R"({"params":[]})", &booster), 0);
 
   char const *config =
       R"({"params":[["objective","reg:absoluteerror"],["eval_metric","mae"],["eval_metric","rmse"]]})";
@@ -126,7 +126,7 @@ TEST(CAPI, ConfigIO) {
   p_dmat->Info().labels.Data()->HostVector() = labels;
   p_dmat->Info().labels.Reshape(kRows);
 
-  std::shared_ptr<Learner> learner{Learner::Create(mat)};
+  std::shared_ptr<Learner> learner{Learner::Create()};
 
   BoosterHandle handle = learner.get();
   learner->UpdateOneIter(0, p_dmat);
@@ -161,7 +161,7 @@ TEST(CAPI, JsonModelIO) {
   p_dmat->Info().labels.Data()->HostVector() = labels;
   p_dmat->Info().labels.Reshape(kRows);
 
-  std::shared_ptr<Learner> learner{Learner::Create(mat)};
+  std::shared_ptr<Learner> learner{Learner::Create()};
 
   learner->UpdateOneIter(0, p_dmat);
   BoosterHandle handle = learner.get();
@@ -552,7 +552,7 @@ void TestXGDMatrixGetQuantileCut(Context const *ctx) {
 
     std::array<DMatrixHandle, 1> mats{p_fmat};
     BoosterHandle booster;
-    ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
+    ASSERT_EQ(XGBoosterCreate(mats[0], R"({"params":[]})", &booster), 0);
     ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
     if (ctx->IsCUDA()) {
       ASSERT_EQ(XGBoosterSetParam(booster, "device", ctx->DeviceName().c_str()), 0);
@@ -583,7 +583,7 @@ void TestXGDMatrixGetQuantileCut(Context const *ctx) {
 
     std::array<DMatrixHandle, 1> mats{p_fmat};
     BoosterHandle booster;
-    ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster), 0);
+    ASSERT_EQ(XGBoosterCreate(mats[0], R"({"params":[]})", &booster), 0);
     ASSERT_EQ(XGBoosterSetParam(booster, "max_bin", "16"), 0);
     if (ctx->IsCUDA()) {
       ASSERT_EQ(XGBoosterSetParam(booster, "device", ctx->DeviceName().c_str()), 0);
@@ -638,7 +638,7 @@ TEST(CAPI, PredictReuseProxy) {
   // Create booster and train.
   std::array<DMatrixHandle, 1> mats{fmat_hdl};
   BoosterHandle booster_hdl;
-  ASSERT_EQ(XGBoosterCreate(mats.data(), 1, &booster_hdl), 0);
+  ASSERT_EQ(XGBoosterCreate(mats[0], R"({"params":[]})", &booster_hdl), 0);
 
   for (std::int32_t i = 0; i < 3; ++i) {
     ASSERT_EQ(XGBoosterUpdateOneIter(booster_hdl, i, fmat_hdl), 0);

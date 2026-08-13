@@ -180,7 +180,9 @@ def train(
         ):
             raise ValueError(_RefError)
 
-    bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
+    bst = Booster(
+        params, dtrain, model_file=xgb_model, custom_objective=obj is not None
+    )
     start_iteration = 0
 
     if verbose_eval:
@@ -213,13 +215,17 @@ class CVPack:
     """ "Auxiliary datastruct to hold one fold of CV."""
 
     def __init__(
-        self, dtrain: DMatrix, dtest: DMatrix, param: Optional[Union[Dict, List]]
+        self,
+        dtrain: DMatrix,
+        dtest: DMatrix,
+        param: Optional[Union[Dict, List]],
+        custom_objective: bool,
     ) -> None:
         """Initialize the CVPack."""
         self.dtrain = dtrain
         self.dtest = dtest
         self.watchlist = [(dtrain, "train"), (dtest, "test")]
-        self.bst = Booster(param, [dtrain, dtest])
+        self.bst = Booster(param, dtrain, custom_objective=custom_objective)
 
     def __getattr__(self, name: str) -> Callable:
         def _inner(*args: Any, **kwargs: Any) -> Any:
@@ -312,6 +318,7 @@ def mkgroupfold(
     evals: Sequence[str] = (),
     fpreproc: Optional[FPreProcCallable] = None,
     shuffle: bool = True,
+    custom_objective: bool = False,
 ) -> List[CVPack]:
     """
     Make n folds for cross-validation maintaining groups
@@ -354,7 +361,7 @@ def mkgroupfold(
         else:
             tparam = param
         plst = list(tparam.items()) + [("eval_metric", itm) for itm in evals]
-        ret.append(CVPack(dtrain, dtest, plst))
+        ret.append(CVPack(dtrain, dtest, plst, custom_objective))
     return ret
 
 
@@ -369,6 +376,7 @@ def mknfold(
     stratified: Optional[bool] = False,
     folds: Optional[XGBStratifiedKFold] = None,
     shuffle: bool = True,
+    custom_objective: bool = False,
 ) -> List[CVPack]:
     """
     Make an n-fold list of CVPack from random indices.
@@ -386,6 +394,7 @@ def mknfold(
                 evals=evals,
                 fpreproc=fpreproc,
                 shuffle=shuffle,
+                custom_objective=custom_objective,
             )
 
         if shuffle is True:
@@ -427,7 +436,7 @@ def mknfold(
         else:
             tparam = param
         plst = list(tparam.items()) + [("eval_metric", itm) for itm in evals]
-        ret.append(CVPack(dtrain, dtest, plst))
+        ret.append(CVPack(dtrain, dtest, plst, custom_objective))
     return ret
 
 
@@ -573,6 +582,7 @@ def cv(
         fpreproc=fpreproc,
         stratified=stratified,
         folds=folds,
+        custom_objective=obj is not None,
         shuffle=shuffle,
     )
 

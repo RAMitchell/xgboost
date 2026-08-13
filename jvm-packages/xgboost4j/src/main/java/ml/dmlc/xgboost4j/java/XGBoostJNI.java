@@ -105,7 +105,7 @@ public class XGBoostJNI {
 
   public final static native int XGDMatrixNumNonMissing(long handle, long[] nonMissings);
 
-  public final static native int XGBoosterCreate(long[] handles, long[] out);
+  public final static native int XGBoosterCreate(long dtrain, String config, long[] out);
 
   public final static native int XGBoosterFree(long handle);
 

@@ -310,8 +310,9 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
   # Construct a booster (either a new one or load from xgb_model)
   bst <- xgb.Booster(
     params = params,
-    cachelist = append(evals, dtrain),
-    modelfile = xgb_model
+    dtrain = dtrain,
+    modelfile = xgb_model,
+    custom_objective = is.function(objective)
   )
   niter_init <- bst$niter
   bst <- bst$bst

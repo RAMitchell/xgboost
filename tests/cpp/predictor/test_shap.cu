@@ -32,7 +32,7 @@ TEST(GPUPredictor, CompareCPUShap) {
     h_labels[i] = i % 2;
   }
 
-  std::unique_ptr<Learner> learner{Learner::Create({dmat})};
+  std::unique_ptr<Learner> learner{Learner::Create()};
   learner->Configure(Args{{"objective", "binary:logistic"},
                           {"max_depth", "12"},
                           {"min_split_loss", "0"},
@@ -50,12 +50,12 @@ TEST(GPUPredictor, CompareCPUShap) {
   Json model{Object{}};
   learner->SaveModel(&model);
 
-  std::unique_ptr<Learner> learner_gpu{Learner::Create({})};
+  std::unique_ptr<Learner> learner_gpu{Learner::Create()};
   learner_gpu->LoadModel(model);
   learner_gpu->Configure({{"device", ctx.DeviceName()}});
   learner_gpu->Configure();
 
-  std::unique_ptr<Learner> learner_cpu{Learner::Create({})};
+  std::unique_ptr<Learner> learner_cpu{Learner::Create()};
   learner_cpu->LoadModel(model);
   learner_cpu->Configure({{"device", cpu_ctx.DeviceName()}});
   learner_cpu->Configure();
