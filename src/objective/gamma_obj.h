@@ -13,12 +13,7 @@
 
 namespace xgboost::obj {
 struct GammaGradient {
-  float scale_pos_weight;
-
   XGBOOST_DEVICE GradientPair operator()(float predt, float label, float weight) const {
-    if (label == 1.0f) {
-      weight *= scale_pos_weight;
-    }
     auto prediction = expf(predt);
     auto ratio = label / prediction;
     auto grad = 1.0f - ratio;

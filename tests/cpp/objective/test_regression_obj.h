@@ -14,6 +14,7 @@ void TestSquaredLog(const Context* ctx);
 void TestLogisticRegressionGPair(const Context* ctx);
 
 void TestLogisticRegressionBasic(const Context* ctx);
+void TestLogisticRegressionInitEstimation(const Context* ctx);
 
 void TestsLogisticRawGPair(const Context* ctx);
 

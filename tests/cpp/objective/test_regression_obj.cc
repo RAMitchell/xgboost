@@ -40,7 +40,16 @@ void TestLinearRegressionGPair(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create(obj_name, ctx)};
 
-  obj->Configure(args);
+  auto used = obj->Configure({{"scale_pos_weight", "2.0"}});
+  EXPECT_EQ(used.count("scale_pos_weight"), 0);
+
+  Json legacy_config{Object{}};
+  legacy_config["name"] = String{"reg:squarederror"};
+  legacy_config["reg_loss_param"] = Object{};
+  legacy_config["reg_loss_param"]["scale_pos_weight"] = String{"2"};
+  ASSERT_NO_THROW(obj->LoadConfig(legacy_config));
+  auto config = CheckConfigReload(obj, obj_name);
+  ASSERT_EQ(get<Object const>(config).size(), 1);
   // clang-format off
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
@@ -124,6 +133,25 @@ void TestLogisticRegressionBasic(const Context* ctx) {
   auto& preds = io_preds.HostVector();
   for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
     EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
+  }
+}
+
+void TestLogisticRegressionInitEstimation(const Context* ctx) {
+  MetaInfo info;
+  info.num_row_ = 4;
+  info.labels.Reshape(4, 1);
+  info.labels.Data()->HostVector() = {0.0f, 0.0f, 1.0f, 1.0f};
+  info.weights_.HostVector() = {1.0f, 2.0f, 3.0f, 4.0f};
+
+  auto const expected = 14.0f / 17.0f;
+  for (std::string name : {"reg:logistic", "binary:logistic", "binary:logitraw"}) {
+    std::unique_ptr<ObjFunction> obj{ObjFunction::Create(name, ctx)};
+    obj->Configure({{"scale_pos_weight", "2.0"}});
+    linalg::Vector<float> base_score;
+    obj->InitEstimation(info, &base_score);
+    auto const actual = base_score.HostView()(0);
+    auto const expected_score = name == "binary:logitraw" ? common::Logit(expected) : expected;
+    ASSERT_NEAR(actual, expected_score, kRtEps);
   }
 }
 
@@ -222,8 +250,16 @@ void TestGammaRegressionBasic(const Context* ctx) {
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:gamma", ctx)};
 
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:gamma");
+  auto used = obj->Configure({{"scale_pos_weight", "2.0"}});
+  EXPECT_EQ(used.count("scale_pos_weight"), 0);
+
+  Json legacy_config{Object{}};
+  legacy_config["name"] = String{"reg:gamma"};
+  legacy_config["reg_loss_param"] = Object{};
+  legacy_config["reg_loss_param"]["scale_pos_weight"] = String{"2"};
+  ASSERT_NO_THROW(obj->LoadConfig(legacy_config));
+  auto config = CheckConfigReload(obj, "reg:gamma");
+  ASSERT_EQ(get<Object const>(config).size(), 1);
 
   // test label validation
   EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {0}, {1}, {0}, {0}))
