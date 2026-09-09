@@ -15,12 +15,23 @@
 #include "../common/kernel.h"   // for DispatchKernel
 #include "../tree/fit_stump.h"  // for FitStump
 #include "init_estimation.h"    // for CheckInitInputs, FitInterceptGlmLike
-#include "logistic_param.h"     // for LogisticParam
 #include "xgboost/json.h"       // for FromJson, Json, Object, String, ToJson
 #include "xgboost/logging.h"    // for CHECK, LOG
 #include "xgboost/objective.h"  // for ObjFunction
+#include "xgboost/parameter.h"  // for XGBoostParameter
 
 namespace xgboost::obj {
+struct LogisticParam : public XGBoostParameter<LogisticParam> {
+  float scale_pos_weight;
+
+  DMLC_DECLARE_PARAMETER(LogisticParam) {
+    DMLC_DECLARE_FIELD(scale_pos_weight)
+        .set_default(1.0f)
+        .set_lower_bound(0.0f)
+        .describe("Scale the weight of positive examples by this factor");
+  }
+};
+
 DMLC_REGISTRY_FILE_TAG(logistic_obj);
 DMLC_REGISTER_PARAMETER(LogisticParam);
 
