@@ -531,7 +531,7 @@ class TestGPUPredict:
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("n_classes", [2, 3])
-    def test_predict_dart(self, n_classes: int) -> None:
+    def test_predict_tree_subsample(self, n_classes: int) -> None:
         from sklearn.datasets import make_classification
 
         cp = import_cupy()
@@ -547,7 +547,7 @@ class TestGPUPredict:
                 "tree_method": "hist",
                 "device": "cuda:0",
                 "booster": "gbtree",
-                "dropout_rate": 0.5,
+                "tree_subsample": 0.5,
                 "objective": "binary:logistic",
             }
         else:
@@ -555,7 +555,7 @@ class TestGPUPredict:
                 "tree_method": "hist",
                 "device": "cuda:0",
                 "booster": "gbtree",
-                "dropout_rate": 0.5,
+                "tree_subsample": 0.5,
                 "objective": "multi:softprob",
                 "num_class": n_classes,
             }

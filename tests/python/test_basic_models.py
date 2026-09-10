@@ -32,7 +32,7 @@ class TestModels:
         ) / float(len(preds))
         assert err < 0.2
 
-    def test_dropout(self, tmp_path: Path) -> None:
+    def test_tree_subsample(self, tmp_path: Path) -> None:
         dtrain, dtest = tm.load_agaricus(__file__)
         param = {
             "max_depth": 5,
@@ -55,7 +55,7 @@ class TestModels:
         assert err < 0.1
 
         dtest_path = tmp_path / "dtest.dmatrix"
-        model_path = tmp_path / "xgboost.model.dropout.ubj"
+        model_path = tmp_path / "xgboost.model.tree-subsample.ubj"
         # save dmatrix into binary buffer
         dtest.save_binary(dtest_path)
         # save model
@@ -80,10 +80,10 @@ class TestModels:
         preds3 = bst.predict(dtest, iteration_range=(0, num_round))
         assert all(preds3 == preds)
 
-        # Check prediction dropout training.
+        # Check tree-subsampled training prediction.
         num_round = 50
         param["learning_rate"] = 0.1
-        param["dropout_rate"] = 0.1
+        param["tree_subsample"] = 0.9
         bst = xgb.train(param, dtrain, num_round, evals=watchlist)
         preds = bst.predict(dtest, iteration_range=(0, num_round))
         err = sum(

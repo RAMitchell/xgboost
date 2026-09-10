@@ -196,7 +196,7 @@ test_that("predict feature contributions works", {
   }
 })
 
-test_that("SHAPs sum to predictions, with or without dropout", {
+test_that("SHAPs sum to predictions, with or without tree subsampling", {
   d <- cbind(
     x1 = rnorm(100),
     x2 = rnorm(100),
@@ -206,14 +206,14 @@ test_that("SHAPs sum to predictions, with or without dropout", {
     rnorm(100)
   nrounds <- 30
 
-  for (dropout_rate in list(0, .01)) {
+  for (tree_subsample in list(1, .99)) {
     fit <- xgb.train(
       params = list(
         nthread = 2,
         booster = "gbtree",
         objective = "reg:squarederror",
         eval_metric = "rmse",
-        dropout_rate = dropout_rate),
+        tree_subsample = tree_subsample),
       data = xgb.DMatrix(d, label = y, nthread = 1),
       nrounds = nrounds)
 

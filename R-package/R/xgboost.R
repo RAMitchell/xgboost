@@ -1156,7 +1156,7 @@ xgboost <- function(
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
-  dropout_rate = NULL,
+  tree_subsample = NULL,
   skip_drop = NULL,
   sample_type = NULL,
   normalize_type = NULL,

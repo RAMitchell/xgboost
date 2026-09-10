@@ -18,14 +18,8 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import org.apache.spark.ml.param._
 
-/** Dropout parameters for tree boosters. */
+/** Legacy DART parameters retained for migration warnings. */
 private[spark] trait DartBoosterParams extends Params {
-
-  final val dropoutRate = new DoubleParam(this, "dropout_rate", "Probability of independently " +
-    "dropping each existing tree before gradient computation",
-    ParamValidators.inRange(0, 0.999999, true, true))
-
-  final def getDropoutRate: Double = $(dropoutRate)
 
   final val sampleType = new Param[String](this, "sample_type", "Deprecated and ignored; " +
     "scheduled for removal", ParamValidators.inArray(Array("uniform", "weighted")))
@@ -38,9 +32,9 @@ private[spark] trait DartBoosterParams extends Params {
 
   final def getNormalizeType: String = $(normalizeType)
 
-  final val rateDrop = new DoubleParam(this, "rate_drop", "Deprecated and ignored; scheduled " +
-    "for removal",
-    ParamValidators.inRange(0, 1, true, true))
+  final val rateDrop = new DoubleParam(this, "rate_drop", "Deprecated; converted to " +
+    "tree_subsample = 1 - rate_drop when tree_subsample is not explicitly set",
+    ParamValidators.inRange(0, 0.999999, true, true))
 
   final def getRateDrop: Double = $(rateDrop)
 
@@ -49,12 +43,11 @@ private[spark] trait DartBoosterParams extends Params {
 
   final def getOneDrop: Boolean = $(oneDrop)
 
-  final val skipDrop = new DoubleParam(this, "skip_drop", "Deprecated alias for dropout_rate",
-    ParamValidators.inRange(0, 0.999999, true, true))
+  final val skipDrop = new DoubleParam(this, "skip_drop", "Deprecated and ignored; scheduled " +
+    "for removal", ParamValidators.inRange(0, 1, true, true))
 
   final def getSkipDrop: Double = $(skipDrop)
 
-  setDefault(dropoutRate -> 0, sampleType -> "uniform", normalizeType -> "tree", rateDrop -> 0,
-    skipDrop -> 0)
+  setDefault(sampleType -> "uniform", normalizeType -> "tree", rateDrop -> 0, skipDrop -> 0)
 
 }

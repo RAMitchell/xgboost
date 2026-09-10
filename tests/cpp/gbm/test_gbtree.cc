@@ -435,14 +435,14 @@ TEST(GBTree, LoadLegacyDartJson) {
   ASSERT_TRUE(IsA<Object>(canonical_config["dart_train_param"]));
 }
 
-TEST(GBTree, DropoutJsonIO) {
+TEST(GBTree, TreeSubsampleJsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
   Context ctx;
   LearnerModelState mparam{MakeMP(kCols, .5, 1)};
 
   std::unique_ptr<GradientBooster> gbm{
-      CreateTrainedGBM("gbtree", Args{{"dropout_rate", "0.5"}}, kRows, kCols, &mparam, &ctx)};
+      CreateTrainedGBM("gbtree", Args{{"tree_subsample", "0.5"}}, kRows, kCols, &mparam, &ctx)};
 
   Json j_model{Object{}};
   Json j_config{Object{}};
@@ -453,7 +453,7 @@ TEST(GBTree, DropoutJsonIO) {
   ASSERT_EQ(get<String>(j_config["name"]), "gbtree");
   auto const& tree_model = get<Object const>(j_model["model"]);
   ASSERT_EQ(tree_model.find("weight_drop"), tree_model.cend());
-  ASSERT_EQ(get<String>(j_config["dart_train_param"]["dropout_rate"]), "0.5");
+  ASSERT_EQ(get<String>(j_config["dart_train_param"]["tree_subsample"]), "0.5");
 
   std::string malformed_str = Json::Dump(j_model);
   auto malformed_model = Json::Load(StringView{malformed_str});
@@ -473,41 +473,44 @@ TEST(GBTree, DropoutJsonIO) {
   ASSERT_EQ(get<Array>(canonical_model["model"]["weight_drop"]).size(), n_trees);
 }
 
-TEST(GBTree, DropoutParameters) {
+TEST(GBTree, TreeSubsampleParameters) {
   Context ctx;
   LearnerModelState mparam{MakeMP(4, .5, 1)};
   std::unique_ptr<GradientBooster> gbm{GradientBooster::Create("gbtree", &ctx, &mparam)};
 
   testing::internal::CaptureStderr();
-  gbm->Configure({{"skip_drop", "0.25"}});
+  gbm->Configure({{"rate_drop", "0.25"}});
   auto warning = testing::internal::GetCapturedStderr();
-  EXPECT_NE(warning.find("interpreted as `dropout_rate`"), std::string::npos);
+  EXPECT_NE(warning.find("has been converted to `tree_subsample=0.75`"), std::string::npos);
+  EXPECT_NE(warning.find("https://github.com/dmlc/xgboost/issues/12339"), std::string::npos);
 
   Json config{Object{}};
   gbm->SaveConfig(&config);
-  EXPECT_EQ(get<String>(config["dart_train_param"]["dropout_rate"]), "0.25");
+  EXPECT_EQ(get<String>(config["dart_train_param"]["tree_subsample"]), "0.75");
 
   testing::internal::CaptureStderr();
-  gbm->Configure({{"dropout_rate", "0.5"},
+  gbm->Configure({{"tree_subsample", "0.5"},
                   {"skip_drop", "0.25"},
                   {"rate_drop", "0.1"},
                   {"one_drop", "1"},
                   {"sample_type", "weighted"},
                   {"normalize_type", "forest"}});
   warning = testing::internal::GetCapturedStderr();
-  EXPECT_NE(warning.find("`skip_drop` is deprecated"), std::string::npos);
-  for (auto const* unused : {"rate_drop", "one_drop", "sample_type", "normalize_type"}) {
+  EXPECT_NE(warning.find("`rate_drop` is deprecated and is ignored"), std::string::npos);
+  for (auto const* unused : {"skip_drop", "one_drop", "sample_type", "normalize_type"}) {
     EXPECT_NE(warning.find(std::string("`") + unused + "` is no longer used"), std::string::npos);
   }
+  EXPECT_NE(warning.find("https://github.com/dmlc/xgboost/issues/12339"), std::string::npos);
   gbm->SaveConfig(&config);
-  EXPECT_EQ(get<String>(config["dart_train_param"]["dropout_rate"]), "0.5");
+  EXPECT_EQ(get<String>(config["dart_train_param"]["tree_subsample"]), "0.5");
 
-  EXPECT_ANY_THROW(gbm->Configure({{"dropout_rate", "1.0"}}));
+  EXPECT_ANY_THROW(gbm->Configure({{"tree_subsample", "0.0"}}));
+  EXPECT_ANY_THROW(gbm->Configure({{"rate_drop", "1.0"}}));
 }
 
-TEST(GBTree, DropoutPredictionIsUnbiased) {
-  float constexpr kDropout = 0.25f;
-  float constexpr kRetain = 1.0f - kDropout;
+TEST(GBTree, TreeSubsamplePredictionIsUnbiased) {
+  float constexpr kTreeSubsample = 0.75f;
+  float constexpr kDropout = 1.0f - kTreeSubsample;
   float constexpr kBase = 0.3f;
   float constexpr kLabel = 0.7f;
   std::vector<std::vector<float>> const cases{
@@ -523,12 +526,12 @@ TEST(GBTree, DropoutPredictionIsUnbiased) {
       double retained_sum{0.0};
       for (std::size_t i = 0; i < contributions.size(); ++i) {
         bool retained = mask & (std::size_t{1} << i);
-        probability *= retained ? kRetain : kDropout;
+        probability *= retained ? kTreeSubsample : kDropout;
         if (retained) {
           retained_sum += contributions[i];
         }
       }
-      auto margin = kBase + gbm::detail::DropoutScale(kDropout) * retained_sum;
+      auto margin = kBase + gbm::detail::TreeSubsampleScale(kTreeSubsample) * retained_sum;
       expected_margin += probability * margin;
       expected_squared_error_gradient += probability * (margin - kLabel);
     }
@@ -537,14 +540,15 @@ TEST(GBTree, DropoutPredictionIsUnbiased) {
   }
 }
 
-TEST(GBTree, DropoutPredictionPath) {
+TEST(GBTree, TreeSubsamplePredictionPath) {
   size_t constexpr kRows = 16, kCols = 4;
   float constexpr kBaseMargin = 3.0f;
-  float constexpr kDropout = 0.5f;
+  float constexpr kTreeSubsample = 0.5f;
 
   Context ctx;
   LearnerModelState mparam{MakeMP(kCols, 0.5f, 1)};
-  auto gbm = CreateTrainedGBM("gbtree", Args{{"dropout_rate", "0.5"}}, kRows, kCols, &mparam, &ctx);
+  auto gbm =
+      CreateTrainedGBM("gbtree", Args{{"tree_subsample", "0.5"}}, kRows, kCols, &mparam, &ctx);
   auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   dmat->Info().base_margin_.Reshape(kRows, 1);
   dmat->Info().base_margin_.Data()->HostVector().assign(kRows, kBaseMargin);
@@ -554,7 +558,7 @@ TEST(GBTree, DropoutPredictionPath) {
   auto const& full_margin = inference.ConstHostVector();
   auto const expected_retained = [&](std::size_t i) {
     auto tree_margin = full_margin[i] - kBaseMargin;
-    return kBaseMargin + gbm::detail::DropoutScale(kDropout) * tree_margin;
+    return kBaseMargin + gbm::detail::TreeSubsampleScale(kTreeSubsample) * tree_margin;
   };
   auto anchor = static_cast<std::size_t>(
       std::distance(full_margin.cbegin(), std::max_element(full_margin.cbegin(), full_margin.cend(),
@@ -604,7 +608,7 @@ class Dart : public testing::TestWithParam<char const*> {
 
     auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
     learner->Configure({{"booster", "dart"}});
-    learner->Configure({{"dropout_rate", "0.5"}});
+    learner->Configure({{"tree_subsample", "0.5"}});
     learner->Configure();
 
     for (size_t i = 0; i < 16; ++i) {
@@ -665,7 +669,7 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
             {"subsample", "0.5"},
             {"max_depth", "2"}};
   if (booster == "dart") {
-    args.emplace_back("dropout_rate", "0.5");
+    args.emplace_back("tree_subsample", "0.5");
   }
   learner->Configure(args);
 

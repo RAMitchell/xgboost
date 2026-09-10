@@ -45,7 +45,7 @@ xgb.params(
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
-  dropout_rate = NULL,
+  tree_subsample = NULL,
   skip_drop = NULL,
   sample_type = NULL,
   normalize_type = NULL,
@@ -406,20 +406,23 @@ splits for preventing over-fitting.
 
 Version added: 1.7.0}
 
-\item{dropout_rate}{(for Tree Boosters) (default=0.0)
-Probability of independently dropping each existing tree before gradient computation.
-Retained tree predictions are scaled by \code{1 / (1 - dropout_rate)}. Existing and new trees
-are not reweighted, and inference uses the ordinary additive-tree path.
+\item{tree_subsample}{(for Tree Boosters) (default=1.0)
+Probability of independently retaining each existing tree before gradient computation.
+Retained tree predictions are scaled by \code{1 / tree_subsample}. Existing and new trees are not
+reweighted, and inference uses the ordinary additive-tree path.
+
+range: \eqn{[0.000001, 1.0]}}
+
+\item{rate_drop}{(for Tree Boosters) (default=0.0)
+Deprecated. When \code{tree_subsample} is not supplied, \code{rate_drop=r} is converted to
+\code{tree_subsample=1-r} with a warning. This preserves the uniform tree-retention probability,
+but not the legacy DART normalization behavior.
 
 range: \eqn{[0.0, 0.999999]}}
 
-\item{skip_drop}{(for Tree Boosters) (default=0.0)
-Deprecated alias for \code{dropout_rate}. If both are specified, \code{dropout_rate} takes precedence.
-
-range: \eqn{[0.0, 0.999999]}}
-
-\item{sample_type, normalize_type, rate_drop, one_drop}{Deprecated dropout parameters that are
-accepted temporarily but ignored, with removal warnings.}
+\item{sample_type, normalize_type, one_drop, skip_drop}{Deprecated DART parameters that have no
+exact conversion and are ignored with removal warnings. See
+https://github.com/dmlc/xgboost/issues/12339.}
 
 \item{feature_selector}{(for Linear Booster) (default= \code{"cyclic"})
 Feature selection and ordering method

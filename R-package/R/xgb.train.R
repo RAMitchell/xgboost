@@ -695,18 +695,21 @@ xgb.train <- function(params = xgb.params(), data, nrounds, evals = list(),
 #' splits for preventing over-fitting.
 #'
 #' Version added: 1.7.0
-#' @param dropout_rate (for Tree Boosters) (default=0.0)
-#' Probability of independently dropping each existing tree before gradient computation.
-#' Retained tree predictions are scaled by `1 / (1 - dropout_rate)`. Existing and new trees
-#' are not reweighted, and inference uses the ordinary additive-tree path.
+#' @param tree_subsample (for Tree Boosters) (default=1.0)
+#' Probability of independently retaining each existing tree before gradient computation.
+#' Retained tree predictions are scaled by `1 / tree_subsample`. Existing and new trees are not
+#' reweighted, and inference uses the ordinary additive-tree path.
+#'
+#' range: \eqn{[0.000001, 1.0]}
+#' @param rate_drop (for Tree Boosters) (default=0.0)
+#' Deprecated. When `tree_subsample` is not supplied, `rate_drop=r` is converted to
+#' `tree_subsample=1-r` with a warning. This preserves the uniform tree-retention probability,
+#' but not the legacy DART normalization behavior.
 #'
 #' range: \eqn{[0.0, 0.999999]}
-#' @param skip_drop (for Tree Boosters) (default=0.0)
-#' Deprecated alias for `dropout_rate`. If both are specified, `dropout_rate` takes precedence.
-#'
-#' range: \eqn{[0.0, 0.999999]}
-#' @param sample_type,normalize_type,rate_drop,one_drop Deprecated dropout parameters that are
-#' accepted temporarily but ignored, with removal warnings.
+#' @param sample_type,normalize_type,one_drop,skip_drop Deprecated DART parameters that have no
+#' exact conversion and are ignored with removal warnings. See
+#' https://github.com/dmlc/xgboost/issues/12339.
 #' @param feature_selector (for Linear Booster) (default= `"cyclic"`)
 #' Feature selection and ordering method
 #' - `"cyclic"`: Deterministic selection by cycling through features one at a time.
@@ -808,7 +811,7 @@ xgb.params <- function(
   max_cached_hist_node = NULL,
   max_cat_to_onehot = NULL,
   max_cat_threshold = NULL,
-  dropout_rate = NULL,
+  tree_subsample = NULL,
   skip_drop = NULL,
   sample_type = NULL,
   normalize_type = NULL,

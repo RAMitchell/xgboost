@@ -55,8 +55,9 @@ General Parameters
 
   - Which booster to use. Can be ``gbtree``, ``gblinear`` or ``dart``; ``gbtree`` and
     ``dart`` use tree-based models while ``gblinear`` uses linear functions.
-  - Prediction dropout can be enabled on tree boosters with ``dropout_rate``.
-    ``booster=dart`` remains supported as a deprecated alias for ``gbtree``.
+  - Tree subsampling can be enabled on tree boosters with ``tree_subsample``.
+    ``booster=dart`` remains supported as a deprecated alias for ``gbtree``. Legacy DART
+    normalization has been removed; see :issue:`12339`.
 
   .. deprecated:: 3.3.0
 
@@ -306,33 +307,35 @@ These parameters are only used for training with categorical data. See
   - Maximum number of categories considered for each split. Used only by partition-based
     splits for preventing over-fitting.
 
-Additional dropout parameters for tree boosters
-================================================
+Additional tree-subsampling parameters for tree boosters
+========================================================
 
-* ``dropout_rate`` [default=0.0]
+* ``tree_subsample`` [default=1.0]
 
-  - Probability of independently dropping each existing tree before gradient computation.
-  - range: [0.0, 0.999999]
+  - Probability of independently retaining each existing tree before gradient computation.
+  - range: [0.000001, 1.0]
 
-  For dropout probability :math:`p`, the temporary margin is
+  For retention probability :math:`q`, the temporary margin is
 
   .. math::
 
-    \widetilde{F}(x) = F_0(x) + \sum_i \frac{I_i}{1-p} F_i(x),
+    \widetilde{F}(x) = F_0(x) + \sum_i \frac{I_i}{q} F_i(x),
 
-  where :math:`I_i \sim \operatorname{Bernoulli}(1-p)` and the base score or base margin
-  :math:`F_0` is not dropped. Therefore :math:`\mathbb{E}[\widetilde{F}(x)] = F(x)`.
-  Trees are committed with ordinary additive weights, so inference requires no dropout-specific
-  work. See :doc:`/tutorials/dropout` for details and guidance on its relation to row sampling.
+  where :math:`I_i \sim \operatorname{Bernoulli}(q)` and the base score or base margin
+  :math:`F_0` is not sampled. Therefore :math:`\mathbb{E}[\widetilde{F}(x)] = F(x)`.
+  Trees are committed with ordinary additive weights, so inference requires no
+  tree-subsampling-specific work. See :doc:`/tutorials/tree_subsampling` for details and
+  guidance on its relation to row sampling.
 
-* ``skip_drop`` [default=0.0]
+* ``rate_drop`` [default=0.0]
 
-  - Deprecated alias for ``dropout_rate``. If both are specified, ``dropout_rate`` takes
-    precedence.
+  - Deprecated. When ``tree_subsample`` is not supplied, ``rate_drop=r`` is converted to
+    ``tree_subsample=1-r`` with a warning. This preserves the uniform tree-retention
+    probability, but not the legacy DART normalization behavior.
   - range: [0.0, 0.999999]
 
-``sample_type``, ``normalize_type``, ``rate_drop``, and ``one_drop`` are deprecated and ignored.
-They are accepted temporarily to ease migration and emit removal warnings.
+``sample_type``, ``normalize_type``, ``one_drop``, and ``skip_drop`` are deprecated and ignored
+because they have no exact conversion. All legacy-parameter warnings refer to :issue:`12339`.
 
 Parameters for Linear Booster (``booster=gblinear``)
 ====================================================

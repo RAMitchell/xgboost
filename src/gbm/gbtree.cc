@@ -89,22 +89,29 @@ std::set<std::string> GBTree::Configure(Args const& cfg) {
     return std::any_of(cfg.cbegin(), cfg.cend(),
                        [&name](auto const& arg) { return arg.first == name; });
   };
-  auto has_dropout_rate = has_param("dropout_rate");
+  auto has_tree_subsample = has_param("tree_subsample");
 
   auto used = UpdateAndGetUsedParameters(&tparam_, cfg);
   used.merge(UpdateAndGetUsedParameters(&dparam_, cfg));
-  if (has_param("skip_drop")) {
-    if (!has_dropout_rate) {
-      dparam_.dropout_rate = dparam_.skip_drop;
-      LOG(WARNING) << "`skip_drop` is deprecated and is interpreted as `dropout_rate`.";
+  if (has_param("rate_drop")) {
+    if (!has_tree_subsample) {
+      dparam_.tree_subsample = 1.0f - dparam_.rate_drop;
+      LOG(WARNING) << "`rate_drop` is deprecated and has been converted to `tree_subsample="
+                   << dparam_.tree_subsample
+                   << "`. This preserves the uniform tree-retention probability, but legacy "
+                      "DART normalization has been removed and training behavior will differ. "
+                      "See https://github.com/dmlc/xgboost/issues/12339.";
     } else {
-      LOG(WARNING) << "`skip_drop` is deprecated and is ignored because `dropout_rate` is set.";
+      LOG(WARNING) << "`rate_drop` is deprecated and is ignored because `tree_subsample` is set. "
+                      "See https://github.com/dmlc/xgboost/issues/12339.";
     }
   }
-  for (auto const* unused : {"rate_drop", "one_drop", "sample_type", "normalize_type"}) {
+  for (auto const* unused : {"one_drop", "sample_type", "normalize_type", "skip_drop"}) {
     if (has_param(unused)) {
       LOG(WARNING) << "`" << unused
-                   << "` is no longer used and will be removed in a future release.";
+                   << "` is no longer used and will be removed in a future release. Legacy DART "
+                      "normalization has been removed; see "
+                      "https://github.com/dmlc/xgboost/issues/12339.";
     }
   }
   used.merge(UpdateAndGetUsedParameters(&tree_param_, cfg));
@@ -297,7 +304,7 @@ void GBTree::DoBoost(std::shared_ptr<DMatrix> p_fmat, GradientContainer* in_gpai
 
   monitor_.Stop("BoostNewTrees");
   this->CommitModel(std::move(new_trees));
-  if (dparam_.HasDropout()) {
+  if (dparam_.HasTreeSubsample()) {
     // The cache contains a sampled training margin plus the new tree, not a prefix of the
     // committed fixed-weight model.
     predt->Reset();
@@ -494,18 +501,18 @@ void GBTree::SaveModel(Json* p_out) const {
   model_.SaveModel(&out["model"]);
 }
 
-std::vector<float> GBTree::DropoutWeights(bool is_training) {
-  if (!is_training || !dparam_.HasDropout() || model_.trees.empty()) {
+std::vector<float> GBTree::TreeSubsampleWeights(bool is_training) {
+  if (!is_training || !dparam_.HasTreeSubsample() || model_.trees.empty()) {
     return {};
   }
 
   std::vector<float> weights(model_.trees.size(), 1.0f);
   std::copy(model_.weight_drop.cbegin(), model_.weight_drop.cend(), weights.begin());
 
-  std::bernoulli_distribution drop_tree{dparam_.dropout_rate};
+  std::bernoulli_distribution retain_tree{dparam_.tree_subsample};
   auto& rnd = ctx_->Rng();
   for (auto& weight : weights) {
-    if (drop_tree(rnd)) {
+    if (!retain_tree(rnd)) {
       weight = 0.0f;
     }
   }
@@ -577,9 +584,9 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<float>* out_preds,
                           bool is_training, bst_layer_t layer_begin, bst_layer_t layer_end) {
   auto cache = prediction_cache_.Cache(p_fmat, ctx_->Device());
-  auto dropout_weights = this->DropoutWeights(is_training);
+  auto sampled_weights = this->TreeSubsampleWeights(is_training);
   std::vector<float> const* tree_weights_override =
-      dropout_weights.empty() ? nullptr : &dropout_weights;
+      sampled_weights.empty() ? nullptr : &sampled_weights;
 
   // An ordinary prediction can reuse a cached prefix of the model output. A randomly masked
   // training prediction and a legacy weighted model cannot participate in this cache.
@@ -621,7 +628,7 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
 
   if (tree_weights_override) {
     // Protect the base score or base margin from the normalization applied below.
-    ScalePrediction(ctx_, &cache->predictions, 1.0f - dparam_.dropout_rate);
+    ScalePrediction(ctx_, &cache->predictions, dparam_.tree_subsample);
   }
 
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, prediction_begin, layer_end);
@@ -631,7 +638,7 @@ void GBTree::PredictBatch(std::shared_ptr<DMatrix> p_fmat, HostDeviceVector<floa
                             tree_weights_override);
   }
   if (tree_weights_override) {
-    ScalePrediction(ctx_, &cache->predictions, detail::DropoutScale(dparam_.dropout_rate));
+    ScalePrediction(ctx_, &cache->predictions, detail::TreeSubsampleScale(dparam_.tree_subsample));
   }
 
   if (!preserve_cache) {

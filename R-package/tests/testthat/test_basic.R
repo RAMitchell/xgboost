@@ -65,7 +65,7 @@ test_that("parameter validation works", {
     params <- list(
       max_depth = 2,
       booster = "gbtree",
-      dropout_rate = 0.5,
+      tree_subsample = 0.5,
       nthread = n_threads,
       objective = "reg:squarederror"
     )
@@ -76,7 +76,7 @@ test_that("parameter validation works", {
     params <- list(
       max_depth = 2,
       booster = "gbtree",
-      dropout_rate = 0.5,
+      tree_subsample = 0.5,
       objective = "reg:squarederror",
       nthread = n_threads,
       foo = "bar",
@@ -92,7 +92,7 @@ test_that("parameter validation works", {
 })
 
 
-test_that("dropout prediction works", {
+test_that("tree-subsampled prediction works", {
   nrounds <- 32
   set.seed(1994)
 
@@ -112,7 +112,7 @@ test_that("dropout prediction works", {
     params = xgb.params(
       max_depth = 2,
       booster = "gbtree",
-      dropout_rate = 0.5,
+      tree_subsample = 0.5,
       learning_rate = 1,
       nthread = n_threads,
       objective = "reg:squarederror"
@@ -132,7 +132,7 @@ test_that("dropout prediction works", {
       booster = "gbtree",
       max_depth = 2,
       learning_rate = 1,
-      dropout_rate = 0.5,
+      tree_subsample = 0.5,
       nthread = n_threads,
       objective = "reg:squarederror"
     ),
