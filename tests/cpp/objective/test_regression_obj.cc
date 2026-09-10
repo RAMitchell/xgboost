@@ -10,6 +10,7 @@
 #include <xgboost/tree_model.h>  // for RegTree
 
 #include <cmath>    // for hypot, sqrt
+#include <limits>   // for numeric_limits
 #include <memory>   // for unique_ptr
 #include <utility>  // for pair
 
@@ -80,6 +81,28 @@ void TestSquaredLog(const Context* ctx) {
                    { 1.3205f,  1.0492f,  0.69215f,  0.34115f, 0.1091f});
   // clang-format on
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
+
+  MetaInfo info;
+  info.num_row_ = 3;
+  info.labels =
+      linalg::Tensor<float, 2>{{0.0f, 3.0f, 3.0f, 3.0f, 15.0f, 3.0f}, {3, 2}, ctx->Device()};
+  linalg::Vector<float> base_score;
+  obj->InitEstimation(info, &base_score);
+  ASSERT_EQ(base_score.Size(), 2);
+  ASSERT_NEAR(base_score(0), 3.0f, kRtEps);
+  ASSERT_NEAR(base_score(1), 3.0f, kRtEps);
+
+  info.weights_ = HostDeviceVector<float>{{1.0f, 1.0f, 2.0f}, ctx->Device()};
+  obj->InitEstimation(info, &base_score);
+  ASSERT_NEAR(base_score(0), std::expm1(2.5f * std::log(2.0f)), kRtEps);
+  ASSERT_NEAR(base_score(1), 3.0f, kRtEps);
+
+  info.num_row_ = 1;
+  info.labels =
+      linalg::Tensor<float, 2>{{std::numeric_limits<float>::max()}, {1, 1}, ctx->Device()};
+  info.weights_.HostVector().clear();
+  obj->InitEstimation(info, &base_score);
+  ASSERT_EQ(base_score(0), std::numeric_limits<float>::max());
 }
 
 void TestLogisticRegressionGPair(const Context* ctx) {
