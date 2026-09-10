@@ -22,7 +22,8 @@
 #include "../common/quantile_loss_utils.h"  // for QuantileLossParam
 #include "../common/threading_utils.h"      // for ParallelFor
 #include "../common/transform.h"            // for Transform
-#include "init_estimation.h"                // for CheckInitInputs, FitIntercept
+#include "init_estimation.h"                // for CheckInitInputs
+#include "radix_select.h"                   // for RadixSelect
 #include "xgboost/json.h"                   // for FromJson, Json, Object, String, ToJson
 #include "xgboost/logging.h"                // for CHECK
 #include "xgboost/objective.h"              // for ObjFunction
@@ -150,7 +151,7 @@ const auto kRegisterQuantileTransformCpu =
     common::KernelRegistration<QuantileTransformKernel>{DeviceOrd::kCPU, &QuantileTransformCpu};
 }  // namespace
 
-class QuantileRegression : public FitIntercept {
+class QuantileRegression : public ObjFunction {
   common::QuantileLossParam param_;
   HostDeviceVector<float> alpha_;
 
@@ -183,6 +184,13 @@ class QuantileRegression : public FitIntercept {
         << "Multi-target for quantile regression is not yet supported.";
 
     common::DispatchKernel<QuantileGradientKernel>(ctx_, preds, info, n_targets, alpha_, out_gpair);
+  }
+
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    CheckInitInputs(info);
+    auto n_targets = this->Targets(info);
+    RadixSelect(ctx_, info.labels, info.weights_, alpha_, n_targets, base_score);
+    CHECK_EQ(base_score->Size(), n_targets);
   }
 
   void PredTransform(HostDeviceVector<float>* predictions) const override {
