@@ -31,6 +31,8 @@ void TestTweedieRegressionBasic(const Context* ctx);
 
 void TestCoxRegressionGPair(const Context* ctx);
 
+void TestCoxRegressionInitEstimation(const Context* ctx);
+
 void TestAbsoluteError(const Context* ctx);
 
 void TestPseudoHuber(const Context* ctx);

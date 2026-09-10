@@ -321,6 +321,20 @@ void TestCoxRegressionGPair(const Context* ctx) {
   // clang-format on
 }
 
+void TestCoxRegressionInitEstimation(const Context* ctx) {
+  std::unique_ptr<ObjFunction> obj{ObjFunction::Create("survival:cox", ctx)};
+  obj->Configure({});
+
+  MetaInfo info;
+  info.num_row_ = 4;
+  info.labels = linalg::Tensor<float, 2>{{1.0f, -2.0f, 3.0f, -4.0f}, {4, 1}, ctx->Device()};
+
+  linalg::Vector<float> base_score;
+  obj->InitEstimation(info, &base_score);
+  ASSERT_EQ(base_score.Size(), 1);
+  ASSERT_FLOAT_EQ(base_score(0), 1.0f);
+}
+
 void TestAbsoluteError(const Context* ctx) {
   std::unique_ptr<ObjFunction> obj{ObjFunction::Create("reg:absoluteerror", ctx)};
   obj->Configure({});

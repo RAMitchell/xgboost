@@ -140,6 +140,11 @@ TEST(Objective, CoxRegressionGPair) {
   Context ctx = MakeCUDACtx(GPUIDX);
   TestCoxRegressionGPair(&ctx);
 }
+
+TEST(Objective, CoxRegressionInitEstimation) {
+  Context ctx = MakeCUDACtx(GPUIDX);
+  TestCoxRegressionInitEstimation(&ctx);
+}
 #endif
 
 TEST(Objective, DeclareUnifiedTest(AbsoluteError)) {
