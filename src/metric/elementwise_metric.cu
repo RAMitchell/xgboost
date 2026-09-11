@@ -8,11 +8,6 @@
  */
 #include <dmlc/registry.h>
 
-#include "elementwise_metric.h"
-#if defined(XGBOOST_USE_CUDA)
-#include "elementwise_metric.cuh"
-#endif  // defined(XGBOOST_USE_CUDA)
-
 #include <array>
 #include <cmath>
 #include <numeric>  // for accumulate
@@ -40,14 +35,8 @@
 #endif                         // XGBOOST_USE_CUDA
 
 namespace xgboost::metric {
-#if defined(XGBOOST_USE_CUDA)
-DMLC_REGISTRY_FILE_TAG(elementwise_metric_cuda);
-
-namespace {
-auto const kRegisterRMSECuda = elementwise::RegisterEvalCuda<EvalRowRMSE>();
-auto const kRegisterRMSLECuda = elementwise::RegisterEvalCuda<EvalRowRMSLE>();
-}  // namespace
-#endif  // defined(XGBOOST_USE_CUDA)
+// tag the this file, used by force static link later.
+DMLC_REGISTRY_FILE_TAG(elementwise_metric);
 
 namespace {
 /**

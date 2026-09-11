@@ -1,7 +1,7 @@
 /**
- * Copyright 2015-2026, XGBoost Contributors
+ * Copyright 2026, XGBoost Contributors
  * \file elementwise_metric.cuh
- * \brief CUDA kernels for elementwise metrics.
+ * \brief CUDA implementations of the typed elementwise metric kernels.
  */
 #ifndef XGBOOST_METRIC_ELEMENTWISE_METRIC_CUH_
 #define XGBOOST_METRIC_ELEMENTWISE_METRIC_CUH_
@@ -16,18 +16,14 @@
 #include "../common/kernel.h"           // for KernelRegistration
 #include "../common/optional_weight.h"  // for MakeOptionalWeights
 #include "elementwise_metric.h"
-#include "xgboost/context.h"             // for Context, DeviceOrd
-#include "xgboost/host_device_vector.h"  // for HostDeviceVector
-#include "xgboost/linalg.h"              // for UnravelIndex
 
 namespace xgboost::metric::elementwise {
 namespace detail {
-template <typename Policy>
+template <typename EvalFn>
 PackedReduceResult EvalCuda(Context const* ctx, HostDeviceVector<float> const& preds,
-                            MetaInfo const& info, Policy policy) {
+                            MetaInfo const& info, EvalFn eval) {
   auto device = ctx->Device();
   CHECK(device.IsCUDA());
-  CheckRowWeights(info);
 
   auto labels = info.labels.View(device);
   preds.SetDevice(device);
@@ -41,17 +37,17 @@ PackedReduceResult EvalCuda(Context const* ctx, HostDeviceVector<float> const& p
       [=] XGBOOST_DEVICE(std::size_t i) {
         auto [sample_id, target_id] = linalg::UnravelIndex(i, labels.Shape());
         float weight = weights[sample_id];
-        float residue = policy.EvalRow(labels(sample_id, target_id), predts[i]) * weight;
+        float residue = eval(labels(sample_id, target_id), predts[i]) * weight;
         return PackedReduceResult{residue, weight};
       },
       PackedReduceResult{}, thrust::plus<PackedReduceResult>());
 }
 }  // namespace detail
 
-template <typename Policy>
+template <typename EvalFn>
 auto RegisterEvalCuda() {
-  using Kernel = EvalKernel<Policy>;
-  return common::KernelRegistration<Kernel>{DeviceOrd::kCUDA, &detail::EvalCuda<Policy>};
+  using Kernel = EvalKernel<EvalFn>;
+  return common::KernelRegistration<Kernel>{DeviceOrd::kCUDA, &detail::EvalCuda<EvalFn>};
 }
 }  // namespace xgboost::metric::elementwise
 
