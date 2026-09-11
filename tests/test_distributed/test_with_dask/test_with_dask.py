@@ -950,6 +950,9 @@ def test_empty_dmatrix(tree_method: str, client: "Client") -> None:
     run_empty_dmatrix_cls(client, parameters)
     parameters = {"tree_method": tree_method, "objective": "reg:absoluteerror"}
     run_empty_dmatrix_reg(client, parameters)
+    parameters = {"tree_method": tree_method, "objective": "reg:quantileerror"}
+    parameters["quantile_alpha"] = 0.5
+    run_empty_dmatrix_reg(client, parameters)
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
@@ -1573,14 +1576,8 @@ class TestWithDask:
                 )
                 config = json.loads(booster.save_config())
                 base_score = get_basescore(config)
-                mean = 250.0
-                residuals = np.array([mean, mean, mean, mean - 1000.0])
-                delta = np.mean(np.sqrt(np.abs(residuals))) ** 2
-                curvature = delta / np.hypot(delta, residuals)
-                expected_base_score = mean - np.sum(residuals * curvature) / np.sum(
-                    curvature
-                )
-                np.testing.assert_allclose(base_score, [expected_base_score], rtol=1e-5)
+                # Exact absolute-error initialization uses the lower weighted median.
+                np.testing.assert_allclose(base_score, [0.0], rtol=1e-5)
 
                 # The smooth approximation scale must be global. Worker 0 has only zero
                 # residuals while worker 1 has one residual of -1000. A local scale would

@@ -94,9 +94,53 @@ TEST(ObjectiveRadixSelect, Distributed) {
 }
 
 TEST(ObjectiveRadixSelect, DistributedAbsoluteError) {
+  constexpr bst_target_t n_targets{3};
   auto n_workers =
       static_cast<int>(std::max(1u, std::min(4u, std::thread::hardware_concurrency())));
-  collective::TestDistributedGlobal(n_workers, [n_workers] {
+  collective::TestDistributedGlobal(n_workers, [n_workers, n_targets] {
+    auto rank = collective::GetRank();
+    Context ctx;
+    collective::GetWorkerLocalThreads(collective::GetWorldSize(), &ctx);
+    auto empty = n_workers > 1 && rank == n_workers - 1;
+
+    MetaInfo info;
+    info.num_row_ = empty ? 0 : 2;
+    info.labels.ModifyInplace(
+        [&](HostDeviceVector<float>* labels, common::Span<std::size_t> shape) {
+          labels->Resize(info.num_row_ * n_targets);
+          shape[0] = info.num_row_;
+          shape[1] = empty ? 0 : n_targets;
+          if (!empty) {
+            auto first = static_cast<float>(2 * rank);
+            labels->HostVector() = {first,        first + 100.0f, first + 200.0f,
+                                    first + 1.0f, first + 101.0f, first + 201.0f};
+          }
+        });
+
+    std::unique_ptr<ObjFunction> objective{ObjFunction::Create("reg:absoluteerror", &ctx)};
+    objective->Configure({});
+    linalg::Vector<float> base_score;
+    objective->InitEstimation(info, &base_score);
+
+    ASSERT_EQ(base_score.Size(), n_targets);
+    auto n_values = 2 * (n_workers > 1 ? n_workers - 1 : 1);
+    auto expected = static_cast<float>(n_values / 2 - 1);
+    for (bst_target_t target{0}; target < n_targets; ++target) {
+      ASSERT_EQ(base_score(target), expected + 100.0f * target);
+    }
+
+    HostDeviceVector<float> predictions(info.num_row_ * n_targets, 0.0f);
+    linalg::Matrix<GradientPair> gpair;
+    objective->GetGradient(predictions, info, 0, &gpair);
+    ASSERT_EQ(gpair.Shape(1), n_targets);
+  });
+}
+
+TEST(ObjectiveRadixSelect, DistributedQuantile) {
+  constexpr bst_target_t n_targets{3};
+  auto n_workers =
+      static_cast<int>(std::max(1u, std::min(4u, std::thread::hardware_concurrency())));
+  collective::TestDistributedGlobal(n_workers, [n_workers, n_targets] {
     auto rank = collective::GetRank();
     Context ctx;
     collective::GetWorkerLocalThreads(collective::GetWorldSize(), &ctx);
@@ -115,15 +159,21 @@ TEST(ObjectiveRadixSelect, DistributedAbsoluteError) {
           }
         });
 
-    std::unique_ptr<ObjFunction> objective{ObjFunction::Create("reg:absoluteerror", &ctx)};
-    objective->Configure({});
+    std::unique_ptr<ObjFunction> objective{ObjFunction::Create("reg:quantileerror", &ctx)};
+    objective->Configure({{"quantile_alpha", "[0.25, 0.5, 0.75]"}});
     linalg::Vector<float> base_score;
     objective->InitEstimation(info, &base_score);
 
-    ASSERT_EQ(base_score.Size(), 1);
+    ASSERT_EQ(base_score.Size(), n_targets);
     auto n_values = 2 * (n_workers > 1 ? n_workers - 1 : 1);
-    auto expected = static_cast<float>(n_values / 2 - 1);
-    ASSERT_EQ(base_score(0), expected);
+    ASSERT_EQ(base_score(0), static_cast<float>((n_values + 3) / 4 - 1));
+    ASSERT_EQ(base_score(1), static_cast<float>(n_values / 2 - 1));
+    ASSERT_EQ(base_score(2), static_cast<float>((3 * n_values + 3) / 4 - 1));
+
+    HostDeviceVector<float> predictions(info.num_row_ * n_targets, 0.0f);
+    linalg::Matrix<GradientPair> gpair;
+    objective->GetGradient(predictions, info, 0, &gpair);
+    ASSERT_EQ(gpair.Shape(1), n_targets);
   });
 }
 }  // namespace xgboost::obj
