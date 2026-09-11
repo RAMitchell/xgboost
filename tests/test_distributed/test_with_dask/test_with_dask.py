@@ -950,9 +950,14 @@ def test_empty_dmatrix(tree_method: str, client: "Client") -> None:
     run_empty_dmatrix_cls(client, parameters)
     parameters = {"tree_method": tree_method, "objective": "reg:absoluteerror"}
     run_empty_dmatrix_reg(client, parameters)
-    parameters = {"tree_method": tree_method, "objective": "reg:quantileerror"}
-    parameters["quantile_alpha"] = 0.5
-    run_empty_dmatrix_reg(client, parameters)
+    run_empty_dmatrix_reg(
+        client,
+        {
+            "tree_method": tree_method,
+            "objective": "reg:quantileerror",
+            "quantile_alpha": 0.5,
+        },
+    )
 
 
 async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
