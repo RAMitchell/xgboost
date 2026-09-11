@@ -62,7 +62,8 @@ TEST(ObjectiveRadixSelect, Select) {
 }
 
 TEST(ObjectiveRadixSelect, Distributed) {
-  auto n_workers = std::max(1u, std::min(4u, std::thread::hardware_concurrency()));
+  auto n_workers =
+      static_cast<int>(std::max(1u, std::min(4u, std::thread::hardware_concurrency())));
   collective::TestDistributedGlobal(n_workers, [n_workers] {
     auto rank = collective::GetRank();
     Context ctx;
@@ -93,7 +94,8 @@ TEST(ObjectiveRadixSelect, Distributed) {
 }
 
 TEST(ObjectiveRadixSelect, DistributedAbsoluteError) {
-  auto n_workers = std::max(1u, std::min(4u, std::thread::hardware_concurrency()));
+  auto n_workers =
+      static_cast<int>(std::max(1u, std::min(4u, std::thread::hardware_concurrency())));
   collective::TestDistributedGlobal(n_workers, [n_workers] {
     auto rank = collective::GetRank();
     Context ctx;
