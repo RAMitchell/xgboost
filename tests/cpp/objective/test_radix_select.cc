@@ -14,6 +14,7 @@
 #include "xgboost/context.h"             // for Context
 #include "xgboost/data.h"                // for MetaInfo
 #include "xgboost/host_device_vector.h"  // for HostDeviceVector
+#include "xgboost/learner.h"             // for Learner
 #include "xgboost/linalg.h"              // for Matrix, Vector
 #include "xgboost/objective.h"           // for ObjFunction
 
@@ -133,6 +134,30 @@ TEST(ObjectiveRadixSelect, DistributedAbsoluteError) {
     linalg::Matrix<GradientPair> gpair;
     objective->GetGradient(predictions, info, 0, &gpair);
     ASSERT_EQ(gpair.Shape(1), n_targets);
+  });
+}
+
+TEST(ObjectiveRadixSelect, DistributedAbsoluteErrorLearner) {
+  constexpr bst_target_t n_targets{3};
+  constexpr auto n_workers = 2;
+  collective::TestDistributedGlobal(n_workers, [n_workers, n_targets] {
+    auto rank = collective::GetRank();
+    auto empty = n_workers > 1 && rank == n_workers - 1;
+    auto Xy =
+        RandomDataGenerator{empty ? 0ul : 2ul, 1, 0.0f}.Targets(n_targets).GenerateDMatrix(!empty);
+
+    std::unique_ptr<Learner> learner{Learner::Create({Xy})};
+    learner->Configure({{"objective", "reg:absoluteerror"},
+                        {"tree_method", "hist"},
+                        {"max_depth", "1"},
+                        {"min_child_weight", "0"}});
+    learner->UpdateOneIter(0, Xy);
+
+    ASSERT_EQ(learner->Groups(), n_targets);
+    Json config{Object{}};
+    learner->SaveConfig(&config);
+    auto base_score = GetBaseScore(config);
+    ASSERT_EQ(base_score.size(), n_targets);
   });
 }
 

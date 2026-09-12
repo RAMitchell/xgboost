@@ -735,17 +735,27 @@ def test_empty_dmatrix_training_continuation(client: "Client") -> None:
     assert dxgb.predict(client, out, dtrain).compute().shape[0] == 1
 
 
-def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
+def run_empty_dmatrix_reg(
+    client: "Client", parameters: Dict[str, Any], n_targets: int = 1
+) -> None:
+    def _make_labels(n_rows: int) -> Any:
+        labels = np.random.rand(n_rows, n_targets)
+        if n_targets == 1:
+            labels = labels[:, 0]
+        return dd.from_array(labels)
+
     def _check_outputs(out: dxgb.TrainReturnT, predictions: np.ndarray) -> None:
         assert isinstance(out["booster"], dxgb.Booster)
         for _, v in out["history"]["validation"].items():
             assert len(v) == 2
         assert isinstance(predictions, np.ndarray)
         assert predictions.shape[0] == 1
+        if n_targets > 1:
+            assert predictions.shape[1] == n_targets
 
     kRows, kCols = 1, 97
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     dtrain = dxgb.DaskDMatrix(client, X, y)
 
     out = dxgb.train(
@@ -761,7 +771,7 @@ def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
     # valid has more rows than train
     kRows += 1
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     valid = dxgb.DaskDMatrix(client, X, y)
     out = dxgb.train(
         client,
@@ -777,7 +787,7 @@ def run_empty_dmatrix_reg(client: "Client", parameters: dict) -> None:
     valid = dtrain
     kRows += 1
     X = dd.from_array(np.random.randn(kRows, kCols))
-    y = dd.from_array(np.random.rand(kRows))
+    y = _make_labels(kRows)
     dtrain = dxgb.DaskDMatrix(client, X, y)
 
     out = dxgb.train(
@@ -950,6 +960,7 @@ def test_empty_dmatrix(tree_method: str, client: "Client") -> None:
     run_empty_dmatrix_cls(client, parameters)
     parameters = {"tree_method": tree_method, "objective": "reg:absoluteerror"}
     run_empty_dmatrix_reg(client, parameters)
+    run_empty_dmatrix_reg(client, parameters, n_targets=3)
     run_empty_dmatrix_reg(
         client,
         {

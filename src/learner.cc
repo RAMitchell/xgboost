@@ -29,6 +29,7 @@
 #include <utility>        // for pair, as_const, move, swap
 #include <vector>         // for vector
 
+#include "collective/aggregator.h"        // for GlobalMax
 #include "collective/allreduce.h"         // for Allreduce, SafeColl
 #include "collective/broadcast.h"         // for Broadcast
 #include "collective/communicator-inl.h"  // for GetRank, IsDistributed
@@ -345,7 +346,18 @@ class LearnerModelStateContainer : public Learner {
 
   [[nodiscard]] bst_target_t InitNumTargets(DMatrix const& train, CacheT const& cache) const {
     CHECK(this->obj_);
-    auto n_targets = this->obj_->Targets(train.Info());
+    auto local_n_targets = this->obj_->Targets(train.Info());
+    auto n_targets = local_n_targets;
+    // An empty distributed worker can have no label columns and report the single-target
+    // fallback. Agree on the target count before sizing the model and its intercept.
+    if (!model_state_.Initialized()) {
+      n_targets = collective::GlobalMax(Ctx(), n_targets);
+      auto inconsistent =
+          static_cast<std::int32_t>(local_n_targets != n_targets && train.Info().num_row_ != 0);
+      inconsistent = collective::GlobalMax(Ctx(), inconsistent);
+      CHECK_EQ(inconsistent, 0) << "Inconsistent number of targets across workers.";
+    }
+
     for (auto const& weak : cache) {
       auto d = weak.lock();
       if (!d) {
