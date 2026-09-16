@@ -636,21 +636,20 @@ void TestExpectileRegressionInitEstimation(const Context* ctx) {
   linalg::Vector<float> base_scores;
   obj->InitEstimation(info, &base_scores);
   ASSERT_EQ(base_scores.Size(), 2);
-  auto one_step = [&](float alpha) {
+  auto gradient = [&](float alpha, double value) {
     double sum_w = 0.0;
     double sum_wy = 0.0;
-    double mean = 4.5;
     for (std::size_t i = 0; i < info.num_row_; ++i) {
       double label = static_cast<double>(i);
-      double diff = mean - label;
+      double diff = value - label;
       double w = diff >= 0.0 ? (1.0 - alpha) : alpha;
       sum_w += w;
       sum_wy += w * label;
     }
-    return static_cast<float>(sum_wy / sum_w);
+    return value * sum_w - sum_wy;
   };
-  ASSERT_NEAR(base_scores(0), one_step(0.2f), kRtEps);
-  ASSERT_NEAR(base_scores(1), one_step(0.8f), kRtEps);
+  ASSERT_NEAR(gradient(0.2f, base_scores(0)), 0.0, 1e-4);
+  ASSERT_NEAR(gradient(0.8f, base_scores(1)), 0.0, 1e-4);
 }
 
 void TestPseudoHuber(const Context* ctx) {

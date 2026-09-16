@@ -548,6 +548,9 @@ Parameter for using Pseudo-Huber (``reg:pseudohubererror``)
 
 * ``huber_slope`` : A parameter used for Pseudo-Huber loss to define the :math:`\delta` term. [default = 1.0]
 
+The intercept is fitted by an iterative root solver, accounting for sample weights. In distributed
+training, the solver fits the combined data across all workers.
+
 Parameter for using Quantile Loss (``reg:quantileerror``)
 =========================================================
 
@@ -557,6 +560,9 @@ Parameter for using Quantile Loss (``reg:quantileerror``)
 
 Parameter for using Expectile Loss (``reg:expectileerror``)
 ===========================================================
+
+The initial prediction for each alpha is fitted by an iterative root solver, accounting for
+sample weights. In distributed training, the solver fits the combined data across all workers.
 
 * ``expectile_alpha``: A scalar or a list of targeted expectiles. Range: [0, 1]. Required for
   ``reg:expectileerror``.

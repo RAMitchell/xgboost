@@ -9,16 +9,16 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <vector>
 
 #include "../common/expectile_loss_utils.h"
 #include "../common/kernel.h"
 #include "../common/linalg_op.h"
 #include "../common/math.h"
 #include "../common/optional_weight.h"
-#include "../common/stats.h"
 #include "../common/threading_utils.h"
-#include "../tree/fit_stump.h"
 #include "init_estimation.h"
+#include "intercept_solver.h"
 #include "xgboost/json.h"
 #include "xgboost/objective.h"
 
@@ -61,39 +61,6 @@ void ExpectileGradientCpu(Context const* ctx, HostDeviceVector<float> const& pre
       });
 }
 
-void ExpectileInitEstimationCpu(Context const* ctx, MetaInfo const& info,
-                                HostDeviceVector<float> const& alpha, bst_target_t n_targets,
-                                linalg::Vector<float>* base_score) {
-  linalg::Vector<float> label_mean;
-  if (info.weights_.Empty()) {
-    common::SampleMean(ctx, info.labels, &label_mean);
-  } else {
-    common::WeightedSampleMean(ctx, info.labels, info.weights_, &label_mean);
-  }
-  CHECK_EQ(label_mean.Size(), 1);
-  auto mean = label_mean.HostView()(0);
-  auto labels = info.labels.HostView();
-  auto weights = common::MakeOptionalWeights(DeviceOrd::CPU(), info.weights_);
-  auto alpha_h = alpha.ConstHostSpan();
-  linalg::Matrix<GradientPair> gpair;
-  gpair.Reshape(info.num_row_, n_targets);
-  auto gpair_h = gpair.HostView();
-  linalg::cpu_impl::ElementWiseKernel(
-      gpair_h, ctx->Threads(), [=](std::size_t i, std::size_t j) mutable {
-        auto diff = mean - labels(i, 0);
-        auto weight_scale = diff >= 0.0f ? 1.0f - alpha_h[j] : alpha_h[j];
-        gpair_h(i, j) = {weight_scale * diff * weights[i], weight_scale * weights[i]};
-      });
-  tree::FitStump(ctx, gpair, n_targets, base_score);
-  auto out = base_score->HostView();
-  for (std::size_t j{0}; j < n_targets; ++j) {
-    out(j) += mean;
-  }
-  for (std::size_t j{1}; j < n_targets; ++j) {
-    out(j) = std::max(out(j), out(j - 1));
-  }
-}
-
 void ExpectilePredTransformCpu(Context const* ctx, HostDeviceVector<float>* predictions,
                                std::size_t n_alphas) {
   auto n_samples = predictions->Size() / n_alphas;
@@ -110,20 +77,19 @@ void ExpectilePredTransformCpu(Context const* ctx, HostDeviceVector<float>* pred
 
 auto const kRegisterGradient =
     common::KernelRegistration<ExpectileGradientKernel>{DeviceOrd::kCPU, &ExpectileGradientCpu};
-auto const kRegisterInit = common::KernelRegistration<ExpectileInitEstimationKernel>{
-    DeviceOrd::kCPU, &ExpectileInitEstimationCpu};
 auto const kRegisterTransform = common::KernelRegistration<ExpectilePredTransformKernel>{
     DeviceOrd::kCPU, &ExpectilePredTransformCpu};
 }  // namespace
 
-class ExpectileRegression : public FitIntercept {
+class ExpectileRegression : public ObjFunction {
   common::ExpectileLossParam param_;
   HostDeviceVector<float> alpha_;
 
   bst_target_t Targets(MetaInfo const& info) const override {
     auto const& alpha = param_.expectile_alpha.Get();
     CHECK_EQ(alpha.size(), alpha_.Size()) << "The objective is not yet configured.";
-    CHECK_EQ(info.labels.Shape(1), 1) << "Multi-target is not yet supported by the expectile loss.";
+    CHECK(info.labels.Shape(1) == 1 || (info.num_row_ == 0 && info.labels.Shape(1) == 0))
+        << "Multi-target is not yet supported by the expectile loss.";
     CHECK(!alpha.empty());
     return alpha_.Size();
   }
@@ -147,11 +113,10 @@ class ExpectileRegression : public FitIntercept {
                                                     out_gpair);
   }
   void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
-    auto n_targets = this->Targets(info);
-    base_score->SetDevice(ctx_->Device());
-    base_score->Reshape(n_targets);
-    common::DispatchKernel<ExpectileInitEstimationKernel>(ctx_, info, alpha_, n_targets,
-                                                          base_score);
+    this->Targets(info);
+    auto const& alpha = alpha_.ConstHostVector();
+    std::vector<double> parameters(alpha.cbegin(), alpha.cend());
+    FitInterceptRoot(ctx_, info, InterceptLoss::kExpectile, parameters, base_score);
   }
   void PredTransform(HostDeviceVector<float>* predictions) const override {
     CHECK_NE(alpha_.Size(), 0);

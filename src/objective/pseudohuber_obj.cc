@@ -8,14 +8,17 @@
 #include <dmlc/registry.h>
 
 #include <algorithm>  // for max
-#include <cstddef>    // for size_t
-#include <cstdint>    // for int32_t
+#include <cmath>
+#include <cstddef>  // for size_t
+#include <cstdint>  // for int32_t
+#include <vector>
 
 #include "../common/kernel.h"        // for DispatchKernel
 #include "../common/pseudo_huber.h"  // for PseudoHuberParam
-#include "init_estimation.h"         // for CheckInitInputs, FitIntercept
-#include "xgboost/json.h"            // for FromJson, Json, Object, String, ToJson
-#include "xgboost/objective.h"       // for ObjFunction
+#include "init_estimation.h"         // for CheckInitInputs
+#include "intercept_solver.h"
+#include "xgboost/json.h"       // for FromJson, Json, Object, String, ToJson
+#include "xgboost/objective.h"  // for ObjFunction
 
 namespace xgboost::obj {
 DMLC_REGISTRY_FILE_TAG(pseudohuber_obj);
@@ -25,7 +28,7 @@ auto const kRegisterPseudoHuberGradientCpu =
     elementwise::RegisterGradientCpu<PseudoHuberGradient>();
 }  // namespace
 
-class PseudoHuberRegression : public FitIntercept {
+class PseudoHuberRegression : public ObjFunction {
   PseudoHuberParam param_;
 
  public:
@@ -45,6 +48,11 @@ class PseudoHuberRegression : public FitIntercept {
     CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";
     common::DispatchKernel<PseudoHuberGradientKernel>(ctx_, preds, info, this->Targets(info),
                                                       PseudoHuberGradient{slope}, out_gpair);
+  }
+
+  void InitEstimation(MetaInfo const& info, linalg::Vector<float>* base_score) const override {
+    std::vector<double> parameters(this->Targets(info), std::abs(param_.huber_slope));
+    FitInterceptRoot(ctx_, info, InterceptLoss::kPseudoHuber, parameters, base_score);
   }
 
   [[nodiscard]] const char* DefaultEvalMetric() const override { return "mphe"; }

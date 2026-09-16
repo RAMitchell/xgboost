@@ -13,8 +13,6 @@
 #include "../common/linalg_op.cuh"
 #include "../common/math.h"
 #include "../common/optional_weight.h"
-#include "../common/stats.h"
-#include "../tree/fit_stump.h"
 #include "expectile_obj.h"
 
 namespace xgboost::obj {
@@ -60,50 +58,6 @@ void ExpectileGradientCuda(Context const* ctx, HostDeviceVector<float> const& pr
       ctx->CUDACtx()->Stream());
 }
 
-void ExpectileInitEstimationCuda(Context const* ctx, MetaInfo const& info,
-                                 HostDeviceVector<float> const& alpha, bst_target_t n_targets,
-                                 linalg::Vector<float>* base_score) {
-  auto device = ctx->Device();
-  CHECK(device.IsCUDA());
-  linalg::Vector<float> label_mean;
-  if (info.weights_.Empty()) {
-    common::SampleMean(ctx, info.labels, &label_mean);
-  } else {
-    common::WeightedSampleMean(ctx, info.labels, info.weights_, &label_mean);
-  }
-  CHECK_EQ(label_mean.Size(), 1);
-  auto mean = label_mean.View(device);
-
-  alpha.SetDevice(device);
-  auto alpha_d = alpha.ConstDeviceSpan();
-  auto labels = info.labels.View(device);
-  auto weights = common::MakeOptionalWeights(device, info.weights_);
-  linalg::Matrix<GradientPair> gpair;
-  gpair.SetDevice(device);
-  gpair.Reshape(info.num_row_, n_targets);
-  auto gpair_d = gpair.View(device);
-  linalg::cuda_impl::ElementWiseKernel(
-      gpair_d,
-      [=] XGBOOST_DEVICE(std::size_t i, std::size_t j) mutable {
-        auto diff = mean(0) - labels(i, 0);
-        auto weight_scale = diff >= 0.0f ? 1.0f - alpha_d[j] : alpha_d[j];
-        gpair_d(i, j) = {weight_scale * diff * weights[i], weight_scale * weights[i]};
-      },
-      ctx->CUDACtx()->Stream());
-
-  tree::FitStump(ctx, gpair, n_targets, base_score);
-  auto out = base_score->View(device);
-  dh::LaunchN(1, ctx->CUDACtx()->Stream(), [=] XGBOOST_DEVICE(std::size_t) mutable {
-    auto mean_value = mean(0);
-    for (std::size_t j{0}; j < n_targets; ++j) {
-      out(j) += mean_value;
-    }
-    for (std::size_t j{1}; j < n_targets; ++j) {
-      out(j) = out(j) < out(j - 1) ? out(j - 1) : out(j);
-    }
-  });
-}
-
 void ExpectilePredTransformCuda(Context const* ctx, HostDeviceVector<float>* predictions,
                                 std::size_t n_alphas) {
   auto device = ctx->Device();
@@ -123,8 +77,6 @@ void ExpectilePredTransformCuda(Context const* ctx, HostDeviceVector<float>* pre
 
 auto const kRegisterGradientCuda =
     common::KernelRegistration<ExpectileGradientKernel>{DeviceOrd::kCUDA, &ExpectileGradientCuda};
-auto const kRegisterInitCuda = common::KernelRegistration<ExpectileInitEstimationKernel>{
-    DeviceOrd::kCUDA, &ExpectileInitEstimationCuda};
 auto const kRegisterTransformCuda = common::KernelRegistration<ExpectilePredTransformKernel>{
     DeviceOrd::kCUDA, &ExpectilePredTransformCuda};
 }  // namespace

@@ -18,10 +18,6 @@ struct ExpectileGradientKernel {
                          HostDeviceVector<float> const&, bst_target_t,
                          linalg::Matrix<GradientPair>*);
 };
-struct ExpectileInitEstimationKernel {
-  using Signature = void(Context const*, MetaInfo const&, HostDeviceVector<float> const&,
-                         bst_target_t, linalg::Vector<float>*);
-};
 struct ExpectilePredTransformKernel {
   using Signature = void(Context const*, HostDeviceVector<float>*, std::size_t);
 };
