@@ -1,6 +1,6 @@
 /**
  * Copyright 2026, XGBoost Contributors
- * \brief Bracketed intercept estimation without sorting or histograms.
+ * \brief Bracketed scalar intercept estimation without sorting or histograms.
  */
 #ifndef XGBOOST_OBJECTIVE_INTERCEPT_SOLVER_H_
 #define XGBOOST_OBJECTIVE_INTERCEPT_SOLVER_H_
@@ -64,8 +64,14 @@ struct InterceptStatsKernel {
 };
 
 /**
- * Solve the monotone intercept gradient for each output. Parameters are expectile alphas or
- * pseudo-Huber slopes; expectiles share one label column, while pseudo-Huber uses one per output.
+ * Solve a scalar intercept problem by finding a zero of its aggregate gradient. The method
+ * applies to continuous, monotone gradients with a finite root bracket. Row derivatives,
+ * initialization, and curvature bounds depend on the loss; independent outputs are solved
+ * separately, not as a coupled optimization problem.
+ *
+ * Currently implemented losses are expectile and pseudo-Huber. Their parameters are alphas
+ * and slopes, respectively; expectiles share one label column, while pseudo-Huber uses one
+ * per output. For these losses, the positive-weight label range provides the initial bracket.
  *
  * One initial pass supplies the mean and a bracket containing every positive-weight label.
  * Each subsequent pass sums gradient and Hessian in double precision. Newton steps outside
