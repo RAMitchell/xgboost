@@ -133,18 +133,12 @@ void TestDeterministicHistogram(bool is_dense, std::size_t shm_size, bool force_
         selected_h.push_back(f);
       }
     }
-    std::vector<bst_feature_t> group_ptr_h;
-    for (auto f : feature_groups.feature_segments.ConstHostVector()) {
-      group_ptr_h.push_back(std::lower_bound(selected_h.begin(), selected_h.end(), f) -
-                            selected_h.begin());
-    }
     dh::device_vector<bst_feature_t> selected(selected_h.begin(), selected_h.end());
-    dh::device_vector<bst_feature_t> group_ptr(group_ptr_h.begin(), group_ptr_h.end());
     dh::device_vector<GradientPairInt64> masked(num_bins);
     page->Visit(&ctx, {}, [&](auto&& acc) {
       builder.BuildHistogram(&ctx, acc, feature_groups.DeviceAccessor(ctx.Device()),
                              gpair.View(ctx.Device()).Values(), ridx, dh::ToSpan(masked),
-                             {dh::ToSpan(selected), dh::ToSpan(group_ptr)});
+                             dh::ToSpan(selected));
     });
     std::vector<GradientPairInt64> masked_h(num_bins);
     dh::safe_cuda(cudaMemcpy(masked_h.data(), masked.data().get(),

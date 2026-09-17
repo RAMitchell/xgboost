@@ -5,6 +5,7 @@
 #include <cuda/functional>       // for proclaim_copyable_arguments
 #include <cuda/std/type_traits>  // for cuda::std::alignment_of_v
 #include <memory>                // for unique_ptr
+#include <thrust/binary_search.h>  // for lower_bound
 
 #include "../../collective/aggregator.h"
 #include "../../common/cuda_context.cuh"  // for CUDAContext
@@ -132,19 +133,26 @@ __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT
 }
 
 // Build the histogram for a single target in a single node.
-template <typename Policy, bool kMasked = false, typename Accessor, typename RidxIterSpan>
+template <typename Policy, typename Accessor, typename RidxIterSpan>
 __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup const& group,
                                         RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
                                         GradientPairInt64* smem_hist, GradientPairInt64* gmem_hist,
                                         bst_idx_t offset, std::uint32_t stride,
                                         common::Span<bst_feature_t const> selected_features = {}) {
-  bst_feature_t const feature_stride = kMasked ? selected_features.size()
-      : (Policy::kCompressed ? group.num_features : matrix.row_stride);
-  // All threads in this block see the same selection. No histogram work is needed
-  // for a group containing no selected features.
-  if constexpr (kMasked) {
-    if (feature_stride == 0) {
-      return;
+  bst_feature_t feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
+  if constexpr (Policy::kCompressed) {
+    if (!selected_features.empty()) {
+      // Sorted tree-wide selection: retain the same features at every node for subtraction.
+      auto begin = thrust::lower_bound(thrust::seq, selected_features.begin(),
+                                      selected_features.end(), group.start_feature);
+      auto end = thrust::lower_bound(thrust::seq, begin, selected_features.end(),
+                                    group.start_feature + group.num_features);
+      selected_features = selected_features.subspan(begin - selected_features.begin(), end - begin);
+      feature_stride = selected_features.size();
+      // Uniform across the block, including before the shared-memory barriers.
+      if (feature_stride == 0) {
+        return;
+      }
     }
   }
 
@@ -179,9 +187,10 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
     Idx ridx = d_ridx[ridx_in_set];
     auto fidx = fidx_in_set + group.start_feature;
 
-    if constexpr (kMasked) {
-      static_assert(Policy::kCompressed);
-      fidx = selected_features[fidx_in_set];
+    if constexpr (Policy::kCompressed) {
+      if (!selected_features.empty()) {
+        fidx = selected_features[fidx_in_set];
+      }
     }
 
     bst_bin_t compressed_bin = matrix.gidx_iter[IterIdx(matrix, ridx, fidx)];
@@ -237,12 +246,12 @@ __device__ void HistKernelOneNodeTarget(Accessor const& matrix, FeatureGroup con
 /**
  * @brief Kernel for the single-target histogram.
  */
-template <typename Policy, typename Accessor, bool kMasked>
+template <typename Policy, typename Accessor>
 __global__ __launch_bounds__(StHistBound::kBlockThreads, StHistBound::kMinBlocks) void StHistKernel(
     Accessor const matrix, FeatureGroupsAccessor const feature_groups,
     common::Span<cuda_impl::RowIndexT const> d_ridx_iter,
     common::Span<GradientPairInt64 const> d_gpair, common::Span<GradientPairInt64> node_hist,
-    HistogramFeatureSelection selection) {
+    common::Span<bst_feature_t const> selected_features) {
   extern __align__(std::alignment_of_v<GradientPairInt64>) __shared__ char shmem[];
 
   // Privatized histogram
@@ -255,14 +264,12 @@ __global__ __launch_bounds__(StHistBound::kBlockThreads, StHistBound::kMinBlocks
 
   FeatureGroup group = feature_groups[blockIdx.y];
 
-  common::Span<bst_feature_t const> selected_features;
-  if constexpr (kMasked) {
-    auto begin = selection.group_ptr[blockIdx.y];
-    auto end = selection.group_ptr[blockIdx.y + 1];
-    selected_features = selection.features.subspan(begin, end - begin);
+  if (selected_features.empty()) {
+    HistKernelOneNodeTarget<Policy>(matrix, group, d_ridx_iter, d_gpair.data(), smem_hist,
+                                    node_hist.data(), offset, kStride);
+    return;
   }
-
-  HistKernelOneNodeTarget<Policy, kMasked>(matrix, group, d_ridx_iter, d_gpair.data(), smem_hist,
+  HistKernelOneNodeTarget<Policy>(matrix, group, d_ridx_iter, d_gpair.data(), smem_hist,
                                   node_hist.data(), offset, kStride, selected_features);
 }
 
@@ -408,7 +415,7 @@ struct HistKernel {
                          common::Span<GradientPairInt64 const> gpair,
                          common::Span<cuda_impl::RowIndexT const> ridx,
                          common::Span<GradientPairInt64> hist,
-                         HistogramFeatureSelection selection) {
+                         common::Span<bst_feature_t const> selected_features) {
     std::size_t shmem_bytes = feature_groups.ShmemSize();
     bool use_shared = !this->force_global && shmem_bytes <= this->max_shared_bytes;
     shmem_bytes = use_shared ? shmem_bytes : 0;
@@ -425,36 +432,21 @@ struct HistKernel {
                        common::DivRoundUp(items_per_group, Policy::kTileSize)));
       dim3 conf(n_blocks, feature_groups.NumGroups());
       dh::LaunchKernel(conf, Policy::kBlockThreads, shmem_bytes, ctx->CUDACtx()->Stream())(
-          kernel, matrix, feature_groups, ridx, gpair, hist, selection);
+          kernel, matrix, feature_groups, ridx, gpair, hist, selected_features);
       dh::safe_cuda(cudaPeekAtLastError());
     };
     using Arch = StHistBound;
 
-    auto dispatch_mask = [&](auto policy) {
-      using Policy = common::GetValueT<decltype(policy)>;
-      if constexpr (!kCompressed) {
-        auto kernel = StHistKernel<Policy, Accessor, false>;
-        this->SetCfg(policy, shmem_bytes, kernel);
-        launch(policy, kernel);
-      } else {
-        if (selection.features.empty()) {
-          auto kernel = StHistKernel<Policy, Accessor, false>;
-          this->SetCfg(policy, shmem_bytes, kernel);
-          launch(policy, kernel);
-        } else {
-          auto kernel = StHistKernel<Policy, Accessor, true>;
-          this->SetCfg(policy, shmem_bytes, kernel);
-          launch(policy, kernel);
-        }
-      }
-    };
-
     if (use_shared) {
       using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, true>;
-      dispatch_mask(Policy{});
+      auto kernel = StHistKernel<Policy, Accessor>;
+      this->SetCfg(Policy{}, shmem_bytes, kernel);
+      launch(Policy{}, kernel);
     } else {
       using Policy = HistPolicy<Arch, kItemsPerThread, kDense, kCompressed, false>;
-      dispatch_mask(Policy{});
+      auto kernel = StHistKernel<Policy, Accessor>;
+      this->SetCfg(Policy{}, shmem_bytes, kernel);
+      launch(Policy{}, kernel);
     }
   }
   // Vector leaf
@@ -541,8 +533,8 @@ class DeviceHistogramDispatchAccessor {
                       common::Span<GradientPairInt64 const> gpair,
                       common::Span<cuda_impl::RowIndexT const> ridx,
                       common::Span<GradientPairInt64> hist,
-                      HistogramFeatureSelection selection) {
-    this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx, hist, selection);
+                      common::Span<bst_feature_t const> selected_features) {
+    this->kernel_->Dispatch(ctx, matrix, feature_groups, gpair, ridx, hist, selected_features);
   }
 
   void BuildHistogram(Context const* ctx, Accessor const& matrix,
@@ -611,12 +603,12 @@ void DeviceHistogramBuilder::BuildHistogram(Context const* ctx, EllpackAccessor 
                                             common::Span<GradientPairInt64 const> gpair,
                                             common::Span<cuda_impl::RowIndexT const> ridx,
                                             common::Span<GradientPairInt64> histogram,
-                                            HistogramFeatureSelection selection) {
+                                            common::Span<bst_feature_t const> selected_features) {
   this->monitor_.Start(__func__);
   std::visit(
       [&](auto&& matrix) {
         this->p_impl_->BuildHistogram(ctx, matrix, feature_groups, gpair, ridx, histogram,
-                                     selection);
+                                     selected_features);
       },
       matrix);
   this->monitor_.Stop(__func__);
