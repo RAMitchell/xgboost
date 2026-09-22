@@ -1,0 +1,89 @@
+{
+  "name": "24",
+  "kind": "sweep",
+  "rows": 100,
+  "max_depth": 24,
+  "max_unique_depth": 24,
+  "exact_points": 12,
+  "reference_crosscheck_max_abs": 5.329070518200751e-15,
+  "float64": {
+    "4": {
+      "max_feature_abs": 6.621612074743377e-05,
+      "mean_feature_abs": 8.461226918661659e-08,
+      "max_total_abs": 0.0010076609997108944
+    },
+    "6": {
+      "max_feature_abs": 2.802192426709649e-07,
+      "mean_feature_abs": 4.53654620093841e-11,
+      "max_total_abs": 3.1727866624436865e-06
+    },
+    "8": {
+      "max_feature_abs": 5.276606235282699e-11,
+      "mean_feature_abs": 4.109635953584844e-15,
+      "max_total_abs": 1.037842700356879e-09
+    },
+    "16": {
+      "max_feature_abs": 4.884981308350689e-15,
+      "mean_feature_abs": 3.35238806328263e-18,
+      "max_total_abs": 9.204223157006473e-15
+    }
+  },
+  "native": [
+    {
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "points": 8,
+      "max_feature_abs": 1.7166707898047355e-05,
+      "mean_feature_abs": 2.2683122572286913e-08,
+      "finite": true
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 4,
+      "max_feature_abs": 6.62057883517031e-05,
+      "mean_feature_abs": 8.4628789835254e-08,
+      "finite": true
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 6,
+      "max_feature_abs": 2.7903807847673434e-07,
+      "mean_feature_abs": 2.3945787944111763e-10,
+      "finite": true
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 8,
+      "max_feature_abs": 3.500016644286674e-07,
+      "mean_feature_abs": 2.2030057326585442e-10,
+      "finite": true
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 16,
+      "max_feature_abs": 2.4473537429958725e-07,
+      "mean_feature_abs": 2.0772442836753677e-10,
+      "finite": true
+    },
+    {
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "points": 8,
+      "max_feature_abs": 1.4952918921479208e-05,
+      "mean_feature_abs": 1.6953421317812127e-08,
+      "finite": true
+    },
+    {
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "points": 8,
+      "max_feature_abs": 8.499552719420933e-07,
+      "mean_feature_abs": 3.8398277829582237e-10,
+      "finite": true
+    }
+  ]
+}

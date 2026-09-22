@@ -1,0 +1,17 @@
+[
+  {
+    "trees_per_slice": 1000,
+    "max_feature_error": 6.544887764692309e-05,
+    "mean_feature_error": 5.469137148458917e-06
+  },
+  {
+    "trees_per_slice": 100,
+    "max_feature_error": 2.666332048872899e-06,
+    "mean_feature_error": 3.9251700428961645e-07
+  },
+  {
+    "trees_per_slice": 10,
+    "max_feature_error": 2.789845460204887e-07,
+    "mean_feature_error": 2.915186414006458e-08
+  }
+]

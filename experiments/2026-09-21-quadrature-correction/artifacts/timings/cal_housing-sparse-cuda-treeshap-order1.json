@@ -1,0 +1,21 @@
+{
+  "model": "cal_housing-sparse",
+  "device": "cuda",
+  "algorithm": "treeshap",
+  "order": 1,
+  "rows": 1000,
+  "samples_s": [
+    0.024846522021107376,
+    0.02236178598832339,
+    0.022739798005204648
+  ],
+  "mean_s": 0.023316035338211805,
+  "std_s": 0.0010931652470744988,
+  "metrics": {
+    "finite": true,
+    "mean_efficiency_error": 8.928775940830747e-08,
+    "max_efficiency_error": 9.5367431640625e-07
+  },
+  "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+  "status": "ok"
+}

@@ -1,0 +1,8 @@
+{
+  "model": "fashion_mnist-sparse",
+  "device": "cpu",
+  "algorithm": "treeshap",
+  "order": 2,
+  "status": "timeout",
+  "error": "Command '['/home/rorym/miniforge3/envs/xgboost/bin/python', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/timing_case.py', 'fashion_mnist-sparse', 'cpu', 'treeshap', '2', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/timings/fashion_mnist-sparse-cpu-treeshap-order2.json']' timed out after 599.9999923380092 seconds"
+}

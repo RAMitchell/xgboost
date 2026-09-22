@@ -1,0 +1,59 @@
+{
+  "accuracy_records": 21,
+  "timing_records": 96,
+  "completed_timing_cases": 92,
+  "timing_failures": [
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "status": "timeout",
+      "error": "Command '['/home/rorym/miniforge3/envs/xgboost/bin/python', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/timing_case.py', 'fashion_mnist-sparse', 'cpu', 'treeshap', '2', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/timings/fashion_mnist-sparse-cpu-treeshap-order2.json']' timed out after 599.9999923380092 seconds"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "status": "error",
+      "error": "process exit 1; see case log"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "status": "error",
+      "error": "process exit 1; see case log"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "status": "timeout",
+      "error": "Command '['/home/rorym/miniforge3/envs/xgboost/bin/python', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/timing_case.py', 'fashion_mnist-large', 'cpu', 'treeshap', '2', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/timings/fashion_mnist-large-cpu-treeshap-order2.json']' timed out after 599.9999925180455 seconds"
+    }
+  ],
+  "quadrature_timing_failures": [],
+  "max_float64_q8_sweep_feature_error": 1.0187657578653031e-08,
+  "exactness_bound_checks": "passed",
+  "finite_native_quadrature_accuracy_checks": "passed",
+  "figure1_metric": "maximum absolute feature difference from sufficient-order float64 quadrature",
+  "figure1_records": 9,
+  "figure1_reference_crosscheck_max_abs": 1.0880185641326534e-14,
+  "figure1_original_100_row_reference_agreement": {
+    "status": "passed",
+    "retained_reference_depths": [
+      4,
+      8,
+      12,
+      24,
+      32,
+      48,
+      55,
+      64
+    ]
+  }
+}

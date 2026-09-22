@@ -1,0 +1,21 @@
+{
+  "model": "adult-small",
+  "device": "cpu",
+  "algorithm": "quadratureshap",
+  "order": 1,
+  "rows": 1000,
+  "samples_s": [
+    0.002744908968452364,
+    0.0013034900184720755,
+    0.0014500920078717172
+  ],
+  "mean_s": 0.0018328303315987189,
+  "std_s": 0.0006477080698779793,
+  "metrics": {
+    "finite": true,
+    "mean_efficiency_error": 9.316205762388563e-08,
+    "max_efficiency_error": 3.5762786865234375e-07
+  },
+  "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+  "status": "ok"
+}

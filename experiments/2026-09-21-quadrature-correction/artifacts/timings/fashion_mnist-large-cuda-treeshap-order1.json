@@ -1,0 +1,21 @@
+{
+  "model": "fashion_mnist-large",
+  "device": "cuda",
+  "algorithm": "treeshap",
+  "order": 1,
+  "rows": 1000,
+  "samples_s": [
+    2.2612808480043896,
+    2.280808606010396,
+    2.2704960079863667
+  ],
+  "mean_s": 2.270861820667051,
+  "std_s": 0.00797636915617206,
+  "metrics": {
+    "finite": true,
+    "mean_efficiency_error": 4.469768555281917e-06,
+    "max_efficiency_error": 3.8623809814453125e-05
+  },
+  "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+  "status": "ok"
+}

@@ -1,0 +1,16 @@
+REFERENCE benchmark covtype-large 16 16 14 7
+{'device': 'cpu', 'algorithm': 'treeshap', 'points': 8, 'max_feature_abs': 2.175276017091221e-07, 'mean_feature_abs': 5.441781093209903e-10, 'finite': True}
+{'device': 'cpu', 'algorithm': 'quadratureshap', 'points': 8, 'max_feature_abs': 3.6961729649176434e-08, 'mean_feature_abs': 9.48141333064544e-11, 'finite': True}
+{'device': 'cuda', 'algorithm': 'treeshap', 'points': 8, 'max_feature_abs': 1.5792295693373148e-07, 'mean_feature_abs': 1.3527866554818864e-10, 'finite': True}
+{'device': 'cuda', 'algorithm': 'quadratureshap', 'points': 8, 'max_feature_abs': 5.186289084302409e-08, 'mean_feature_abs': 9.315187936797044e-11, 'finite': True}
+PAIR_REFERENCE_START 7
+PAIR_REFERENCE_DONE 2.2378723139991052
+PAIR_NATIVE_START {'device': 'cpu', 'algorithm': 'treeshap'}
+PAIR {'device': 'cpu', 'algorithm': 'treeshap', 'max_pair_abs': 3.929849199562404e-08, 'mean_pair_abs': 5.3868810701332736e-11, 'finite': True}
+PAIR_NATIVE_START {'device': 'cpu', 'algorithm': 'quadratureshap'}
+PAIR {'device': 'cpu', 'algorithm': 'quadratureshap', 'max_pair_abs': 8.908102949733987e-09, 'mean_pair_abs': 5.0988736650868855e-12, 'finite': True}
+PAIR_NATIVE_START {'device': 'cuda', 'algorithm': 'treeshap'}
+PAIR {'device': 'cuda', 'algorithm': 'treeshap', 'max_pair_abs': 8.908102949733987e-09, 'mean_pair_abs': 4.930817786741105e-12, 'finite': True}
+PAIR_NATIVE_START {'device': 'cuda', 'algorithm': 'quadratureshap'}
+PAIR {'device': 'cuda', 'algorithm': 'quadratureshap', 'max_pair_abs': 1.0178318632370065e-08, 'mean_pair_abs': 4.288581313703916e-12, 'finite': True}
+{"name": "covtype-large", "kind": "benchmark", "rows": 16, "max_depth": 16, "max_unique_depth": 14, "exact_points": 7, "reference_crosscheck_max_abs": 3.3306690738754696e-16, "float64": {"8": {"max_feature_abs": 2.220446049250313e-16, "mean_feature_abs": 4.529619081503058e-19, "max_total_abs": 6.050464338938242e-16}, "16": {"max_feature_abs": 2.220446049250313e-16, "mean_feature_abs": 4.790106580858305e-19, "max_total_abs": 5.816141144409813e-16}}, "native": [{"device": "cpu", "algorithm": "treeshap", "points": 8, "max_feature_abs": 2.175276017091221e-07, "mean_feature_abs": 5.441781093209903e-10, "finite": true}, {"device": "cpu", "algorithm": "quadratureshap", "points": 8, "max_feature_abs": 3.6961729649176434e-08, "mean_feature_abs": 9.48141333064544e-11, "finite": true}, {"device": "cuda", "algorithm": "treeshap", "points": 8, "max_feature_abs": 1.5792295693373148e-07, "mean_feature_abs": 1.3527866554818864e-10, "finite": true}, {"device": "cuda", "algorithm": "quadratureshap", "points": 8, "max_feature_abs": 5.186289084302409e-08, "mean_feature_abs": 9.315187936797044e-11, "finite": true}], "pairwise": {"rows": 1, "float64_8_max_abs": 1.249000902703301e-16, "native": [{"device": "cpu", "algorithm": "treeshap", "max_pair_abs": 3.929849199562404e-08, "mean_pair_abs": 5.3868810701332736e-11, "finite": true}, {"device": "cpu", "algorithm": "quadratureshap", "max_pair_abs": 8.908102949733987e-09, "mean_pair_abs": 5.0988736650868855e-12, "finite": true}, {"device": "cuda", "algorithm": "treeshap", "max_pair_abs": 8.908102949733987e-09, "mean_pair_abs": 4.930817786741105e-12, "finite": true}, {"device": "cuda", "algorithm": "quadratureshap", "max_pair_abs": 1.0178318632370065e-08, "mean_pair_abs": 4.288581313703916e-12, "finite": true}]}}

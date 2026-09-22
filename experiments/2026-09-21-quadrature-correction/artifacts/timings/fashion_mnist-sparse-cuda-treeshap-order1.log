@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/timing_case.py", line 36, in <module>
+    pred=predict()
+         ^^^^^^^^^
+  File "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/timing_case.py", line 34, in predict
+    return np.asarray(model.predict(d,**kwargs))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/core.py", line 553, in inner_f
+    return func(**kwargs)
+           ^^^^^^^^^^^^^^
+  File "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/core.py", line 2527, in predict
+    _check_call(
+  File "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/_c_api.py", line 190, in _check_call
+    raise XGBoostError(py_str(_LIB.XGBGetLastError()))
+xgboost._c_api.XGBoostError: Tree depth must be < 32

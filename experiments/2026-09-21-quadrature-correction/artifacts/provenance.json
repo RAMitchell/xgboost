@@ -1,0 +1,62 @@
+{
+  "source_commit": "de5718b22ea92ef1932a063243215ee884bf6dea",
+  "source_diff": "diff --git a/src/predictor/interpretability/quadrature.h b/src/predictor/interpretability/quadrature.h\nindex 344696223..5a0c1a480 100644\n--- a/src/predictor/interpretability/quadrature.h\n+++ b/src/predictor/interpretability/quadrature.h\n@@ -75,7 +75,9 @@ inline EndpointQuadratureRule<MaxPoints> MakeEndpointQuadrature(std::size_t n,\n     auto w = 2.0 / ((1.0 - x * x) * dpn * dpn);\n     double s = 0.5 * (x + 1.0);\n     double ws = 0.5 * w;\n-    nodes_weights.emplace_back(s * s, 2.0 * s * ws);\n+    // Use Gauss-Legendre directly on [0, 1], preserving exactness through degree 2*n-1.\n+    // A t=s*s substitution would raise degree m to 2*m+1 and lose this guarantee.\n+    nodes_weights.emplace_back(s, ws);\n   }\n \n   std::sort(nodes_weights.begin(), nodes_weights.end(),",
+  "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/build-gpu/lib/libxgboost.so.3.3.0",
+  "library_sha256": "58755f54b7f31540317df4c79e4d3074ba617ab23201314f152414b5b067655b",
+  "build_info": {
+    "BUILTIN_PREFETCH_PRESENT": true,
+    "CUDA_VERSION": [
+      12,
+      9
+    ],
+    "DEBUG": false,
+    "GCC_VERSION": [
+      13,
+      4,
+      0
+    ],
+    "GLIBC_VERSION": [
+      2,
+      39
+    ],
+    "MM_PREFETCH_PRESENT": true,
+    "THRUST_VERSION": [
+      2,
+      8,
+      2
+    ],
+    "USE_CUDA": true,
+    "USE_DLOPEN_NCCL": false,
+    "USE_FEDERATED": false,
+    "USE_NCCL": false,
+    "USE_NVCOMP": false,
+    "USE_OPENMP": true,
+    "USE_RMM": false,
+    "libxgboost": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so"
+  },
+  "python": "3.12.13",
+  "numpy": "2.5.0",
+  "numba": "0.67.0",
+  "sklearn": "1.9.0",
+  "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           52 bits physical, 57 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  64\nOn-line CPU(s) list:                     0-63\nVendor ID:                               AuthenticAMD\nModel name:                              AMD Ryzen Threadripper PRO 7975WX 32-Cores\nCPU family:                              25\nModel:                                   24\nThread(s) per core:                      2\nCore(s) per socket:                      32\nSocket(s):                               1\nStepping:                                1\nFrequency boost:                         enabled\nCPU(s) scaling MHz:                      45%\nCPU max MHz:                             5356.1782\nCPU min MHz:                             419.4600\nBogoMIPS:                                7987.22\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good amd_lbr_v2 nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy svm extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpuid_fault cpb cat_l3 cdp_l3 hw_pstate ssbd mba perfmon_v2 ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk avx512_bf16 clzero irperf xsaveerptr rdpru wbnoinvd amd_ppin cppc arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic vgif x2avic v_spec_ctrl vnmi avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq la57 rdpid overflow_recov succor smca fsrm flush_l1d debug_swap\nVirtualization:                          AMD-V\nL1d cache:                               1 MiB (32 instances)\nL1i cache:                               1 MiB (32 instances)\nL2 cache:                                32 MiB (32 instances)\nL3 cache:                                128 MiB (4 instances)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-63\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Mitigation; Safe RET\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; STIBP always-on; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Mitigation; Clear CPU buffers\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
+  "gpu": "name, driver_version, memory.total [MiB]\nNVIDIA RTX PRO 6000 Blackwell Workstation Edition, 580.173.02, 97887 MiB\nNVIDIA RTX PRO 6000 Blackwell Workstation Edition, 580.173.02, 97887 MiB",
+  "scripts_sha256": {
+    "prepare_models.py": "0f9b4f63635662dee9c9c540860a29b94861d953450efc6e3a7fd90515652706",
+    "report.py": "3438eac7d99e4d4e9e584bd833bdac8a304c161bc51f74a221debd35640573a3",
+    "accuracy.py": "73c687cd5aa6ee318b99c71abc99dd127d37a1ce322baacf384063bbdfb4771e",
+    "repair_cpu_checks.py": "d7a07f245c0f64c5326b5ee05a2fd201ef9ff85822af0de13728e3046663b22d",
+    "cpu_sweep_predictions.py": "859e17fe828b184b98884a7b0b3a4e31efeda11dd4682e5353788d3e33ecf727",
+    "run_timings.py": "c1e78d707816fd3896a4bf6c32d7b499b473a1f8f99e2ab3d3340141934c317a",
+    "check_reference.py": "ceb7fc577ef1ee64425ba35d5b401b502a149ed6727bda69800d955a80dfd34a",
+    "sweep.py": "5401ad7e7e21fafec22bd56b82f7b2c1dfb4af7ecbede4a529d1f9a9f3f3baed",
+    "pair_accuracy_case.py": "3b89a324d136c3818ac05b92c682723d7ad5ddfb781128eec5052bbe9a2fdadc",
+    "run_accuracy.py": "2d6e1bddd86771471514abfaacef6919a052e5b5119f520b0a46ecdccf407f77",
+    "finish_run.py": "eeddb0ff93b76c8f2107f3eaba5ea7e54afeee51dc3f0219ef4a089dd94d13d5",
+    "timing_case.py": "574c37068bb3f81e63c2e229306417d204b0316153471cb7fa714c46c7528bfe",
+    "reference.py": "acfaab7809093d6d3a34abfd3ef4356426d44428abdc7606f9f21c2845fd110d",
+    "validate_results.py": "8804267a15509eb58236a9de450fbe3bdb559d20118bf07b7313c748ef83397a",
+    "check_gpu_accumulation.py": "57ea6bbde48befaaffc87ae414949ef6eab4da33cc9524c9d66e12effd8e545c",
+    "figure_accuracy.py": "6e1b27b53297ec5359879921537a41e77e57200f73d001eb59275107ddb18557",
+    "record_provenance.py": "1ac38d62da9f7ce0b2ab49aaec831887dd814e34f46906b587a888b74802d6fa"
+  }
+}

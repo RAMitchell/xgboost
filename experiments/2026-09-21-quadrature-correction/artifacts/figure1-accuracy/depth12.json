@@ -1,0 +1,59 @@
+{
+  "requested_depth": 12,
+  "realized_depth": 12,
+  "max_unique_depth": 12,
+  "exact_points": 6,
+  "rows": 512,
+  "classes": 10,
+  "features": 784,
+  "model_sha256": "9eb9fbd5f34183b40881ab11f258456938974757e09df4973a12d8d59f03e395",
+  "rows_sha256": "86cfddd9a359dd4543b5d7a52979bc513e063c0d91e1b7ada7e75cc2edcfb0a9",
+  "reference_crosscheck_max_abs": 8.43769498715119e-15,
+  "methods": [
+    {
+      "algorithm_label": "TreeSHAP",
+      "max_feature_abs": 3.956526938297955e-07,
+      "worst_row_class_feature": [
+        403,
+        9,
+        346
+      ]
+    },
+    {
+      "algorithm_label": "QuadratureSHAP-4",
+      "max_feature_abs": 1.8665316686924255e-05,
+      "worst_row_class_feature": [
+        287,
+        5,
+        385
+      ]
+    },
+    {
+      "algorithm_label": "QuadratureSHAP-6",
+      "max_feature_abs": 7.053573725102069e-07,
+      "worst_row_class_feature": [
+        452,
+        9,
+        346
+      ]
+    },
+    {
+      "algorithm_label": "QuadratureSHAP-8",
+      "max_feature_abs": 7.053573725102069e-07,
+      "worst_row_class_feature": [
+        452,
+        9,
+        346
+      ]
+    },
+    {
+      "algorithm_label": "QuadratureSHAP-16",
+      "max_feature_abs": 7.053573725102069e-07,
+      "worst_row_class_feature": [
+        452,
+        9,
+        346
+      ]
+    }
+  ]
+}

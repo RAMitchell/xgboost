@@ -1,0 +1,8 @@
+{
+  "model": "fashion_mnist-sparse",
+  "device": "cuda",
+  "algorithm": "treeshap",
+  "order": 1,
+  "status": "error",
+  "error": "process exit 1; see case log"
+}

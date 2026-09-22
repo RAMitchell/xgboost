@@ -1,0 +1,21 @@
+{
+  "model": "covtype-large",
+  "device": "cuda",
+  "algorithm": "quadratureshap",
+  "order": 1,
+  "rows": 1000,
+  "samples_s": [
+    0.01194119401043281,
+    0.010844591015484184,
+    0.010734774987213314
+  ],
+  "mean_s": 0.011173520004376769,
+  "std_s": 0.0005446756984340281,
+  "metrics": {
+    "finite": true,
+    "mean_efficiency_error": 1.985766040490944e-08,
+    "max_efficiency_error": 2.384185791015625e-07
+  },
+  "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+  "status": "ok"
+}

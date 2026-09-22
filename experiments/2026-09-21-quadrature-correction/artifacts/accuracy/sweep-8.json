@@ -1,0 +1,95 @@
+{
+  "name": "8",
+  "kind": "sweep",
+  "rows": 100,
+  "max_depth": 8,
+  "max_unique_depth": 8,
+  "exact_points": 4,
+  "reference_crosscheck_max_abs": 2.886579864025407e-15,
+  "float64": {
+    "4": {
+      "max_feature_abs": 0.0,
+      "mean_feature_abs": 0.0,
+      "max_total_abs": 0.0
+    },
+    "6": {
+      "max_feature_abs": 2.6645352591003757e-15,
+      "mean_feature_abs": 1.3315865725535747e-18,
+      "max_total_abs": 4.391117623488436e-15
+    },
+    "8": {
+      "max_feature_abs": 3.552713678800501e-15,
+      "mean_feature_abs": 1.6532303518115452e-18,
+      "max_total_abs": 4.842689007888202e-15
+    },
+    "16": {
+      "max_feature_abs": 3.1086244689504383e-15,
+      "mean_feature_abs": 1.832959234541847e-18,
+      "max_total_abs": 5.057516969857604e-15
+    }
+  },
+  "native": [
+    {
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "points": 8,
+      "max_feature_abs": 3.575706802871892e-07,
+      "mean_feature_abs": 1.701370666856887e-10,
+      "finite": true
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 4,
+      "initial_configuration_error": "[14:36:41] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (4 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+      "max_feature_abs": 2.505479838044167e-07,
+      "mean_feature_abs": 1.692940294312337e-10,
+      "finite": true,
+      "library": "CPU-only build"
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 6,
+      "initial_configuration_error": "[14:36:41] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (6 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+      "max_feature_abs": 2.505479838044167e-07,
+      "mean_feature_abs": 1.6822728113749019e-10,
+      "finite": true,
+      "library": "CPU-only build"
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 8,
+      "max_feature_abs": 2.9796603551179857e-07,
+      "mean_feature_abs": 1.781973569746256e-10,
+      "finite": true
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 16,
+      "initial_configuration_error": "[14:36:41] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (16 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+      "max_feature_abs": 3.289864529687492e-07,
+      "mean_feature_abs": 1.6815738092171338e-10,
+      "finite": true,
+      "library": "CPU-only build"
+    },
+    {
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "points": 8,
+      "max_feature_abs": 2.0977716341796793e-07,
+      "mean_feature_abs": 2.858968993245087e-10,
+      "finite": true
+    },
+    {
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "points": 8,
+      "max_feature_abs": 9.250329007226554e-07,
+      "mean_feature_abs": 2.61027684060518e-10,
+      "finite": true
+    }
+  ]
+}

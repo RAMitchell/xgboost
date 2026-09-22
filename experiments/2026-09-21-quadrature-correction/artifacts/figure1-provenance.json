@@ -1,0 +1,36 @@
+{
+  "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/lib/libxgboost.so.3.3.0",
+  "library_sha256": "32e393685530952eb1eeb2fcde7eaec1f1cabc7918e49ecada444cf7050d955a",
+  "build_info": {
+    "BUILTIN_PREFETCH_PRESENT": true,
+    "DEBUG": false,
+    "GCC_VERSION": [
+      13,
+      4,
+      0
+    ],
+    "GLIBC_VERSION": [
+      2,
+      39
+    ],
+    "MM_PREFETCH_PRESENT": true,
+    "USE_CUDA": false,
+    "USE_DLOPEN_NCCL": false,
+    "USE_FEDERATED": false,
+    "USE_NCCL": false,
+    "USE_OPENMP": true,
+    "USE_RMM": false,
+    "libxgboost": "/home/rorym/xgboost-worktrees/quadrature-figure1/lib/libxgboost.so"
+  },
+  "python": "3.12.13",
+  "numpy": "2.5.0",
+  "numba": "0.67.0",
+  "numba_threads": 16,
+  "native_cpu_threads": 32,
+  "metric": "max absolute per-feature error across 512 rows, 10 classes, 784 features; bias excluded",
+  "scripts_sha256": {
+    "figure_accuracy.py": "6e1b27b53297ec5359879921537a41e77e57200f73d001eb59275107ddb18557",
+    "reference.py": "acfaab7809093d6d3a34abfd3ef4356426d44428abdc7606f9f21c2845fd110d",
+    "report.py": "3438eac7d99e4d4e9e584bd833bdac8a304c161bc51f74a221debd35640573a3"
+  }
+}

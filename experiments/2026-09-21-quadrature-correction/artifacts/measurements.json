@@ -1,0 +1,3888 @@
+{
+  "accuracy": [
+    {
+      "name": "adult-large",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 16,
+      "max_unique_depth": 14,
+      "exact_points": 7,
+      "reference_crosscheck_max_abs": 1.6608936448392342e-13,
+      "float64": {
+        "8": {
+          "max_feature_abs": 1.0613732115416497e-13,
+          "mean_feature_abs": 8.19276004285485e-15,
+          "max_total_abs": 1.8458411882305015e-13
+        },
+        "16": {
+          "max_feature_abs": 2.815525590449397e-13,
+          "mean_feature_abs": 1.17182913453356e-14,
+          "max_total_abs": 4.229368591457394e-13
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.739277145196283e-06,
+          "mean_feature_abs": 1.8972081588914766e-07,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 2.5232094760241353e-06,
+          "mean_feature_abs": 1.8125609038970657e-07,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 0.24609741163350202,
+          "mean_feature_abs": 0.01694202936051273,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.4256332182327469e-05,
+          "mean_feature_abs": 1.2467842256791823e-06,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 8.326672684688674e-14,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 2.2974017423182946e-06,
+            "mean_pair_abs": 1.6579647893063197e-07,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 3.129392331491232e-06,
+            "mean_pair_abs": 1.8137458551853282e-07,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 0.12095037109384955,
+            "mean_pair_abs": 0.0037212765333205907,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 1.3293928002200417e-05,
+            "mean_pair_abs": 2.8921991017737535e-07,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "adult-small",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 6,
+      "max_unique_depth": 6,
+      "exact_points": 3,
+      "reference_crosscheck_max_abs": 1.3877787807814457e-16,
+      "float64": {
+        "8": {
+          "max_feature_abs": 1.3877787807814457e-16,
+          "mean_feature_abs": 7.162277418290577e-18,
+          "max_total_abs": 2.8153252290408887e-16
+        },
+        "16": {
+          "max_feature_abs": 1.249000902703301e-16,
+          "mean_feature_abs": 1.1039897633171e-17,
+          "max_total_abs": 2.816232083690043e-16
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.0429389615818074e-08,
+          "mean_feature_abs": 6.656520504902604e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.0962465601949134e-08,
+          "mean_feature_abs": 6.636950254284581e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.883985678574618e-08,
+          "mean_feature_abs": 1.21393025956532e-09,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 2.0222228919175578e-08,
+          "mean_feature_abs": 1.2094046684451704e-09,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 1.1102230246251565e-16,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 6.329859331133392e-09,
+            "mean_pair_abs": 4.213554007249287e-10,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 6.329859331133392e-09,
+            "mean_pair_abs": 1.3647579330602482e-10,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 4.550414878234932e-09,
+            "mean_pair_abs": 8.57995366491399e-11,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 7.728157395275881e-09,
+            "mean_pair_abs": 2.435754826868578e-10,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "adult-sparse",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 28,
+      "max_unique_depth": 13,
+      "exact_points": 7,
+      "reference_crosscheck_max_abs": 9.936496070395151e-15,
+      "float64": {
+        "8": {
+          "max_feature_abs": 1.0547118733938987e-14,
+          "mean_feature_abs": 5.381512808561753e-16,
+          "max_total_abs": 1.5510596279577626e-14
+        },
+        "16": {
+          "max_feature_abs": 6.827871601444713e-15,
+          "mean_feature_abs": 6.779051526477937e-16,
+          "max_total_abs": 1.5352953283698234e-14
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.925023725979358e-07,
+          "mean_feature_abs": 1.5907472653963086e-08,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.987771242051295e-07,
+          "mean_feature_abs": 1.4779670743604626e-08,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 0.11176500014785659,
+          "mean_feature_abs": 0.005061398297137096,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 9.746543518651674e-07,
+          "mean_feature_abs": 6.689242235848027e-08,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 2.6978419498391304e-14,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 1.6294446146753253e-07,
+            "mean_pair_abs": 1.3578077306491456e-08,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 8.78582666674621e-07,
+            "mean_pair_abs": 1.791087478944814e-08,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 0.056092541728383995,
+            "mean_pair_abs": 0.0014771029023465953,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 3.8093352580648165e-07,
+            "mean_pair_abs": 9.036957649697102e-09,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "cal_housing-large",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 16,
+      "max_unique_depth": 8,
+      "exact_points": 4,
+      "reference_crosscheck_max_abs": 1.3433698597964394e-13,
+      "float64": {
+        "8": {
+          "max_feature_abs": 2.304822999121825e-13,
+          "mean_feature_abs": 1.9143379559365603e-14,
+          "max_total_abs": 2.917605393393252e-13
+        },
+        "16": {
+          "max_feature_abs": 1.98507876802978e-13,
+          "mean_feature_abs": 1.9559514458494787e-14,
+          "max_total_abs": 3.115910307549541e-13
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.1594641322609789e-06,
+          "mean_feature_abs": 9.93499969920842e-08,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.1133295251264386e-06,
+          "mean_feature_abs": 1.0507452778386397e-07,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 2.0540707423855054e-07,
+          "mean_feature_abs": 2.144095075885821e-08,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 6.53892730021477e-05,
+          "mean_feature_abs": 5.531404968346346e-06,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 4.8905324234738146e-14,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 3.05863803048978e-07,
+            "mean_pair_abs": 6.328215452643029e-08,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 7.5930857859063394e-06,
+            "mean_pair_abs": 7.457025899991095e-07,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 4.2648591491722954e-08,
+            "mean_pair_abs": 3.826599679335988e-09,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 1.9817426840207375e-05,
+            "mean_pair_abs": 1.0953071216263337e-06,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "cal_housing-small",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 6,
+      "max_unique_depth": 5,
+      "exact_points": 3,
+      "reference_crosscheck_max_abs": 1.3877787807814457e-16,
+      "float64": {
+        "8": {
+          "max_feature_abs": 1.1102230246251565e-16,
+          "mean_feature_abs": 9.65284040646921e-18,
+          "max_total_abs": 1.6295558652457132e-16
+        },
+        "16": {
+          "max_feature_abs": 8.326672684688674e-17,
+          "mean_feature_abs": 1.0364295142603619e-17,
+          "max_total_abs": 1.6742792048607402e-16
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.1669909733003081e-08,
+          "mean_feature_abs": 9.142148709388767e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.464706347875655e-08,
+          "mean_feature_abs": 1.2066632872610206e-09,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.6966031052279007e-08,
+          "mean_feature_abs": 9.288508839120799e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 2.059398672427104e-08,
+          "mean_feature_abs": 2.3936485420694897e-09,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 1.3877787807814457e-17,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 2.205313060150201e-09,
+            "mean_pair_abs": 3.420625675452055e-10,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 1.8982604030326478e-09,
+            "mean_pair_abs": 1.4427022708812153e-10,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 2.0630998610882134e-09,
+            "mean_pair_abs": 1.0879736819044806e-10,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 7.414965343122137e-09,
+            "mean_pair_abs": 4.043778924253495e-10,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "cal_housing-sparse",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 20,
+      "max_unique_depth": 8,
+      "exact_points": 4,
+      "reference_crosscheck_max_abs": 8.826273045769994e-15,
+      "float64": {
+        "8": {
+          "max_feature_abs": 5.9396931817445875e-15,
+          "mean_feature_abs": 7.3509288459343465e-16,
+          "max_total_abs": 1.211530875622202e-14
+        },
+        "16": {
+          "max_feature_abs": 7.549516567451064e-15,
+          "mean_feature_abs": 1.082632302796887e-15,
+          "max_total_abs": 1.367127439901028e-14
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 2.2274795030696737e-07,
+          "mean_feature_abs": 1.5186491022842674e-08,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.419572398577486e-07,
+          "mean_feature_abs": 1.7484363046625954e-08,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.0353866075618612e-07,
+          "mean_feature_abs": 9.442228422558419e-09,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.3501731620513269e-06,
+          "mean_feature_abs": 1.0133312338405995e-07,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 1.1601830607332886e-14,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 4.4959697798052645e-08,
+            "mean_pair_abs": 9.460861275563409e-09,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 2.3539071561384795e-07,
+            "mean_pair_abs": 1.9935646060298516e-08,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 1.1873297706133101e-08,
+            "mean_pair_abs": 1.0035223398375992e-09,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 3.225241991117178e-07,
+            "mean_pair_abs": 2.4781689217111194e-08,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "covtype-large",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 16,
+      "max_unique_depth": 14,
+      "exact_points": 7,
+      "reference_crosscheck_max_abs": 3.3306690738754696e-16,
+      "float64": {
+        "8": {
+          "max_feature_abs": 2.220446049250313e-16,
+          "mean_feature_abs": 4.529619081503058e-19,
+          "max_total_abs": 6.050464338938242e-16
+        },
+        "16": {
+          "max_feature_abs": 2.220446049250313e-16,
+          "mean_feature_abs": 4.790106580858305e-19,
+          "max_total_abs": 5.816141144409813e-16
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 2.175276017091221e-07,
+          "mean_feature_abs": 5.441781093209903e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.6961729649176434e-08,
+          "mean_feature_abs": 9.48141333064544e-11,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.5792295693373148e-07,
+          "mean_feature_abs": 1.3527866554818864e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 5.186289084302409e-08,
+          "mean_feature_abs": 9.315187936797044e-11,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 1.249000902703301e-16,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 3.929849199562404e-08,
+            "mean_pair_abs": 5.3868810701332736e-11,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 8.908102949733987e-09,
+            "mean_pair_abs": 5.0988736650868855e-12,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 8.908102949733987e-09,
+            "mean_pair_abs": 4.930817786741105e-12,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 1.0178318632370065e-08,
+            "mean_pair_abs": 4.288581313703916e-12,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "covtype-small",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 6,
+      "max_unique_depth": 6,
+      "exact_points": 3,
+      "reference_crosscheck_max_abs": 5.551115123125783e-17,
+      "float64": {
+        "8": {
+          "max_feature_abs": 1.1102230246251565e-16,
+          "mean_feature_abs": 1.2271621199358874e-19,
+          "max_total_abs": 1.5646392601681436e-16
+        },
+        "16": {
+          "max_feature_abs": 3.469446951953614e-17,
+          "mean_feature_abs": 1.361870663134413e-19,
+          "max_total_abs": 5.096427837039674e-17
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 4.275010090371012e-08,
+          "mean_feature_abs": 5.6576176710278675e-11,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.3606383342246176e-07,
+          "mean_feature_abs": 6.779384838908258e-11,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 4.275010090371012e-08,
+          "mean_feature_abs": 3.998242620857649e-11,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.6854543871680505e-08,
+          "mean_feature_abs": 4.8167119974902486e-11,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 6.245004513516506e-17,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 1.2208139672786888e-08,
+            "mean_pair_abs": 5.671468336945607e-12,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 5.107697265138711e-09,
+            "mean_pair_abs": 1.671799805930083e-12,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 2.6930215210607678e-09,
+            "mean_pair_abs": 1.0174847522057015e-12,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 1.2558277862062539e-08,
+            "mean_pair_abs": 2.0875401145924752e-12,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "covtype-sparse",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 24,
+      "max_unique_depth": 18,
+      "exact_points": 9,
+      "reference_crosscheck_max_abs": 2.220446049250313e-16,
+      "float64": {
+        "8": {
+          "max_feature_abs": 2.220446049250313e-16,
+          "mean_feature_abs": 3.2960567544964256e-19,
+          "max_total_abs": 5.94110391511824e-16
+        },
+        "16": {
+          "max_feature_abs": 1.1102230246251565e-16,
+          "mean_feature_abs": 3.273853273790167e-19,
+          "max_total_abs": 3.724304342705856e-16
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.4763324423378021e-07,
+          "mean_feature_abs": 5.109776292114654e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.526398784092777e-08,
+          "mean_feature_abs": 8.429218297818903e-11,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.435499464852441e-07,
+          "mean_feature_abs": 2.0387691719284234e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 6.764581453322371e-08,
+          "mean_feature_abs": 8.353770846286496e-11,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 1.5265566588595902e-16,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 9.636683580272181e-08,
+            "mean_pair_abs": 7.035002211788194e-11,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 8.794476209772473e-09,
+            "mean_pair_abs": 4.788892544409856e-12,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 1.151080075700861e-08,
+            "mean_pair_abs": 1.1278293913203157e-11,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 8.794476209772473e-09,
+            "mean_pair_abs": 4.089570797612868e-12,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "fashion_mnist-large",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 16,
+      "max_unique_depth": 16,
+      "exact_points": 8,
+      "reference_crosscheck_max_abs": 1.7319479184152442e-14,
+      "float64": {
+        "8": {
+          "max_feature_abs": 0.0,
+          "mean_feature_abs": 0.0,
+          "max_total_abs": 0.0
+        },
+        "16": {
+          "max_feature_abs": 1.7319479184152442e-14,
+          "mean_feature_abs": 3.271824727226418e-17,
+          "max_total_abs": 6.04374267722157e-14
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.6257557231558195e-06,
+          "mean_feature_abs": 3.5542429904675446e-09,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.7449650127066008e-06,
+          "mean_feature_abs": 2.1994174617027936e-09,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.5921729367707194e-06,
+          "mean_feature_abs": 6.188203063969693e-09,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 4.441374323094216e-06,
+          "mean_feature_abs": 4.047491292440746e-09,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 0.0,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "error": "Command '['/home/rorym/miniforge3/envs/xgboost/bin/python', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/pair_accuracy_case.py', 'fashion_mnist-large', 'cpu', 'treeshap', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/accuracy/fashion_mnist-large-cpu-treeshap-pair-result.json.tmp']' timed out after 599.9999808510183 seconds"
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 1.1834373045971347e-06,
+            "mean_pair_abs": 1.427189148206332e-11,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 1.1960537478206135e-06,
+            "mean_pair_abs": 1.8407414046004982e-11,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 2.29318018907243e-06,
+            "mean_pair_abs": 1.5509300459257707e-11,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "fashion_mnist-small",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 6,
+      "max_unique_depth": 6,
+      "exact_points": 3,
+      "reference_crosscheck_max_abs": 2.220446049250313e-16,
+      "float64": {
+        "8": {
+          "max_feature_abs": 1.6653345369377348e-16,
+          "mean_feature_abs": 8.083531456625511e-20,
+          "max_total_abs": 2.8231512840779264e-16
+        },
+        "16": {
+          "max_feature_abs": 3.885780586188048e-16,
+          "mean_feature_abs": 9.743113094806724e-20,
+          "max_total_abs": 5.258604470890127e-16
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 4.60765348653247e-08,
+          "mean_feature_abs": 1.3317347379719537e-11,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.941152000251023e-08,
+          "mean_feature_abs": 1.5004942966394356e-11,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 4.60765348653247e-08,
+          "mean_feature_abs": 2.236148472384391e-11,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 1.8680981234142635e-08,
+          "mean_feature_abs": 1.6941842193685325e-11,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 1.457167719820518e-16,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 7.881194263870128e-08,
+            "mean_pair_abs": 6.284858890988185e-13,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 4.900962025100597e-08,
+            "mean_pair_abs": 1.185730293282067e-13,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "max_pair_abs": 4.9757747755396764e-08,
+            "mean_pair_abs": 9.082943793676154e-14,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 4.900962025100597e-08,
+            "mean_pair_abs": 1.2611148523787848e-13,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "fashion_mnist-sparse",
+      "kind": "benchmark",
+      "rows": 16,
+      "max_depth": 52,
+      "max_unique_depth": 48,
+      "exact_points": 24,
+      "reference_crosscheck_max_abs": 8.43769498715119e-15,
+      "float64": {
+        "8": {
+          "max_feature_abs": 1.855159602326406e-11,
+          "mean_feature_abs": 4.8420694577713775e-15,
+          "max_total_abs": 2.8796573217352707e-10
+        },
+        "16": {
+          "max_feature_abs": 5.551115123125783e-15,
+          "mean_feature_abs": 3.833628218801996e-18,
+          "max_total_abs": 8.816654338144322e-15
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 2.0005606805861906,
+          "mean_feature_abs": 0.0008395644826819648,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.134172761320997e-07,
+          "mean_feature_abs": 2.1045097194486893e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "error": "Tree depth must be < 32"
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 4.3262656568288094e-07,
+          "mean_feature_abs": 3.579848826939829e-10,
+          "finite": true
+        }
+      ],
+      "pairwise": {
+        "rows": 1,
+        "float64_8_max_abs": 2.3246367938239976e-13,
+        "native": [
+          {
+            "device": "cpu",
+            "algorithm": "treeshap",
+            "max_pair_abs": 8.452506607708765,
+            "mean_pair_abs": 4.531616454716169e-06,
+            "finite": true
+          },
+          {
+            "device": "cpu",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 5.079926312934191e-07,
+            "mean_pair_abs": 2.659610534125534e-12,
+            "finite": true
+          },
+          {
+            "device": "cuda",
+            "algorithm": "treeshap",
+            "error": "Tree depth must be < 32"
+          },
+          {
+            "device": "cuda",
+            "algorithm": "quadratureshap",
+            "max_pair_abs": 5.079926312934191e-07,
+            "mean_pair_abs": 2.711158963072233e-12,
+            "finite": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "4",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 4,
+      "max_unique_depth": 4,
+      "exact_points": 2,
+      "reference_crosscheck_max_abs": 2.4424906541753444e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 1.887379141862766e-15,
+          "mean_feature_abs": 6.495396388638865e-19,
+          "max_total_abs": 2.2441957943001396e-15
+        },
+        "6": {
+          "max_feature_abs": 1.887379141862766e-15,
+          "mean_feature_abs": 7.379249462414115e-19,
+          "max_total_abs": 2.5023720718979608e-15
+        },
+        "8": {
+          "max_feature_abs": 2.4424906541753444e-15,
+          "mean_feature_abs": 8.596587727609846e-19,
+          "max_total_abs": 2.8890601882532044e-15
+        },
+        "16": {
+          "max_feature_abs": 3.552713678800501e-15,
+          "mean_feature_abs": 1.1175336307404376e-18,
+          "max_total_abs": 4.098201202766376e-15
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.7896598958344612e-07,
+          "mean_feature_abs": 9.965696073766721e-11,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "initial_configuration_error": "[14:36:23] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (4 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 1.7896598958344612e-07,
+          "mean_feature_abs": 1.0180480157238861e-10,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "initial_configuration_error": "[14:36:23] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (6 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 2.151393498905918e-07,
+          "mean_feature_abs": 1.0271753778794909e-10,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 2.4193332903710285e-07,
+          "mean_feature_abs": 1.057810404617234e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "initial_configuration_error": "[14:36:23] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (16 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 2.2725724391214897e-07,
+          "mean_feature_abs": 1.0273063113515918e-10,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 7.303239479838908e-08,
+          "mean_feature_abs": 6.577470090385686e-11,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 4.765738209622228e-07,
+          "mean_feature_abs": 1.490215669746301e-10,
+          "finite": true
+        }
+      ]
+    },
+    {
+      "name": "8",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 8,
+      "max_unique_depth": 8,
+      "exact_points": 4,
+      "reference_crosscheck_max_abs": 2.886579864025407e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 0.0,
+          "mean_feature_abs": 0.0,
+          "max_total_abs": 0.0
+        },
+        "6": {
+          "max_feature_abs": 2.6645352591003757e-15,
+          "mean_feature_abs": 1.3315865725535747e-18,
+          "max_total_abs": 4.391117623488436e-15
+        },
+        "8": {
+          "max_feature_abs": 3.552713678800501e-15,
+          "mean_feature_abs": 1.6532303518115452e-18,
+          "max_total_abs": 4.842689007888202e-15
+        },
+        "16": {
+          "max_feature_abs": 3.1086244689504383e-15,
+          "mean_feature_abs": 1.832959234541847e-18,
+          "max_total_abs": 5.057516969857604e-15
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 3.575706802871892e-07,
+          "mean_feature_abs": 1.701370666856887e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "initial_configuration_error": "[14:36:41] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (4 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 2.505479838044167e-07,
+          "mean_feature_abs": 1.692940294312337e-10,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "initial_configuration_error": "[14:36:41] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (6 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 2.505479838044167e-07,
+          "mean_feature_abs": 1.6822728113749019e-10,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 2.9796603551179857e-07,
+          "mean_feature_abs": 1.781973569746256e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "initial_configuration_error": "[14:36:41] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (16 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 3.289864529687492e-07,
+          "mean_feature_abs": 1.6815738092171338e-10,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 2.0977716341796793e-07,
+          "mean_feature_abs": 2.858968993245087e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 9.250329007226554e-07,
+          "mean_feature_abs": 2.61027684060518e-10,
+          "finite": true
+        }
+      ]
+    },
+    {
+      "name": "12",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 12,
+      "max_unique_depth": 12,
+      "exact_points": 6,
+      "reference_crosscheck_max_abs": 3.6637359812630166e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 7.2034460899782216e-06,
+          "mean_feature_abs": 2.098887878241049e-08,
+          "max_total_abs": 0.00013348706638957082
+        },
+        "6": {
+          "max_feature_abs": 0.0,
+          "mean_feature_abs": 0.0,
+          "max_total_abs": 0.0
+        },
+        "8": {
+          "max_feature_abs": 2.886579864025407e-15,
+          "mean_feature_abs": 2.2788707145629717e-18,
+          "max_total_abs": 7.176784430632579e-15
+        },
+        "16": {
+          "max_feature_abs": 4.440892098500626e-15,
+          "mean_feature_abs": 2.621292566855886e-18,
+          "max_total_abs": 8.720073388258398e-15
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 3.37102270986378e-07,
+          "mean_feature_abs": 2.87532136497397e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "initial_configuration_error": "[14:37:22] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (4 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 7.205743940367354e-06,
+          "mean_feature_abs": 2.1017415371362917e-08,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "initial_configuration_error": "[14:37:22] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (6 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 3.5909499407349443e-07,
+          "mean_feature_abs": 1.9642494335722495e-10,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.5909499407349443e-07,
+          "mean_feature_abs": 2.07505978645255e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "initial_configuration_error": "[14:37:23] /home/rorym/xgboost-worktrees/quadrature-figure1/src/predictor/gpu_predictor.cu:688: Check failed: points == 8 (16 vs. 8) : GPU QuadratureSHAP currently uses a fixed quadrature size of 8.",
+          "max_feature_abs": 3.5909499407349443e-07,
+          "mean_feature_abs": 1.9530511551096888e-10,
+          "finite": true,
+          "library": "CPU-only build"
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 2.4015722632775294e-07,
+          "mean_feature_abs": 3.639470861651527e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 9.533391822635906e-07,
+          "mean_feature_abs": 3.4537335064937194e-10,
+          "finite": true
+        }
+      ]
+    },
+    {
+      "name": "16",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 16,
+      "max_unique_depth": 16,
+      "exact_points": 8,
+      "reference_crosscheck_max_abs": 6.217248937900877e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 3.2215232364810054e-05,
+          "mean_feature_abs": 4.383290635594935e-08,
+          "max_total_abs": 0.00043366833658589783
+        },
+        "6": {
+          "max_feature_abs": 9.764828626246391e-09,
+          "mean_feature_abs": 4.88430770145593e-12,
+          "max_total_abs": 1.947619264050383e-07
+        },
+        "8": {
+          "max_feature_abs": 0.0,
+          "mean_feature_abs": 0.0,
+          "max_total_abs": 0.0
+        },
+        "16": {
+          "max_feature_abs": 6.217248937900877e-15,
+          "mean_feature_abs": 3.205240106460787e-18,
+          "max_total_abs": 1.2211256314060578e-14
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 7.558707215121058e-07,
+          "mean_feature_abs": 8.676465064676038e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "max_feature_abs": 3.221078677062561e-05,
+          "mean_feature_abs": 4.38528114168394e-08,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "max_feature_abs": 3.529538092905682e-07,
+          "mean_feature_abs": 2.051618635316102e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.823806096203697e-07,
+          "mean_feature_abs": 2.1350328767296202e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "max_feature_abs": 3.529538092905682e-07,
+          "mean_feature_abs": 2.013669808076029e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 9.642263837511544e-07,
+          "mean_feature_abs": 1.899872532140821e-09,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 6.640340631802744e-07,
+          "mean_feature_abs": 3.710577183240596e-10,
+          "finite": true
+        }
+      ]
+    },
+    {
+      "name": "24",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 24,
+      "max_unique_depth": 24,
+      "exact_points": 12,
+      "reference_crosscheck_max_abs": 5.329070518200751e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 6.621612074743377e-05,
+          "mean_feature_abs": 8.461226918661659e-08,
+          "max_total_abs": 0.0010076609997108944
+        },
+        "6": {
+          "max_feature_abs": 2.802192426709649e-07,
+          "mean_feature_abs": 4.53654620093841e-11,
+          "max_total_abs": 3.1727866624436865e-06
+        },
+        "8": {
+          "max_feature_abs": 5.276606235282699e-11,
+          "mean_feature_abs": 4.109635953584844e-15,
+          "max_total_abs": 1.037842700356879e-09
+        },
+        "16": {
+          "max_feature_abs": 4.884981308350689e-15,
+          "mean_feature_abs": 3.35238806328263e-18,
+          "max_total_abs": 9.204223157006473e-15
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.7166707898047355e-05,
+          "mean_feature_abs": 2.2683122572286913e-08,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "max_feature_abs": 6.62057883517031e-05,
+          "mean_feature_abs": 8.4628789835254e-08,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "max_feature_abs": 2.7903807847673434e-07,
+          "mean_feature_abs": 2.3945787944111763e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.500016644286674e-07,
+          "mean_feature_abs": 2.2030057326585442e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "max_feature_abs": 2.4473537429958725e-07,
+          "mean_feature_abs": 2.0772442836753677e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 1.4952918921479208e-05,
+          "mean_feature_abs": 1.6953421317812127e-08,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 8.499552719420933e-07,
+          "mean_feature_abs": 3.8398277829582237e-10,
+          "finite": true
+        }
+      ]
+    },
+    {
+      "name": "32",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 32,
+      "max_unique_depth": 32,
+      "exact_points": 16,
+      "reference_crosscheck_max_abs": 9.547918011776346e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 0.00010459002559706776,
+          "mean_feature_abs": 1.1471663028496957e-07,
+          "max_total_abs": 0.0017686893690735089
+        },
+        "6": {
+          "max_feature_abs": 9.851074017491745e-07,
+          "mean_feature_abs": 1.5351138814184146e-10,
+          "max_total_abs": 9.314844706310036e-06
+        },
+        "8": {
+          "max_feature_abs": 6.563477955578989e-10,
+          "mean_feature_abs": 5.757102135999465e-14,
+          "max_total_abs": 1.1470756624101531e-08
+        },
+        "16": {
+          "max_feature_abs": 0.0,
+          "mean_feature_abs": 0.0,
+          "max_total_abs": 0.0
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 0.005821815496902316,
+          "mean_feature_abs": 1.2924975213293954e-06,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "max_feature_abs": 0.00010461320934809781,
+          "mean_feature_abs": 1.1473649455449013e-07,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "max_feature_abs": 9.854579549606335e-07,
+          "mean_feature_abs": 3.411782909096797e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.5263255471207344e-07,
+          "mean_feature_abs": 2.1956127411209439e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "max_feature_abs": 3.5263255471207344e-07,
+          "mean_feature_abs": 2.0902904707237293e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "error": "Tree depth must be < 32"
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 6.304193025385985e-07,
+          "mean_feature_abs": 3.750577864631152e-10,
+          "finite": true
+        }
+      ]
+    },
+    {
+      "name": "48",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 48,
+      "max_unique_depth": 47,
+      "exact_points": 24,
+      "reference_crosscheck_max_abs": 8.659739592076221e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 0.00013208180528744007,
+          "mean_feature_abs": 1.2671581416642323e-07,
+          "max_total_abs": 0.002375630877481892
+        },
+        "6": {
+          "max_feature_abs": 1.7214920578316473e-06,
+          "mean_feature_abs": 2.5236380751027984e-10,
+          "max_total_abs": 1.575527216680879e-05
+        },
+        "8": {
+          "max_feature_abs": 8.16211011625545e-09,
+          "mean_feature_abs": 3.337100275456933e-13,
+          "max_total_abs": 7.674197926491459e-08
+        },
+        "16": {
+          "max_feature_abs": 5.10702591327572e-15,
+          "mean_feature_abs": 4.155675615490696e-18,
+          "max_total_abs": 1.4198711174414133e-14
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 3.9865882431652655,
+          "mean_feature_abs": 0.000538033236628851,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "max_feature_abs": 0.00013209490636495458,
+          "mean_feature_abs": 1.2673386815160423e-07,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "max_feature_abs": 1.7134297323057046e-06,
+          "mean_feature_abs": 4.3982019374716034e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 4.5885024146929965e-07,
+          "mean_feature_abs": 2.2395945293862972e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "max_feature_abs": 3.8336051888521183e-07,
+          "mean_feature_abs": 2.1114569515963523e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "error": "Tree depth must be < 32"
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 7.207620236204804e-07,
+          "mean_feature_abs": 3.8068184301991156e-10,
+          "finite": true
+        }
+      ]
+    },
+    {
+      "name": "55",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 55,
+      "max_unique_depth": 53,
+      "exact_points": 27,
+      "reference_crosscheck_max_abs": 8.104628079763643e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 0.00014082699167801416,
+          "mean_feature_abs": 1.2654367136344188e-07,
+          "max_total_abs": 0.0025727241943411796
+        },
+        "6": {
+          "max_feature_abs": 1.8660120815819359e-06,
+          "mean_feature_abs": 2.666241895474111e-10,
+          "max_total_abs": 2.103326682475966e-05
+        },
+        "8": {
+          "max_feature_abs": 1.0187657578653031e-08,
+          "mean_feature_abs": 4.649898830574348e-13,
+          "max_total_abs": 9.184416374755427e-08
+        },
+        "16": {
+          "max_feature_abs": 7.327471962526033e-15,
+          "mean_feature_abs": 4.897301253317102e-18,
+          "max_total_abs": 1.4231916758535743e-14
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 44.68267811849426,
+          "mean_feature_abs": 0.004936504537832961,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "max_feature_abs": 0.00014081092959916663,
+          "mean_feature_abs": 1.265656521662607e-07,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "max_feature_abs": 1.86404109887503e-06,
+          "mean_feature_abs": 4.548006994957637e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 4.287963613069934e-07,
+          "mean_feature_abs": 2.2218615370909782e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "max_feature_abs": 3.782458088963381e-07,
+          "mean_feature_abs": 2.0941125133272144e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "error": "Tree depth must be < 32"
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 3.8779246924747213e-07,
+          "mean_feature_abs": 3.7841115749609175e-10,
+          "finite": true
+        }
+      ]
+    },
+    {
+      "name": "64",
+      "kind": "sweep",
+      "rows": 100,
+      "max_depth": 55,
+      "max_unique_depth": 53,
+      "exact_points": 27,
+      "reference_crosscheck_max_abs": 8.104628079763643e-15,
+      "float64": {
+        "4": {
+          "max_feature_abs": 0.00014082699167801416,
+          "mean_feature_abs": 1.2654367136344188e-07,
+          "max_total_abs": 0.0025727241943411796
+        },
+        "6": {
+          "max_feature_abs": 1.8660120815819359e-06,
+          "mean_feature_abs": 2.666241895474111e-10,
+          "max_total_abs": 2.103326682475966e-05
+        },
+        "8": {
+          "max_feature_abs": 1.0187657578653031e-08,
+          "mean_feature_abs": 4.649898830574348e-13,
+          "max_total_abs": 9.184416374755427e-08
+        },
+        "16": {
+          "max_feature_abs": 7.327471962526033e-15,
+          "mean_feature_abs": 4.897301253317102e-18,
+          "max_total_abs": 1.4231916758535743e-14
+        }
+      },
+      "native": [
+        {
+          "device": "cpu",
+          "algorithm": "treeshap",
+          "points": 8,
+          "max_feature_abs": 44.68267811849426,
+          "mean_feature_abs": 0.004936504537832961,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 4,
+          "max_feature_abs": 0.00014081092959916663,
+          "mean_feature_abs": 1.265656521662607e-07,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 6,
+          "max_feature_abs": 1.86404109887503e-06,
+          "mean_feature_abs": 4.548006994957637e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 4.287963613069934e-07,
+          "mean_feature_abs": 2.2218615370909782e-10,
+          "finite": true
+        },
+        {
+          "device": "cpu",
+          "algorithm": "quadratureshap",
+          "points": 16,
+          "max_feature_abs": 3.782458088963381e-07,
+          "mean_feature_abs": 2.0941125133272144e-10,
+          "finite": true
+        },
+        {
+          "device": "cuda",
+          "algorithm": "treeshap",
+          "points": 8,
+          "error": "Tree depth must be < 32"
+        },
+        {
+          "device": "cuda",
+          "algorithm": "quadratureshap",
+          "points": 8,
+          "max_feature_abs": 4.562192179591307e-07,
+          "mean_feature_abs": 3.793191823610123e-10,
+          "finite": true
+        }
+      ]
+    }
+  ],
+  "timings": [
+    {
+      "model": "adult-large",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        2.019638344005216,
+        1.8595673450035974,
+        1.725169169018045
+      ],
+      "mean_s": 1.8681249526756194,
+      "std_s": 0.12036873414971583,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 2.1956861928629223e-06,
+        "max_efficiency_error": 1.1920928955078125e-05
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-large",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        1.4102938339929096,
+        1.5620698719867505,
+        1.3657025680295192
+      ],
+      "mean_s": 1.446022091336393,
+      "std_s": 0.08405320059525616,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.8358230590820312e-05,
+        "mean_row_sum_error": 1.1884430932695977e-06,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        6.9744415350141935,
+        7.137108071008697,
+        6.894802892988082
+      ],
+      "mean_s": 7.002117499670324,
+      "std_s": 0.10083788669158052,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 2.291239752594265e-06,
+        "max_efficiency_error": 1.1444091796875e-05
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        24.298182405007537,
+        22.496947219013236,
+        22.617068856023252
+      ],
+      "mean_s": 23.13739949334801,
+      "std_s": 0.8222611215098975,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 7.152557373046875e-07,
+        "mean_row_sum_error": 2.0394926636413402e-08,
+        "max_asymmetry": 5.364418029785156e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-large",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.1866374029777944,
+        0.18433773098513484,
+        0.18812415999127552
+      ],
+      "mean_s": 0.18636643131806827,
+      "std_s": 0.0015576329017490892,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 0.06461312621831894,
+        "max_efficiency_error": 3.8646719455718994
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-large",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.15827770601026714,
+        0.1580913540092297,
+        0.1582387270173058
+      ],
+      "mean_s": 0.15820259567893422,
+      "std_s": 8.025323371286161e-05,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 3.5762786865234375e-06,
+        "mean_row_sum_error": 1.8376661614638579e-07,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-large",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.4017457699519582,
+        0.39239911700133234,
+        0.3913677210221067
+      ],
+      "mean_s": 0.3951708693251324,
+      "std_s": 0.004668185450898191,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 0.201032355427742,
+        "max_efficiency_error": 3.9940757751464844
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-large",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.486483373970259,
+        0.4809635929996148,
+        0.48054217599565163
+      ],
+      "mean_s": 0.48266304765517515,
+      "std_s": 0.0027068515459969275,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 0.0015353858470916748,
+        "mean_row_sum_error": 3.1069348551682197e-06,
+        "max_asymmetry": 5.960464477539063e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-small",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.002744908968452364,
+        0.0013034900184720755,
+        0.0014500920078717172
+      ],
+      "mean_s": 0.0018328303315987189,
+      "std_s": 0.0006477080698779793,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 9.316205762388563e-08,
+        "max_efficiency_error": 3.5762786865234375e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-small",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.0018455259851180017,
+        0.0010677779791876674,
+        0.0010847629746422172
+      ],
+      "mean_s": 0.0013326889796492953,
+      "std_s": 0.00036269681383696605,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 8.940696716308594e-08,
+        "mean_row_sum_error": 1.6587270446066782e-09,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-small",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.0027953439857810736,
+        0.0016618219669908285,
+        0.001928625046275556
+      ],
+      "mean_s": 0.002128596999682486,
+      "std_s": 0.00048387989445220506,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 9.322166505398854e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-small",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.007831563998479396,
+        0.008553086023312062,
+        0.008339974971022457
+      ],
+      "mean_s": 0.008241541664271304,
+      "std_s": 0.0003026718189592289,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.862645149230957e-08,
+        "mean_row_sum_error": 6.706609156914567e-10,
+        "max_asymmetry": 2.514570951461792e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-small",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.0007620509713888168,
+        0.0004337950376793742,
+        0.0004217370296828449
+      ],
+      "mean_s": 0.0005391943462503453,
+      "std_s": 0.00015766030025615835,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 0.0013424071948975325,
+        "max_efficiency_error": 0.20523786544799805
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-small",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.0008962879655882716,
+        0.0005973149673081934,
+        0.0005989369819872081
+      ],
+      "mean_s": 0.0006975133049612244,
+      "std_s": 0.0001405564702968243,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 5.960464477539063e-08,
+        "mean_row_sum_error": 1.2426984996594115e-09,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-small",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.004820075002498925,
+        0.003860855009406805,
+        0.003891051048412919
+      ],
+      "mean_s": 0.00419066035343955,
+      "std_s": 0.00044523405869334015,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 0.0013424124335870147,
+        "max_efficiency_error": 0.2052379846572876
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-small",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.004453256027773023,
+        0.003897312970366329,
+        0.003825345018412918
+      ],
+      "mean_s": 0.004058638005517423,
+      "std_s": 0.0002805796192928521,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 2.9802322387695312e-08,
+        "mean_row_sum_error": 6.526435503140249e-10,
+        "max_asymmetry": 3.725290298461914e-09
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-sparse",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.19701836298918352,
+        0.20718695200048387,
+        0.23581527901114896
+      ],
+      "mean_s": 0.21334019800027212,
+      "std_s": 0.01642552892003364,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 2.364399875887102e-07,
+        "max_efficiency_error": 1.430511474609375e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-sparse",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.1216185360099189,
+        0.13983439397998154,
+        0.15386409300845116
+      ],
+      "mean_s": 0.1384390076661172,
+      "std_s": 0.013201118986916432,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.5497207641601562e-06,
+        "mean_row_sum_error": 7.878374219671969e-08,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.6807326920097694,
+        0.5618711819988675,
+        0.6550185200176202
+      ],
+      "mean_s": 0.6325407980087524,
+      "std_s": 0.0510617314665878,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 2.4826778144415584e-07,
+        "max_efficiency_error": 1.430511474609375e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        2.068951372988522,
+        2.1579966379795223,
+        2.066919658042025
+      ],
+      "mean_s": 2.097955889670023,
+      "std_s": 0.04246332189532856,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 3.5762786865234375e-07,
+        "mean_row_sum_error": 8.285268471297513e-09,
+        "max_asymmetry": 5.21540641784668e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-sparse",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.019092905975412577,
+        0.016457872989121825,
+        0.01581416104454547
+      ],
+      "mean_s": 0.01712164666969329,
+      "std_s": 0.0014184472037375305,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 0.013518289662897587,
+        "max_efficiency_error": 1.3974734544754028
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-sparse",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.017098296026233584,
+        0.015191236976534128,
+        0.015033938980195671
+      ],
+      "mean_s": 0.015774490660987794,
+      "std_s": 0.0009382718684557536,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.1324882507324219e-06,
+        "mean_row_sum_error": 4.721338697777355e-08,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.03152028803015128,
+        0.029759677010588348,
+        0.02992891299072653
+      ],
+      "mean_s": 0.03040295934382205,
+      "std_s": 0.0007930858504239322,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 0.044444914907217026,
+        "max_efficiency_error": 1.3974730968475342
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "adult-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.04002054198645055,
+        0.03986113105202094,
+        0.039358700974844396
+      ],
+      "mean_s": 0.03974679133777196,
+      "std_s": 0.0002820325735937467,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 0.0011402368545532227,
+        "mean_row_sum_error": 1.1355920833011623e-05,
+        "max_asymmetry": 2.9802322387695312e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-large",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        16.76874799700454,
+        15.523793760978151,
+        14.368728838977404
+      ],
+      "mean_s": 15.553756865653364,
+      "std_s": 0.9800327649133821,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.411408220519661e-06,
+        "max_efficiency_error": 9.059906005859375e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-large",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        8.004875585029367,
+        8.63649488199735,
+        8.761539428960532
+      ],
+      "mean_s": 8.46763663199575,
+      "std_s": 0.3311795833314344,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 9.512901306152344e-05,
+        "mean_row_sum_error": 5.187732313061133e-06,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        34.394527802011,
+        33.245947408955544,
+        29.55971803702414
+      ],
+      "mean_s": 32.400064415996894,
+      "std_s": 2.0624394769682466,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.4154016980683082e-06,
+        "max_efficiency_error": 9.059906005859375e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        37.78461718803737,
+        32.83247578697046,
+        33.60157442797208
+      ],
+      "mean_s": 34.73955580099331,
+      "std_s": 2.175956083816596,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.341104507446289e-07,
+        "mean_row_sum_error": 7.300898108297815e-09,
+        "max_asymmetry": 2.816319465637207e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-large",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        1.0835005010012537,
+        1.0698761750245467,
+        1.0669876980246045
+      ],
+      "mean_s": 1.0734547913501349,
+      "std_s": 0.007200603522887709,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 2.9768467356916517e-05,
+        "max_efficiency_error": 0.00023818016052246094
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-large",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.9405194199644029,
+        0.9419762119650841,
+        0.9432599549763836
+      ],
+      "mean_s": 0.9419185289686235,
+      "std_s": 0.0011195619780472155,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 3.933906555175781e-06,
+        "mean_row_sum_error": 2.0695351565791498e-07,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-large",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        2.421830653969664,
+        2.4391455340082757,
+        2.431097666034475
+      ],
+      "mean_s": 2.430691284670805,
+      "std_s": 0.0070746084484081175,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 5.278587309476279e-07,
+        "max_efficiency_error": 4.76837158203125e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-large",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        2.6598165460163727,
+        2.511652131972369,
+        2.5768523769802414
+      ],
+      "mean_s": 2.582773684989661,
+      "std_s": 0.06063260846363981,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.1920928955078125e-07,
+        "mean_row_sum_error": 7.079175468049925e-09,
+        "max_asymmetry": 2.9802322387695312e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-small",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.005499151011463255,
+        0.0034867299837060273,
+        0.003979884961154312
+      ],
+      "mean_s": 0.004321921985441198,
+      "std_s": 0.0008564273048454004,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.420974768961969e-07,
+        "max_efficiency_error": 7.152557373046875e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-small",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.00251211499562487,
+        0.0015422559808939695,
+        0.0015189010300673544
+      ],
+      "mean_s": 0.0018577573355287313,
+      "std_s": 0.00046279896566212475,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 4.470348358154297e-08,
+        "mean_row_sum_error": 1.565132246028611e-09,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-small",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.004084171960130334,
+        0.0035035450127907097,
+        0.0035028739948756993
+      ],
+      "mean_s": 0.0036968636559322476,
+      "std_s": 0.0002738684653160571,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.4376639967395022e-07,
+        "max_efficiency_error": 7.152557373046875e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-small",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.006039378000423312,
+        0.004695563984569162,
+        0.004602281027473509
+      ],
+      "mean_s": 0.0051124076708219945,
+      "std_s": 0.0006565723730059563,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.4901161193847656e-08,
+        "mean_row_sum_error": 5.230723632010381e-10,
+        "max_asymmetry": 3.5390257835388184e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-small",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.0007349710213020444,
+        0.00037288403837010264,
+        0.0003599940100684762
+      ],
+      "mean_s": 0.0004892830232468744,
+      "std_s": 0.00017380733106646585,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.668930060816365e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-small",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.0008381200022995472,
+        0.0005563530139625072,
+        0.0005467080045491457
+      ],
+      "mean_s": 0.0006470603402704,
+      "std_s": 0.00013515695170841172,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 4.470348358154297e-08,
+        "mean_row_sum_error": 1.2885781330851387e-09,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-small",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.004584367969073355,
+        0.0034955120063386858,
+        0.0034651370369829237
+      ],
+      "mean_s": 0.0038483390041316548,
+      "std_s": 0.0005205987819269294,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.442432395748483e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-small",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.003873608016874641,
+        0.003329083032440394,
+        0.003229080990422517
+      ],
+      "mean_s": 0.0034772573465791843,
+      "std_s": 0.00028322016463601824,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.4901161193847656e-08,
+        "mean_row_sum_error": 4.382613161268978e-10,
+        "max_asymmetry": 2.3283064365386963e-09
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-sparse",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.16900509601691738,
+        0.21601929096505046,
+        0.26468375098193064
+      ],
+      "mean_s": 0.2165693793212995,
+      "std_s": 0.03906258398927099,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 3.8886071251909016e-07,
+        "max_efficiency_error": 2.1457672119140625e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-sparse",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.12330189096974209,
+        0.116452568967361,
+        0.1134573919698596
+      ],
+      "mean_s": 0.11773728396898757,
+      "std_s": 0.004120389109151795,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.9669532775878906e-06,
+        "mean_row_sum_error": 1.0183050846990227e-07,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.37269424099940807,
+        0.34116333798738196,
+        0.3299415470100939
+      ],
+      "mean_s": 0.3479330419989613,
+      "std_s": 0.018098248168248763,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 3.881454517795646e-07,
+        "max_efficiency_error": 2.1457672119140625e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.5243223569705151,
+        0.5416228760150261,
+        0.4986516259959899
+      ],
+      "mean_s": 0.5215322863271771,
+      "std_s": 0.017653525666671478,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.1920928955078125e-07,
+        "mean_row_sum_error": 4.981921097879649e-09,
+        "max_asymmetry": 3.6461278796195984e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-sparse",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.0155474380007945,
+        0.012732522969599813,
+        0.012536537018604577
+      ],
+      "mean_s": 0.013605499329666296,
+      "std_s": 0.001375487059205879,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 5.559921305575699e-07,
+        "max_efficiency_error": 3.0994415283203125e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-sparse",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.01734213496092707,
+        0.015485061972867697,
+        0.015304859029129148
+      ],
+      "mean_s": 0.016044018654307973,
+      "std_s": 0.0009208502355127445,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 7.152557373046875e-07,
+        "mean_row_sum_error": 3.69884780582197e-08,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.024846522021107376,
+        0.02236178598832339,
+        0.022739798005204648
+      ],
+      "mean_s": 0.023316035338211805,
+      "std_s": 0.0010931652470744988,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 8.928775940830747e-08,
+        "max_efficiency_error": 9.5367431640625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "cal_housing-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.027590626035816967,
+        0.027219253999646753,
+        0.02658431202871725
+      ],
+      "mean_s": 0.02713139735472699,
+      "std_s": 0.00041549654051001897,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 8.940696716308594e-08,
+        "mean_row_sum_error": 4.2527883437060154e-09,
+        "max_asymmetry": 1.4901161193847656e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-large",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.03219411097234115,
+        0.031025820004288107,
+        0.03189827298047021
+      ],
+      "mean_s": 0.031706067985699825,
+      "std_s": 0.0004959388514185948,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.93919991176017e-08,
+        "max_efficiency_error": 2.980232238769531e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-large",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.03390854503959417,
+        0.0315163439954631,
+        0.031239956966601312
+      ],
+      "mean_s": 0.0322216153338862,
+      "std_s": 0.0011981642406700798,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.7881393432617188e-07,
+        "mean_row_sum_error": 7.71983726943759e-11,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.14774416398722678,
+        0.14835276501253247,
+        0.1527647649636492
+      ],
+      "mean_s": 0.1496205646544695,
+      "std_s": 0.0022371254606727187,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 2.5637447720328055e-08,
+        "max_efficiency_error": 3.2186508178710938e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        1.665663552004844,
+        1.67464232200291,
+        1.5971992099657655
+      ],
+      "mean_s": 1.645835027991173,
+      "std_s": 0.03458551405738123,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.1920928955078125e-07,
+        "mean_row_sum_error": 6.456141177224595e-11,
+        "max_asymmetry": 8.046627044677734e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-large",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.01194119401043281,
+        0.010844591015484184,
+        0.010734774987213314
+      ],
+      "mean_s": 0.011173520004376769,
+      "std_s": 0.0005446756984340281,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.985766040490944e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-large",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.09888142900308594,
+        0.09627026895759627,
+        0.09617045801132917
+      ],
+      "mean_s": 0.0971073853240038,
+      "std_s": 0.0012550999396375223,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.4901161193847656e-07,
+        "mean_row_sum_error": 7.240383986806265e-11,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-large",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.014781631005462259,
+        0.012369484000373632,
+        0.011867774010170251
+      ],
+      "mean_s": 0.013006296338668713,
+      "std_s": 0.0012719507623873603,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.7438084753962357e-08,
+        "max_efficiency_error": 1.0132789611816406e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-large",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.018320182978641242,
+        0.015494869032409042,
+        0.015526878007221967
+      ],
+      "mean_s": 0.01644731000609075,
+      "std_s": 0.0013243856492980003,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 5.960464477539063e-08,
+        "mean_row_sum_error": 4.3684032086099833e-11,
+        "max_asymmetry": 4.377216100692749e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-small",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.001905138953588903,
+        0.0010371680255047977,
+        0.0010715899989008904
+      ],
+      "mean_s": 0.0013379656593315303,
+      "std_s": 0.00040129820778085585,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 3.1208617912170666e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-small",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.003282081976067275,
+        0.001513852970674634,
+        0.0012739200028590858
+      ],
+      "mean_s": 0.0020232849832003317,
+      "std_s": 0.0008954772877072646,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.7881393432617188e-07,
+        "mean_row_sum_error": 3.9982378519098916e-11,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-small",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.002446706988848746,
+        0.001805187959689647,
+        0.0017604510067030787
+      ],
+      "mean_s": 0.002004115318413824,
+      "std_s": 0.0003134920400843925,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 4.318729196484128e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-small",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.03023653302807361,
+        0.026786537026055157,
+        0.02505428303265944
+      ],
+      "mean_s": 0.02735911769559607,
+      "std_s": 0.0021540373288457615,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.1920928955078125e-07,
+        "mean_row_sum_error": 3.63747643117307e-11,
+        "max_asymmetry": 1.0803341865539551e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-small",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.0017631850205361843,
+        0.0005380130023695529,
+        0.0004956389893777668
+      ],
+      "mean_s": 0.0009322790040945014,
+      "std_s": 0.0005877938954903023,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 3.114715241281374e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-small",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.007767606992274523,
+        0.005341290961951017,
+        0.005202249973081052
+      ],
+      "mean_s": 0.006103715975768864,
+      "std_s": 0.0011779171123223286,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.7881393432617188e-07,
+        "mean_row_sum_error": 3.333347833867073e-11,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-small",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.005693255050573498,
+        0.003805371990893036,
+        0.003668233985081315
+      ],
+      "mean_s": 0.00438895367551595,
+      "std_s": 0.0009239780898889549,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 3.111548707579459e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-small",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.006759940006304532,
+        0.004658927035052329,
+        0.0047246660105884075
+      ],
+      "mean_s": 0.005381177683981757,
+      "std_s": 0.0009753015121211847,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.1920928955078125e-07,
+        "mean_row_sum_error": 2.5214648077809265e-11,
+        "max_asymmetry": 3.3527612686157227e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-sparse",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.006605844013392925,
+        0.005962911993265152,
+        0.006431459973100573
+      ],
+      "mean_s": 0.006333405326586217,
+      "std_s": 0.00027147919613810357,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.2131407878257505e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-sparse",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.009747522010002285,
+        0.006673155992757529,
+        0.007472005963791162
+      ],
+      "mean_s": 0.007964227988850325,
+      "std_s": 0.001302470343478718,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.043081283569336e-07,
+        "mean_row_sum_error": 6.512717448670102e-11,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.03283486497821286,
+        0.03352501796325669,
+        0.03267942002275959
+      ],
+      "mean_s": 0.03301310098807638,
+      "std_s": 0.00036750059016032874,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 3.302842443986265e-08,
+        "max_efficiency_error": 9.119510650634766e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.3138053850270808,
+        0.31232704600552097,
+        0.30687085300451145
+      ],
+      "mean_s": 0.31100109467903775,
+      "std_s": 0.002982230013838846,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 8.940696716308594e-08,
+        "mean_row_sum_error": 6.165485483267119e-11,
+        "max_asymmetry": 1.255422830581665e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-sparse",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.0037221250240691006,
+        0.001666689000558108,
+        0.0015684600220993161
+      ],
+      "mean_s": 0.0023190913489088416,
+      "std_s": 0.0009929047800192263,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.1900439744749747e-08,
+        "max_efficiency_error": 2.384185791015625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-sparse",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.016772891976870596,
+        0.014272614964284003,
+        0.01411638903664425
+      ],
+      "mean_s": 0.01505396532593295,
+      "std_s": 0.001217136874963675,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 5.960464477539063e-08,
+        "mean_row_sum_error": 6.288802117948578e-11,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.008759337943047285,
+        0.006949793023522943,
+        0.006780308031011373
+      ],
+      "mean_s": 0.007496479665860534,
+      "std_s": 0.0008956522993014566,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.2099742541238356e-08,
+        "max_efficiency_error": 9.5367431640625e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "covtype-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.01487259496934712,
+        0.012487813015468419,
+        0.012469445005990565
+      ],
+      "mean_s": 0.013276617663602034,
+      "std_s": 0.0011285512885356017,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 5.960464477539063e-08,
+        "mean_row_sum_error": 3.9398494883213786e-11,
+        "max_asymmetry": 4.307366907596588e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        4.81937741098227,
+        4.908701756969094,
+        4.872111443022732
+      ],
+      "mean_s": 4.866730203658032,
+      "std_s": 0.03666449689930417,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.9776848603214603e-06,
+        "max_efficiency_error": 1.049041748046875e-05
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        6.776055734953843,
+        6.609562160039786,
+        7.09267315804027
+      ],
+      "mean_s": 6.8260970176779665,
+      "std_s": 0.20037823664221063,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 5.602836608886719e-06,
+        "mean_row_sum_error": 6.98983315672308e-09,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        42.997497709002346,
+        43.16629819199443,
+        41.63950102799572
+      ],
+      "mean_s": 42.60109897633083,
+      "std_s": 0.6834356158148386,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 2.3861216504883487e-06,
+        "max_efficiency_error": 1.430511474609375e-05
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "status": "timeout",
+      "error": "Command '['/home/rorym/miniforge3/envs/xgboost/bin/python', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/timing_case.py', 'fashion_mnist-large', 'cpu', 'treeshap', '2', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/timings/fashion_mnist-large-cpu-treeshap-order2.json']' timed out after 599.9999925180455 seconds"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.7793421340174973,
+        0.7643369599827565,
+        0.7641823529847898
+      ],
+      "mean_s": 0.7692871489950145,
+      "std_s": 0.007110228251503592,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 2.100860228892998e-06,
+        "max_efficiency_error": 1.1920928955078125e-05
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        3.0514341169619,
+        2.7996190499980003,
+        2.7981272080214694
+      ],
+      "mean_s": 2.88306012499379,
+      "std_s": 0.11905994925968645,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 3.2782554626464844e-06,
+        "mean_row_sum_error": 5.28837995616982e-09,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        2.2612808480043896,
+        2.280808606010396,
+        2.2704960079863667
+      ],
+      "mean_s": 2.270861820667051,
+      "std_s": 0.00797636915617206,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 4.469768555281917e-06,
+        "max_efficiency_error": 3.8623809814453125e-05
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-large",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        5.363444622023962,
+        5.153708908997942,
+        5.156458288023714
+      ],
+      "mean_s": 5.224537273015206,
+      "std_s": 0.09822874147531763,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 5.960464477539062e-07,
+        "mean_row_sum_error": 9.286063029634306e-10,
+        "max_asymmetry": 1.73225998878479e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-small",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.018654964049346745,
+        0.015236807987093925,
+        0.014176927041262388
+      ],
+      "mean_s": 0.016022899692567687,
+      "std_s": 0.0019107867469542938,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 6.666465157678658e-09,
+        "max_efficiency_error": 8.940696716308594e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-small",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.38817910896614194,
+        0.3530458739842288,
+        0.3493799509597011
+      ],
+      "mean_s": 0.36353497797002393,
+      "std_s": 0.017490180908551867,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.7881393432617188e-07,
+        "mean_row_sum_error": 3.7618071851985846e-11,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-small",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.03716073202667758,
+        0.03509931702865288,
+        0.03341747500235215
+      ],
+      "mean_s": 0.03522584135256087,
+      "std_s": 0.001530794911355034,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 6.678362751699751e-09,
+        "max_efficiency_error": 1.1920928955078125e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-small",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        6.021759428025689,
+        5.949618861021008,
+        6.025192758999765
+      ],
+      "mean_s": 5.998857016015488,
+      "std_s": 0.034844835780352926,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.1920928955078125e-07,
+        "mean_row_sum_error": 2.8207689656278845e-11,
+        "max_asymmetry": 3.3527612686157227e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-small",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.011363284022081643,
+        0.005251896975096315,
+        0.004979396006092429
+      ],
+      "mean_s": 0.007198192334423463,
+      "std_s": 0.0029472649207331727,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 7.098645227188172e-09,
+        "max_efficiency_error": 1.1920928955078125e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-small",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        2.1863822649465874,
+        1.9303982520359568,
+        1.930541343986988
+      ],
+      "mean_s": 2.015773953656511,
+      "std_s": 0.12063830798372845,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.9371509552001953e-07,
+        "mean_row_sum_error": 3.69958889911981e-11,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-small",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.019388273009099066,
+        0.01140102103818208,
+        0.010591497004497796
+      ],
+      "mean_s": 0.013793597017259648,
+      "std_s": 0.003969813755541218,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.0575435638315867e-08,
+        "max_efficiency_error": 1.4901161193847656e-07
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-small",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        0.620940939988941,
+        0.37017845502123237,
+        0.370015588006936
+      ],
+      "mean_s": 0.4537116610057031,
+      "std_s": 0.1182489758753574,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 5.960464477539063e-08,
+        "mean_row_sum_error": 1.4815161250569808e-11,
+        "max_asymmetry": 1.1175870895385742e-08
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.6756743579753675,
+        0.6197156359557994,
+        0.6185189650277607
+      ],
+      "mean_s": 0.6379696529863091,
+      "std_s": 0.026665728180087143,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 9.518126375951397e-08,
+        "max_efficiency_error": 1.1920928955078125e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        1.2556910670245998,
+        1.3213306890102103,
+        1.3024550370173529
+      ],
+      "mean_s": 1.2931589310173877,
+      "std_s": 0.027591703870009008,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.1920928955078125e-06,
+        "mean_row_sum_error": 1.002465777055761e-09,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        6.581225786008872,
+        6.630205371999182,
+        6.604597178986296
+      ],
+      "mean_s": 6.605342778998117,
+      "std_s": 0.02000278148122999,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 0.6101122498512268,
+        "max_efficiency_error": 166.966796875
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "order": 2,
+      "status": "timeout",
+      "error": "Command '['/home/rorym/miniforge3/envs/xgboost/bin/python', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/timing_case.py', 'fashion_mnist-sparse', 'cpu', 'treeshap', '2', '/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/timings/fashion_mnist-sparse-cpu-treeshap-order2.json']' timed out after 599.9999923380092 seconds"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 1,
+      "rows": 1000,
+      "samples_s": [
+        0.12097099696984515,
+        0.11003522900864482,
+        0.10998509300407022
+      ],
+      "mean_s": 0.11366377299418673,
+      "std_s": 0.005167028164400795,
+      "metrics": {
+        "finite": true,
+        "mean_efficiency_error": 1.0841991837651221e-07,
+        "max_efficiency_error": 1.1920928955078125e-06
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "order": 2,
+      "rows": 100,
+      "samples_s": [
+        2.3182500780094415,
+        2.0681656619999558,
+        2.0683602720382623
+      ],
+      "mean_s": 2.1515920040158867,
+      "std_s": 0.11784508104201234,
+      "metrics": {
+        "finite": true,
+        "max_row_sum_error": 1.2218952178955078e-06,
+        "mean_row_sum_error": 9.232594688768359e-10,
+        "max_asymmetry": 0.0
+      },
+      "library": "/home/rorym/xgboost-worktrees/quadrature-figure1/experiments/2026-09-21-quadrature-correction/artifacts/python-gpu/xgboost/lib/libxgboost.so",
+      "status": "ok"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 1,
+      "status": "error",
+      "error": "process exit 1; see case log"
+    },
+    {
+      "model": "fashion_mnist-sparse",
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "order": 2,
+      "status": "error",
+      "error": "process exit 1; see case log"
+    }
+  ]
+}

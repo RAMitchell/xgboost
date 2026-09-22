@@ -1,0 +1,194 @@
+[
+  {
+    "model": "adult-small",
+    "paper": [
+      10,
+      6,
+      6,
+      40.1
+    ],
+    "regenerated": [
+      10,
+      6,
+      6,
+      40.1
+    ],
+    "match": true
+  },
+  {
+    "model": "adult-large",
+    "paper": [
+      1000,
+      16,
+      14,
+      613.3
+    ],
+    "regenerated": [
+      1000,
+      16,
+      14,
+      613.3
+    ],
+    "match": true
+  },
+  {
+    "model": "adult-sparse",
+    "paper": [
+      100,
+      28,
+      13,
+      512.0
+    ],
+    "regenerated": [
+      100,
+      28,
+      13,
+      512.0
+    ],
+    "match": true
+  },
+  {
+    "model": "cal_housing-small",
+    "paper": [
+      10,
+      6,
+      5,
+      64.0
+    ],
+    "regenerated": [
+      10,
+      6,
+      5,
+      64.0
+    ],
+    "match": true
+  },
+  {
+    "model": "cal_housing-large",
+    "paper": [
+      1000,
+      16,
+      8,
+      3702.8
+    ],
+    "regenerated": [
+      1000,
+      16,
+      8,
+      3702.8
+    ],
+    "match": true
+  },
+  {
+    "model": "cal_housing-sparse",
+    "paper": [
+      100,
+      20,
+      8,
+      512.0
+    ],
+    "regenerated": [
+      100,
+      20,
+      8,
+      512.0
+    ],
+    "match": true
+  },
+  {
+    "model": "covtype-small",
+    "paper": [
+      80,
+      6,
+      6,
+      4.9
+    ],
+    "regenerated": [
+      80,
+      6,
+      6,
+      4.9
+    ],
+    "match": true
+  },
+  {
+    "model": "covtype-large",
+    "paper": [
+      8000,
+      16,
+      14,
+      2.4
+    ],
+    "regenerated": [
+      8000,
+      16,
+      14,
+      2.4
+    ],
+    "match": true
+  },
+  {
+    "model": "covtype-sparse",
+    "paper": [
+      800,
+      24,
+      18,
+      4.0
+    ],
+    "regenerated": [
+      800,
+      24,
+      18,
+      4.0
+    ],
+    "match": true
+  },
+  {
+    "model": "fashion_mnist-small",
+    "paper": [
+      100,
+      6,
+      6,
+      57.5
+    ],
+    "regenerated": [
+      100,
+      6,
+      6,
+      57.5
+    ],
+    "match": true
+  },
+  {
+    "model": "fashion_mnist-large",
+    "paper": [
+      10000,
+      16,
+      16,
+      295.7
+    ],
+    "regenerated": [
+      10000,
+      16,
+      16,
+      295.7
+    ],
+    "match": true
+  },
+  {
+    "model": "fashion_mnist-sparse",
+    "paper": [
+      1000,
+      52,
+      48,
+      412.4
+    ],
+    "regenerated": [
+      1000,
+      52,
+      48,
+      412.4
+    ],
+    "match": true
+  }
+]

@@ -1,0 +1,218 @@
+[
+  {
+    "order": 1,
+    "device": "cpu",
+    "paired_models": 12,
+    "min": 0.8553749161566271,
+    "median": 2.581704076552193,
+    "max": 10.353694330253461,
+    "models": [
+      {
+        "model": "adult-large",
+        "speedup": 3.7482061837681417
+      },
+      {
+        "model": "adult-small",
+        "speedup": 1.1613715481376716
+      },
+      {
+        "model": "adult-sparse",
+        "speedup": 2.9649395844656783
+      },
+      {
+        "model": "cal_housing-large",
+        "speedup": 2.0831021531231753
+      },
+      {
+        "model": "cal_housing-small",
+        "speedup": 0.8553749161566271
+      },
+      {
+        "model": "cal_housing-sparse",
+        "speedup": 1.6065661871929382
+      },
+      {
+        "model": "covtype-large",
+        "speedup": 4.718988324946248
+      },
+      {
+        "model": "covtype-small",
+        "speedup": 1.4978824788486071
+      },
+      {
+        "model": "covtype-sparse",
+        "speedup": 5.212535640107349
+      },
+      {
+        "model": "fashion_mnist-large",
+        "speedup": 8.753536192392607
+      },
+      {
+        "model": "fashion_mnist-small",
+        "speedup": 2.1984685686387073
+      },
+      {
+        "model": "fashion_mnist-sparse",
+        "speedup": 10.353694330253461
+      }
+    ]
+  },
+  {
+    "order": 1,
+    "device": "cuda",
+    "paired_models": 11,
+    "min": 1.1640285544371003,
+    "median": 2.264362974814812,
+    "max": 7.865261661020114,
+    "models": [
+      {
+        "model": "adult-large",
+        "speedup": 2.1203972546466874
+      },
+      {
+        "model": "adult-small",
+        "speedup": 7.7720776981104445
+      },
+      {
+        "model": "adult-sparse",
+        "speedup": 1.7757029992703777
+      },
+      {
+        "model": "cal_housing-large",
+        "speedup": 2.264362974814812
+      },
+      {
+        "model": "cal_housing-small",
+        "speedup": 7.865261661020114
+      },
+      {
+        "model": "cal_housing-sparse",
+        "speedup": 1.7137213984768673
+      },
+      {
+        "model": "covtype-large",
+        "speedup": 1.1640285544371003
+      },
+      {
+        "model": "covtype-small",
+        "speedup": 4.707768442966092
+      },
+      {
+        "model": "covtype-sparse",
+        "speedup": 3.232507278933929
+      },
+      {
+        "model": "fashion_mnist-large",
+        "speedup": 2.9519040109192924
+      },
+      {
+        "model": "fashion_mnist-small",
+        "speedup": 1.9162584682956296
+      }
+    ]
+  },
+  {
+    "order": 2,
+    "device": "cpu",
+    "paired_models": 10,
+    "min": 2.7519243622671343,
+    "median": 14.338248597043052,
+    "max": 51.07860083787648,
+    "models": [
+      {
+        "model": "adult-large",
+        "speedup": 16.000723385881855
+      },
+      {
+        "model": "adult-small",
+        "speedup": 6.184144830581635
+      },
+      {
+        "model": "adult-sparse",
+        "speedup": 15.154369603181545
+      },
+      {
+        "model": "cal_housing-large",
+        "speedup": 4.102627133257783
+      },
+      {
+        "model": "cal_housing-small",
+        "speedup": 2.7519243622671343
+      },
+      {
+        "model": "cal_housing-sparse",
+        "speedup": 4.429627291763844
+      },
+      {
+        "model": "covtype-large",
+        "speedup": 51.07860083787648
+      },
+      {
+        "model": "covtype-small",
+        "speedup": 13.522127590904558
+      },
+      {
+        "model": "covtype-sparse",
+        "speedup": 39.04974783675577
+      },
+      {
+        "model": "fashion_mnist-small",
+        "speedup": 16.501457575040103
+      }
+    ]
+  },
+  {
+    "order": 2,
+    "device": "cuda",
+    "paired_models": 11,
+    "min": 0.16937239069112459,
+    "median": 1.812149954044562,
+    "max": 5.81872485678685,
+    "models": [
+      {
+        "model": "adult-large",
+        "speedup": 3.0509173732820436
+      },
+      {
+        "model": "adult-small",
+        "speedup": 5.81872485678685
+      },
+      {
+        "model": "adult-sparse",
+        "speedup": 2.519687778957614
+      },
+      {
+        "model": "cal_housing-large",
+        "speedup": 2.742035118279
+      },
+      {
+        "model": "cal_housing-small",
+        "speedup": 5.373930575201183
+      },
+      {
+        "model": "cal_housing-sparse",
+        "speedup": 1.6910599482157762
+      },
+      {
+        "model": "covtype-large",
+        "speedup": 0.16937239069112459
+      },
+      {
+        "model": "covtype-small",
+        "speedup": 0.8816232120472984
+      },
+      {
+        "model": "covtype-sparse",
+        "speedup": 0.8819349172228304
+      },
+      {
+        "model": "fashion_mnist-large",
+        "speedup": 1.812149954044562
+      },
+      {
+        "model": "fashion_mnist-small",
+        "speedup": 0.2250806248303255
+      }
+    ]
+  }
+]

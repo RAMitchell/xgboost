@@ -1,0 +1,89 @@
+{
+  "name": "fashion_mnist-small",
+  "kind": "benchmark",
+  "rows": 16,
+  "max_depth": 6,
+  "max_unique_depth": 6,
+  "exact_points": 3,
+  "reference_crosscheck_max_abs": 2.220446049250313e-16,
+  "float64": {
+    "8": {
+      "max_feature_abs": 1.6653345369377348e-16,
+      "mean_feature_abs": 8.083531456625511e-20,
+      "max_total_abs": 2.8231512840779264e-16
+    },
+    "16": {
+      "max_feature_abs": 3.885780586188048e-16,
+      "mean_feature_abs": 9.743113094806724e-20,
+      "max_total_abs": 5.258604470890127e-16
+    }
+  },
+  "native": [
+    {
+      "device": "cpu",
+      "algorithm": "treeshap",
+      "points": 8,
+      "max_feature_abs": 4.60765348653247e-08,
+      "mean_feature_abs": 1.3317347379719537e-11,
+      "finite": true
+    },
+    {
+      "device": "cpu",
+      "algorithm": "quadratureshap",
+      "points": 8,
+      "max_feature_abs": 1.941152000251023e-08,
+      "mean_feature_abs": 1.5004942966394356e-11,
+      "finite": true
+    },
+    {
+      "device": "cuda",
+      "algorithm": "treeshap",
+      "points": 8,
+      "max_feature_abs": 4.60765348653247e-08,
+      "mean_feature_abs": 2.236148472384391e-11,
+      "finite": true
+    },
+    {
+      "device": "cuda",
+      "algorithm": "quadratureshap",
+      "points": 8,
+      "max_feature_abs": 1.8680981234142635e-08,
+      "mean_feature_abs": 1.6941842193685325e-11,
+      "finite": true
+    }
+  ],
+  "pairwise": {
+    "rows": 1,
+    "float64_8_max_abs": 1.457167719820518e-16,
+    "native": [
+      {
+        "device": "cpu",
+        "algorithm": "treeshap",
+        "max_pair_abs": 7.881194263870128e-08,
+        "mean_pair_abs": 6.284858890988185e-13,
+        "finite": true
+      },
+      {
+        "device": "cpu",
+        "algorithm": "quadratureshap",
+        "max_pair_abs": 4.900962025100597e-08,
+        "mean_pair_abs": 1.185730293282067e-13,
+        "finite": true
+      },
+      {
+        "device": "cuda",
+        "algorithm": "treeshap",
+        "max_pair_abs": 4.9757747755396764e-08,
+        "mean_pair_abs": 9.082943793676154e-14,
+        "finite": true
+      },
+      {
+        "device": "cuda",
+        "algorithm": "quadratureshap",
+        "max_pair_abs": 4.900962025100597e-08,
+        "mean_pair_abs": 1.2611148523787848e-13,
+        "finite": true
+      }
+    ]
+  }
+}

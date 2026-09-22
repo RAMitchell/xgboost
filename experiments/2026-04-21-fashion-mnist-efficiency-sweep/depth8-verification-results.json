@@ -1,0 +1,194 @@
+{
+  "synthetic-original": {
+    "dataset": "synthetic",
+    "label": "original",
+    "stats": {
+      "num_trees": 1,
+      "mean_max_depth": 8.0,
+      "max_max_depth": 8.0,
+      "mean_nodes": 17.0,
+      "mean_leaves": 9.0
+    },
+    "xgboost_library": "/home/rorym/xgboost-worktrees/quadrature-figure1/python-package/xgboost/../../lib/libxgboost.so",
+    "results": [
+      {
+        "algorithm": "TreeSHAP",
+        "mean_efficiency_err": 8.285496733151376e-10,
+        "p99_efficiency_err": 7.450580596923828e-09,
+        "max_efficiency_err": 7.450580596923828e-09
+      },
+      {
+        "algorithm": "QuadratureSHAP-4",
+        "mean_efficiency_err": 0.00017510080942884088,
+        "p99_efficiency_err": 0.0010273754596710205,
+        "max_efficiency_err": 0.0016995668411254883,
+        "max_feature_difference_vs_treeshap": 0.00021244585514068604
+      },
+      {
+        "algorithm": "QuadratureSHAP-6",
+        "mean_efficiency_err": 3.545683284755796e-07,
+        "p99_efficiency_err": 5.587935447692871e-07,
+        "max_efficiency_err": 5.587935447692871e-07,
+        "max_feature_difference_vs_treeshap": 7.264316082000732e-08
+      },
+      {
+        "algorithm": "QuadratureSHAP-8",
+        "mean_efficiency_err": 2.141860022675246e-09,
+        "p99_efficiency_err": 9.313225746154785e-09,
+        "max_efficiency_err": 1.7881393432617188e-07,
+        "max_feature_difference_vs_treeshap": 2.2351741790771484e-08
+      },
+      {
+        "algorithm": "QuadratureSHAP-16",
+        "mean_efficiency_err": 9.849827620200813e-10,
+        "p99_efficiency_err": 2.2351741790771484e-08,
+        "max_efficiency_err": 2.2351741790771484e-08,
+        "max_feature_difference_vs_treeshap": 7.450580596923828e-09
+      }
+    ]
+  },
+  "synthetic-corrected": {
+    "dataset": "synthetic",
+    "label": "corrected",
+    "stats": {
+      "num_trees": 1,
+      "mean_max_depth": 8.0,
+      "max_max_depth": 8.0,
+      "mean_nodes": 17.0,
+      "mean_leaves": 9.0
+    },
+    "xgboost_library": "/home/rorym/xgboost-worktrees/quadrature-figure1/python-package/xgboost/../../lib/libxgboost.so",
+    "results": [
+      {
+        "algorithm": "TreeSHAP",
+        "mean_efficiency_err": 8.285496733151376e-10,
+        "p99_efficiency_err": 7.450580596923828e-09,
+        "max_efficiency_err": 7.450580596923828e-09
+      },
+      {
+        "algorithm": "QuadratureSHAP-4",
+        "mean_efficiency_err": 2.042725100181997e-09,
+        "p99_efficiency_err": 3.725290298461914e-08,
+        "max_efficiency_err": 1.1920928955078125e-07,
+        "max_feature_difference_vs_treeshap": 2.9802322387695312e-08
+      },
+      {
+        "algorithm": "QuadratureSHAP-6",
+        "mean_efficiency_err": 1.7207639757543802e-09,
+        "p99_efficiency_err": 2.2351741790771484e-08,
+        "max_efficiency_err": 5.960464477539063e-08,
+        "max_feature_difference_vs_treeshap": 1.4901161193847656e-08
+      },
+      {
+        "algorithm": "QuadratureSHAP-8",
+        "mean_efficiency_err": 1.4506440493278205e-09,
+        "p99_efficiency_err": 2.2351741790771484e-08,
+        "max_efficiency_err": 2.2351741790771484e-08,
+        "max_feature_difference_vs_treeshap": 3.725290298461914e-09
+      },
+      {
+        "algorithm": "QuadratureSHAP-16",
+        "mean_efficiency_err": 1.519765646662563e-09,
+        "p99_efficiency_err": 7.450580596923828e-09,
+        "max_efficiency_err": 1.1920928955078125e-07,
+        "max_feature_difference_vs_treeshap": 1.4901161193847656e-08
+      }
+    ]
+  },
+  "fashion-original": {
+    "dataset": "fashion",
+    "label": "original",
+    "stats": {
+      "num_trees": 1000,
+      "mean_max_depth": 8.0,
+      "max_max_depth": 8.0,
+      "mean_nodes": 287.296,
+      "mean_leaves": 144.148
+    },
+    "xgboost_library": "/home/rorym/xgboost-worktrees/quadrature-figure1/python-package/xgboost/../../lib/libxgboost.so",
+    "results": [
+      {
+        "algorithm": "TreeSHAP",
+        "mean_efficiency_err": 7.081397512820331e-08,
+        "p99_efficiency_err": 4.76837158203125e-07,
+        "max_efficiency_err": 9.5367431640625e-07
+      },
+      {
+        "algorithm": "QuadratureSHAP-4",
+        "mean_efficiency_err": 0.00032880069920793176,
+        "p99_efficiency_err": 0.002097849268466234,
+        "max_efficiency_err": 0.00493621826171875,
+        "max_feature_difference_vs_treeshap": 0.0009395182132720947
+      },
+      {
+        "algorithm": "QuadratureSHAP-6",
+        "mean_efficiency_err": 6.524587661260739e-07,
+        "p99_efficiency_err": 5.9565154515439644e-06,
+        "max_efficiency_err": 1.6570091247558594e-05,
+        "max_feature_difference_vs_treeshap": 2.7902424335479736e-06
+      },
+      {
+        "algorithm": "QuadratureSHAP-8",
+        "mean_efficiency_err": 7.399627577342471e-08,
+        "p99_efficiency_err": 4.76837158203125e-07,
+        "max_efficiency_err": 9.5367431640625e-07,
+        "max_feature_difference_vs_treeshap": 3.5762786865234375e-07
+      },
+      {
+        "algorithm": "QuadratureSHAP-16",
+        "mean_efficiency_err": 7.471368235201226e-08,
+        "p99_efficiency_err": 4.76837158203125e-07,
+        "max_efficiency_err": 8.344650268554688e-07,
+        "max_feature_difference_vs_treeshap": 3.5762786865234375e-07
+      }
+    ]
+  },
+  "fashion-corrected": {
+    "dataset": "fashion",
+    "label": "corrected",
+    "stats": {
+      "num_trees": 1000,
+      "mean_max_depth": 8.0,
+      "max_max_depth": 8.0,
+      "mean_nodes": 287.296,
+      "mean_leaves": 144.148
+    },
+    "xgboost_library": "/home/rorym/xgboost-worktrees/quadrature-figure1/python-package/xgboost/../../lib/libxgboost.so",
+    "results": [
+      {
+        "algorithm": "TreeSHAP",
+        "mean_efficiency_err": 7.081397512820331e-08,
+        "p99_efficiency_err": 4.76837158203125e-07,
+        "max_efficiency_err": 9.5367431640625e-07
+      },
+      {
+        "algorithm": "QuadratureSHAP-4",
+        "mean_efficiency_err": 7.610013597059151e-08,
+        "p99_efficiency_err": 4.76837158203125e-07,
+        "max_efficiency_err": 9.5367431640625e-07,
+        "max_feature_difference_vs_treeshap": 3.5762786865234375e-07
+      },
+      {
+        "algorithm": "QuadratureSHAP-6",
+        "mean_efficiency_err": 7.347149733050173e-08,
+        "p99_efficiency_err": 4.76837158203125e-07,
+        "max_efficiency_err": 9.5367431640625e-07,
+        "max_feature_difference_vs_treeshap": 3.5762786865234375e-07
+      },
+      {
+        "algorithm": "QuadratureSHAP-8",
+        "mean_efficiency_err": 8.077091706581996e-08,
+        "p99_efficiency_err": 4.76837158203125e-07,
+        "max_efficiency_err": 8.344650268554688e-07,
+        "max_feature_difference_vs_treeshap": 3.5762786865234375e-07
+      },
+      {
+        "algorithm": "QuadratureSHAP-16",
+        "mean_efficiency_err": 7.55535083385439e-08,
+        "p99_efficiency_err": 4.76837158203125e-07,
+        "max_efficiency_err": 9.5367431640625e-07,
+        "max_feature_difference_vs_treeshap": 3.5762786865234375e-07
+      }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+\begin{table*}[t]
+\caption{First-order runtimes on 1000 explained rows using eight-point quadrature. Times are mean wall-clock seconds over three runs on an AMD Threadripper PRO 7975WX (32 CPU threads) and NVIDIA RTX PRO 6000 Blackwell; speedups use unrounded times and are relative to TreeSHAP or GPUTreeSHAP. Dashes indicate unsupported tree depth.}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llrrrrrr}
+\toprule
+& & \multicolumn{3}{c}{CPU} & \multicolumn{3}{c}{GPU} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}
+Dataset & Setting & TreeSHAP & \methodshort{} & Speedup & GPUTreeSHAP & \methodshort{} & Speedup \\
+\midrule
+Adult & small & 0.0021 & 0.0018 & 1.16 & 0.0042 & 0.0005 & 7.77 \\
+Adult & large & 7.0021 & 1.8681 & 3.75 & 0.3952 & 0.1864 & 2.12 \\
+Adult & sparse & 0.6325 & 0.2133 & 2.96 & 0.0304 & 0.0171 & 1.78 \\
+\midrule
+CalHousing & small & 0.0037 & 0.0043 & 0.86 & 0.0038 & 0.0005 & 7.87 \\
+CalHousing & large & 32.4001 & 15.5538 & 2.08 & 2.4307 & 1.0735 & 2.26 \\
+CalHousing & sparse & 0.3479 & 0.2166 & 1.61 & 0.0233 & 0.0136 & 1.71 \\
+\midrule
+CovType & small & 0.0020 & 0.0013 & 1.50 & 0.0044 & 0.0009 & 4.71 \\
+CovType & large & 0.1496 & 0.0317 & 4.72 & 0.0130 & 0.0112 & 1.16 \\
+CovType & sparse & 0.0330 & 0.0063 & 5.21 & 0.0075 & 0.0023 & 3.23 \\
+\midrule
+Fashion-MNIST & small & 0.0352 & 0.0160 & 2.20 & 0.0138 & 0.0072 & 1.92 \\
+Fashion-MNIST & large & 42.6011 & 4.8667 & 8.75 & 2.2709 & 0.7693 & 2.95 \\
+Fashion-MNIST & sparse & 6.6053 & 0.6380 & 10.35 & -- & 0.1137 & -- \\
+\bottomrule
+\end{tabular}%
+}
+\label{tab:first_order_results}
+\end{table*}

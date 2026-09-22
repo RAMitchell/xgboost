@@ -75,7 +75,9 @@ inline EndpointQuadratureRule<MaxPoints> MakeEndpointQuadrature(std::size_t n,
     auto w = 2.0 / ((1.0 - x * x) * dpn * dpn);
     double s = 0.5 * (x + 1.0);
     double ws = 0.5 * w;
-    nodes_weights.emplace_back(s * s, 2.0 * s * ws);
+    // Use Gauss-Legendre directly on [0, 1], preserving exactness through degree 2*n-1.
+    // A t=s*s substitution would raise degree m to 2*m+1 and lose this guarantee.
+    nodes_weights.emplace_back(s, ws);
   }
 
   std::sort(nodes_weights.begin(), nodes_weights.end(),
