@@ -217,3 +217,7 @@ Collective
 .. automodule:: xgboost.tracker
 
 .. autoclass:: xgboost.tracker.RabitTracker
+
+Experimental Hyperparameter Optimization
+---------------------------------------
+See :doc:`hpo` for the sequential ask/tell API, prior artifacts, and supported scope.

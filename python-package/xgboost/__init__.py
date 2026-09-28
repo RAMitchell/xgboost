@@ -5,6 +5,7 @@ Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 
 from . import (
     collective,
+    hpo,
     interpret,
     tracker,  # noqa
 )
@@ -65,6 +66,8 @@ __all__ = [
     "XGBRFRegressor",
     # collective
     "collective",
+    # hyperparameter optimization
+    "hpo",
     # interpretability
     "interpret",
 ]

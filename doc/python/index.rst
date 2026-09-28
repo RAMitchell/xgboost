@@ -14,6 +14,7 @@ Contents
   python_api
   data_input
   callbacks
+  hpo
   examples/index
   dask-examples/index
   survival-examples/index
