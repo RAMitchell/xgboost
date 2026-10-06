@@ -166,6 +166,9 @@ void PredictBlockByAllTrees(HostModel const &model, std::size_t const predict_of
   for (bst_tree_t tree_id = 0, n_trees = model.Trees().size(); tree_id < n_trees; ++tree_id) {
     bst_node_t depth = use_array_tree_layout ? tree_depth[tree_id] : 0;
     auto weight = tree_weights[tree_id];
+    if (weight == 0.0f) {
+      continue;
+    }
     std::visit(
         enc::Overloaded{[&](tree::ScalarTreeView const &tree) {
                           bool has_categorical = tree.HasCategoricalSplit();
@@ -406,6 +409,9 @@ void PredictBatchByBlockKernel(DataView const &batch, HostModel const &model,
     tree_depth.resize(model.tree_end - model.tree_begin);
     CHECK_EQ(tree_depth.size(), model.Trees().size());
     common::ParallelFor(model.tree_end - model.tree_begin, n_threads, [&](auto i) {
+      if (tree_weights[i] == 0.0f) {
+        return;
+      }
       std::visit([&](auto &&tree) { tree_depth[i] = tree.MaxDepth(); }, model.Trees()[i]);
     });
   }

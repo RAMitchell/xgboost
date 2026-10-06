@@ -24,6 +24,14 @@ struct GBTreeModel;
 }  // namespace xgboost::gbm
 
 namespace xgboost {
+/** @brief A tree-only margin and the weights used to compute it. */
+struct WeightedPredictionCache {
+  HostDeviceVector<float> predictions;
+  std::vector<float> weights;
+  // A new identity invalidates cached contributions when trees are replaced.
+  std::weak_ptr<void const> model_id;
+};
+
 /**
  * \brief Contains pointer to input matrix and associated cached predictions.
  */
@@ -32,6 +40,9 @@ struct PredictionCacheEntry {
   HostDeviceVector<float> predictions;
   // The version of current cache, corresponding number of layers of trees
   std::uint32_t version{0};
+  // Separate from predictions: training may overwrite predictions with a dropped
+  // margin and then increment it using unnormalized new trees.
+  std::unique_ptr<WeightedPredictionCache> weighted;
 
   PredictionCacheEntry() = default;
   /**
@@ -40,7 +51,10 @@ struct PredictionCacheEntry {
    * \param v Added versions.
    */
   void Update(std::uint32_t v) { version += v; }
-  void Reset() { version = 0; }
+  void Reset() {
+    version = 0;
+    weighted.reset();
+  }
 };
 
 /**

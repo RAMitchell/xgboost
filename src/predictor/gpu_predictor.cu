@@ -220,6 +220,9 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
   if (n_groups == 1u) {
     float sum = 0;
     for (std::size_t tree_idx = 0; tree_idx < d_trees.size(); ++tree_idx) {
+      if (tree_weights[tree_idx] == 0.0f) {
+        continue;
+      }
       auto const& d_tree = d_trees[tree_idx];
       auto const& sc_tree = cuda::std::get<tree::ScalarTreeView>(d_tree);
       float leaf = GetLeafWeight<has_missing>(global_idx, sc_tree, &loader);
@@ -228,6 +231,9 @@ __global__ void PredictKernel(Data data, common::Span<TreeViewVar const> d_trees
     d_out_predictions[global_idx] += sum;
   } else {
     for (std::size_t tree_idx = 0, k = d_trees.size(); tree_idx < k; tree_idx++) {
+      if (tree_weights[tree_idx] == 0.0f) {
+        continue;
+      }
       // Both d_tree_group and d_tress are subset of trees.
       auto tree_group = d_tree_groups[tree_idx];
       auto const& d_tree = d_trees[tree_idx];

@@ -114,6 +114,73 @@ TEST(GBTree, WrongUpdater) {
   ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
 }
 
+TEST(GBTree, WeightedPredictionCache) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"nthread", "2"}});
+  LearnerModelParam mparam{MakeMP(5, .7, 1)};
+  gbm::GBTree tree{&mparam, &ctx};
+  tree.Configure({{"tree_method", "hist"}, {"rate_drop", "0.1"}, {"max_depth", "2"}});
+  auto data = RandomDataGenerator{32, 5, 0.2}.GenerateDMatrix();
+  auto gradients = GenerateRandomGradients(&ctx, 32, 1);
+  PredictionCacheEntry cached;
+  for (std::size_t i = 0; i < 40; ++i) {
+    tree.DoBoost(data.get(), &gradients, &cached, nullptr);
+    std::vector<float> weights(i + 1, 1.0f);
+    // Changing a sparse subset includes zero, negative and non-unit deltas.
+    for (std::size_t j = i % 7; j < weights.size(); j += 7) {
+      weights[j] = i % 3 == 0 ? 0.0f : 0.25f;
+    }
+    tree.PredictBatchImpl(data.get(), &cached, true, 0, 0, &weights);
+    ASSERT_NE(cached.weighted, nullptr);
+    ASSERT_EQ(cached.weighted->weights, weights);
+    PredictionCacheEntry fresh;
+    tree.PredictBatchImpl(data.get(), &fresh, true, 0, 0, &weights);
+    auto const& expected = fresh.predictions.ConstHostVector();
+    auto const& actual = cached.predictions.ConstHostVector();
+    ASSERT_EQ(actual.size(), expected.size());
+    for (std::size_t row = 0; row < actual.size(); ++row) {
+      ASSERT_NEAR(actual[row], expected[row], 2e-5);
+    }
+  }
+  cached.Reset();
+  ASSERT_EQ(cached.weighted, nullptr);
+}
+
+TEST(GBTree, WeightedCacheSmallCorrections) {
+  class ConstantTrees : public gbm::GBTree {
+   public:
+    using GBTree::GBTree;
+    void Append() {
+      auto tree = std::make_unique<RegTree>();
+      (*tree)[0].SetLeaf(1.0f);
+      gbm::TreesOneIter trees(1);
+      trees[0].push_back(std::move(tree));
+      this->CommitModel(std::move(trees));
+    }
+  };
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"nthread", "2"}});
+  LearnerModelParam mparam{MakeMP(1, 0.0f, 1)};
+  ConstantTrees tree{&mparam, &ctx};
+  tree.Configure({{"tree_method", "hist"}});
+  std::vector<float> weights(4096, 1.0f);
+  for (std::size_t i = 0; i < weights.size(); ++i) {
+    tree.Append();
+  }
+  auto data = RandomDataGenerator{8, 1, 0.0}.GenerateDMatrix();
+  PredictionCacheEntry cached;
+  tree.PredictBatchImpl(data.get(), &cached, false, 0, 0, &weights);
+  for (std::size_t i = 0; i < weights.size(); i += 8) {
+    weights[i] = 0.9999f;
+  }
+  tree.PredictBatchImpl(data.get(), &cached, false, 0, 0, &weights);
+  auto expected = static_cast<float>(std::accumulate(weights.cbegin(), weights.cend(), 0.0));
+  for (auto value : cached.predictions.ConstHostVector()) {
+    // Each individual correction is smaller than an ulp of the existing margin.
+    ASSERT_FLOAT_EQ(value, expected);
+  }
+}
+
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
   // The test ensures data don't get pulled into device.

@@ -9,6 +9,13 @@
 #include "xgboost/linalg.h"              // for Matrix
 
 namespace xgboost::gbm {
+void GPUAddTreePredictions(Context const *ctx, common::Span<float> out,
+                           common::Span<float const> trees) {
+  CHECK_EQ(out.size(), trees.size());
+  dh::LaunchN(out.size(), ctx->CUDACtx()->Stream(),
+              [=] XGBOOST_DEVICE(std::size_t i) { out[i] += trees[i]; });
+}
+
 void GPUCopyGradient(Context const *ctx, linalg::Matrix<GradientPair> const *in_gpair,
                      bst_group_t group_id, linalg::Matrix<GradientPair> *out_gpair) {
   auto v_in = in_gpair->View(ctx->Device()).Slice(linalg::All(), group_id);
