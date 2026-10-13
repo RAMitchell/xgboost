@@ -312,6 +312,68 @@ def test_recode(client: "Client") -> None:
     run_recode(client, "cpu")
 
 
+@pytest.mark.parametrize("quantile", [False, True])
+@pytest.mark.parametrize("train_worker", [0, 1])
+def test_recode_empty_worker(
+    client: "Client", quantile: bool, train_worker: int
+) -> None:
+    import pandas as pd
+
+    workers = sorted(client.scheduler_info()["workers"])
+    assert len(workers) == 2
+    frame = pd.DataFrame(
+        {
+            "category": pd.Categorical(["a", "b", "c"] * 16),
+            "numeric": np.arange(48, dtype=np.float32),
+            "label": np.arange(48, dtype=np.float32) % 3,
+        }
+    )
+    valid_frame = frame.copy()
+    valid_frame["category"] = valid_frame["category"].cat.reorder_categories(
+        ["c", "a", "b"]
+    )
+
+    def place(data: pd.DataFrame, worker: str) -> dd.DataFrame:
+        future = client.submit(lambda x: x, data, workers=[worker], pure=False)
+        return dd.from_delayed([future]).persist(workers=[worker])
+
+    train = place(frame, workers[train_worker])
+    valid = place(valid_frame, workers[1 - train_worker])
+    matrix = dxgb.DaskQuantileDMatrix if quantile else dxgb.DaskDMatrix
+    dtrain = matrix(
+        client, train[["category", "numeric"]], train.label, enable_categorical=True
+    )
+    kwargs = {"ref": dtrain} if quantile else {}
+    dvalid = matrix(
+        client,
+        valid[["category", "numeric"]],
+        valid.label,
+        enable_categorical=True,
+        **kwargs,
+    )
+    assert set(dtrain.worker_map) == {workers[train_worker]}
+    assert set(dvalid.worker_map) == {workers[1 - train_worker]}
+    model: Optional[xgb.Booster] = None
+    for _ in range(2):
+        result = dxgb.train(
+            client,
+            {"tree_method": "hist", "nthread": 2},
+            dtrain,
+            num_boost_round=4,
+            evals=[(dtrain, "Train"), (dvalid, "Valid")],
+            xgb_model=model,
+        )
+        model = result["booster"]
+        np.testing.assert_allclose(
+            result["history"]["Train"]["rmse"], result["history"]["Valid"]["rmse"]
+        )
+    expected = result["booster"].predict(
+        xgb.DMatrix(frame[["category", "numeric"]], enable_categorical=True)
+    )
+    actual = dxgb.predict(client, result["booster"], dvalid).compute()
+    np.testing.assert_allclose(actual, expected)
+
+
 def test_dask_predict_shape_infer(client: "Client") -> None:
     X, y = make_classification(n_samples=kRows, n_informative=5, n_classes=3)
     X_ = dd.from_array(X, chunksize=100)

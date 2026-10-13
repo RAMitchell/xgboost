@@ -264,7 +264,8 @@ struct NoOpAccessor {
   [[nodiscard]] XGBOOST_DEVICE float operator()(Entry const& e) const { return e.fvalue; }
 };
 
-void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty);
+// Supply missing category metadata to empty distributed workers.
+void SyncCategories(Context const* ctx, MetaInfo* info);
 
 namespace cpu_impl {
 inline auto MakeCatAccessor(Context const* ctx, enc::HostColumnsView const& new_enc,

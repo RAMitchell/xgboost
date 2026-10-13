@@ -51,7 +51,7 @@ IterativeDMatrix::IterativeDMatrix(DataIterHandle iter_handle, DMatrixHandle pro
   this->fmat_ctx_ = ctx;
   this->batch_ = p;
 
-  SyncCategories(&ctx, info_.Cats(), info_.num_row_ == 0);
+  SyncCategories(&ctx, &info_);
 
   LOG(INFO) << "Finished constructing the `IterativeDMatrix`: (" << this->Info().num_row_ << ", "
             << this->Info().num_col_ << ", " << this->info_.num_nonzero_ << ").";

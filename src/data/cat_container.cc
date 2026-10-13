@@ -13,6 +13,7 @@
 #include <vector>       // for vector
 
 #include "../collective/allreduce.h"         // for Allreduce
+#include "../collective/broadcast.h"         // for Broadcast
 #include "../collective/communicator-inl.h"  // for GetRank, GetWorldSize
 #include "../common/error_msg.h"             // for NoFloatCat
 #include "../encoder/types.h"                // for Overloaded
@@ -317,7 +318,9 @@ void CatContainer::Sort(Context const* ctx) {
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
-void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty) {
+void SyncCategories(Context const* ctx, MetaInfo* info) {
+  auto cats = info->Cats();
+  auto is_empty = info->num_row_ == 0;
   CHECK(cats);
   if (!collective::IsDistributed()) {
     return;
@@ -325,13 +328,44 @@ void SyncCategories(Context const* ctx, CatContainer* cats, bool is_empty) {
 
   auto rank = collective::GetRank();
   std::vector<std::int32_t> workers(collective::GetWorldSize(), 0);
-  workers[rank] = is_empty;
+  // Empty workers cannot infer categories, but still participate when they hold eval data.
+  workers[rank] = is_empty ? -1 : static_cast<std::int32_t>(cats->HasCategorical());
   collective::SafeColl(collective::Allreduce(ctx, &workers, collective::Op::kSum));
-  if (cats->HasCategorical() &&
-      std::any_of(workers.cbegin(), workers.cend(), [](auto v) { return v == 1; })) {
-    LOG(FATAL)
-        << "A worker cannot have empty input when a dataframe with categorical features is used. "
-           "XGBoost cannot infer the categories if the input is empty.";
+  auto source = std::find(workers.cbegin(), workers.cend(), 1);
+  if (source == workers.cend() ||
+      std::find(workers.cbegin(), workers.cend(), -1) == workers.cend()) {
+    return;
+  }
+
+  auto root = static_cast<std::int32_t>(source - workers.cbegin());
+  std::vector<char> buffer;
+  if (rank == root) {
+    Json schema;
+    cats->Save(&schema);
+    Json::Dump(schema, &buffer, std::ios::binary);
+  }
+  auto size = static_cast<std::uint64_t>(buffer.size());
+  collective::SafeColl(collective::Broadcast(ctx, linalg::MakeVec(&size, 1), root));
+  buffer.resize(size);
+  collective::SafeColl(
+      collective::Broadcast(ctx, linalg::MakeVec(buffer.data(), buffer.size()), root));
+  if (is_empty && !cats->HasCategorical()) {
+    // Preserve a schema supplied by an empty dataframe; only fill in missing metadata.
+    CatContainer schema;
+    schema.Load(Json::Load({buffer.data(), buffer.size()}, std::ios::binary));
+    cats->Copy(ctx, schema);
+    if (info->feature_types.Empty()) {
+      // Histogram sketches must agree on which columns are categorical on every worker.
+      auto segments = cats->HostView().feature_segments;
+      auto& types = info->feature_types.HostVector();
+      types.resize(cats->NumFeatures());
+      info->feature_type_names.resize(types.size());
+      for (std::size_t i = 0; i < types.size(); ++i) {
+        bool is_cat = segments[i + 1] != segments[i];
+        types[i] = is_cat ? FeatureType::kCategorical : FeatureType::kNumerical;
+        info->feature_type_names[i] = is_cat ? "c" : "q";
+      }
+    }
   }
 }
 }  // namespace xgboost
