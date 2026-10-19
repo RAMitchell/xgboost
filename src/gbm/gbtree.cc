@@ -264,6 +264,8 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
   auto out = linalg::MakeTensorView(ctx_, &predt->predictions, p_fmat->Info().num_row_,
                                     model_.learner_model_param->OutputLength());
   CHECK_NE(n_groups, 0);
+  // DART adds new trees through weighted prediction, after normalization.
+  auto update_cache = this->TreeWeights() == nullptr;
 
   // The node position for each row, 1 HDV for each tree in the forest.  Note that the
   // position is negated if the row is sampled out.
@@ -276,7 +278,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
     std::size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
-    if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
+    if (update_cache && updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
         updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position}, out)) {
       predt->Update(1);
     }
@@ -287,7 +289,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     UpdateTreeLeaf(p_fmat, predt->predictions, obj, 0, node_position, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
-    if (updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
+    if (update_cache && updaters_.size() > 0 && num_new_trees == 1 && predt->predictions.Size() > 0 &&
         updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position}, out)) {
       predt->Update(1);
     }
@@ -298,7 +300,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
     GradientContainer tmp;
     tmp.gpair = linalg::Matrix<GradientPair>{
         {in_gpair->gpair.Shape(0), static_cast<std::size_t>(1ul)}, ctx_->Device()};
-    bool update_predict = true;
+    bool update_predict = update_cache;
     for (bst_target_t gid = 0; gid < n_groups; ++gid) {
       node_position.clear();
       CopyGradient(ctx_, &in_gpair->gpair, gid, &tmp.gpair);
@@ -309,7 +311,7 @@ void GBTree::DoBoost(DMatrix* p_fmat, GradientContainer* in_gpair, PredictionCac
       new_trees.push_back(std::move(ret));
       auto v_predt = out.Slice(linalg::All(), linalg::Range(gid, gid + 1));
       // random forest doesn't support the prediction cache yet.
-      if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 && num_new_trees == 1 &&
+      if (!(update_cache && updaters_.size() > 0 && predt->predictions.Size() > 0 && num_new_trees == 1 &&
             updaters_.back()->UpdatePredictionCache(p_fmat, common::Span{node_position},
                                                     v_predt))) {
         update_predict = false;
@@ -686,14 +688,15 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
                               std::vector<float> const* tree_weights) const {
   auto full_model = layer_begin == 0 && (layer_end == 0 || layer_end == BoostedRounds());
   if (tree_weights && full_model && tparam_.process_type == TreeProcessType::kDefault &&
-      !ctx_->IsSycl()) {
+      !ctx_->IsSycl() && p_fmat->Info().base_margin_.Empty()) {
     CHECK_EQ(tree_weights->size(), model_.trees.size());
     auto const& predictor = GetPredictor(is_training, &out_preds->predictions, p_fmat);
     auto& previous = out_preds->tree_weights;
-    auto& cached = out_preds->tree_predictions;
+    auto base_score = model_.learner_model_param->BaseScore(DeviceOrd::CPU()).Values();
     auto n_values = p_fmat->Info().num_row_ * model_.learner_model_param->OutputLength();
-    cached.SetDevice(ctx_->Device());
-    if (cached.Size() != n_values || previous.size() > tree_weights->size()) {
+    if (out_preds->predictions.Size() != n_values || previous.size() > tree_weights->size() ||
+        !std::equal(base_score.begin(), base_score.end(), out_preds->base_score.begin(),
+                    out_preds->base_score.end())) {
       previous.clear();
     }
     // C_new = C_old + sum_i (w_new[i] - w_old[i]) h_i.
@@ -707,23 +710,21 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
       changed += (delta[i] != 0.0f);
     }
     if (previous.empty() || changed >= active) {
-      cached.Resize(n_values);
-      cached.Fill(0.0f);
+      predictor->InitOutPredictions(p_fmat->Info(), &out_preds->predictions, model_);
       delta = *tree_weights;
       changed = active;
     }
     if (changed != 0) {
       // Sum corrections from zero to avoid losing small updates to rounding.
-      out_preds->predictions.SetDevice(ctx_->Device());
-      out_preds->predictions.Resize(n_values);
-      out_preds->predictions.Fill(0.0f);
-      predictor->PredictBatch(p_fmat, out_preds, model_, 0, model_.trees.size(), &delta);
-      AddTreePredictions(ctx_, &out_preds->predictions, &cached);
+      PredictionCacheEntry correction;
+      correction.predictions.SetDevice(ctx_->Device());
+      correction.predictions.Resize(n_values);
+      correction.predictions.Fill(0.0f);
+      predictor->PredictBatch(p_fmat, &correction, model_, 0, model_.trees.size(), &delta);
+      AddTreePredictions(ctx_, &correction.predictions, &out_preds->predictions);
     }
     previous = *tree_weights;
-    // Base margins are read afresh; only tree contributions are cached.
-    predictor->InitOutPredictions(p_fmat->Info(), &out_preds->predictions, model_);
-    AddTreePredictions(ctx_, &cached, &out_preds->predictions);
+    out_preds->base_score.assign(base_score.begin(), base_score.end());
     out_preds->version = 0;
     return;
   }

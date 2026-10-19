@@ -6,7 +6,7 @@ import pytest
 import xgboost as xgb
 
 
-def run_dart_cached_margins(device, normalization, sample_type, task):
+def run_dart_cached_margins(device, normalization, sample_type, task, parallel_trees=2):
     rng = np.random.default_rng(91)
     x = rng.normal(size=(120, 5)).astype(np.float32)
     if task == "categorical":
@@ -16,7 +16,7 @@ def run_dart_cached_margins(device, normalization, sample_type, task):
     params = dict(tree_method="hist", device=device, nthread=2, max_depth=3,
                   rate_drop=0.15, one_drop=True, skip_drop=0.25,
                   normalize_type=normalization, sample_type=sample_type, seed=17,
-                  num_parallel_tree=2, base_score=0.37)
+                  num_parallel_tree=parallel_trees, base_score=0.37)
     if task == "multiclass":
         y = rng.integers(0, 3, size=120)
         params.update(objective="multi:softprob", num_class=3)
@@ -96,6 +96,34 @@ def run_dart_cache_reload(device):
                                rtol=2e-5, atol=2e-5)
 
 
+def run_dart_cache_intercept(device):
+    rng = np.random.default_rng(31)
+    x = rng.normal(size=(80, 3)).astype(np.float32)
+    data = xgb.DMatrix(x, label=x[:, 0])
+    params = dict(device=device, tree_method="hist", rate_drop=.1,
+                  max_depth=2, nthread=2, base_score=.37)
+    model = xgb.train(params, data, 12)
+
+    def check():
+        fresh = xgb.Booster(model_file=model.save_raw())
+        fresh.set_param(dict(device=device, nthread=2))
+        np.testing.assert_allclose(model.predict(data, output_margin=True),
+                                   fresh.predict(data, output_margin=True),
+                                   rtol=2e-5, atol=2e-5)
+
+    check()
+    for base in [.8, -.2]:
+        model.set_param({"base_score": base})
+        check()
+    for margin in [.2, .9, None]:
+        values = (np.full(80, margin, dtype=np.float32) if margin is not None
+                  else np.array([], dtype=np.float32))
+        data.set_base_margin(values)
+        check()
+    model.update(data, 12)
+    check()
+
+
 @pytest.mark.parametrize("normalization", ["tree", "forest"])
 @pytest.mark.parametrize("sample_type", ["uniform", "weighted"])
 @pytest.mark.parametrize("task", ["regression", "multiclass", "ranking", "vector", "categorical"])
@@ -110,3 +138,13 @@ def test_dart_cache_endpoints(rate, skip):
 
 def test_dart_cache_reload():
     run_dart_cache_reload("cpu")
+
+
+@pytest.mark.parametrize("normalization", ["tree", "forest"])
+@pytest.mark.parametrize("task", ["regression", "multiclass", "vector"])
+def test_dart_single_tree_cache(normalization, task):
+    run_dart_cached_margins("cpu", normalization, "uniform", task, parallel_trees=1)
+
+
+def test_dart_cache_intercept():
+    run_dart_cache_intercept("cpu")

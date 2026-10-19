@@ -6,6 +6,7 @@ import pytest
 sys.path.append("tests/python")
 from test_dart_cache import (  # noqa
     run_dart_cache_endpoints,
+    run_dart_cache_intercept,
     run_dart_cache_reload,
     run_dart_cached_margins,
 )
@@ -25,3 +26,13 @@ def test_dart_cache_endpoints(rate, skip):
 
 def test_dart_cache_reload():
     run_dart_cache_reload("cuda")
+
+
+@pytest.mark.parametrize("normalization", ["tree", "forest"])
+@pytest.mark.parametrize("task", ["regression", "multiclass", "vector"])
+def test_dart_single_tree_cache(normalization, task):
+    run_dart_cached_margins("cuda", normalization, "uniform", task, parallel_trees=1)
+
+
+def test_dart_cache_intercept():
+    run_dart_cache_intercept("cuda")

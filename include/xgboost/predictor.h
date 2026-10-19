@@ -32,9 +32,9 @@ struct PredictionCacheEntry {
   HostDeviceVector<float> predictions;
   // The version of current cache, corresponding number of layers of trees
   std::uint32_t version{0};
-  // DART caches tree contributions separately: training can overwrite predictions.
-  HostDeviceVector<float> tree_predictions;
+  // DART tracks the weights and intercept used for the cached margin.
   std::vector<float> tree_weights;
+  std::vector<float> base_score;
 
   PredictionCacheEntry() = default;
   /**
