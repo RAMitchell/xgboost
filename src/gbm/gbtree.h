@@ -363,7 +363,6 @@ class GBTree : public GradientBooster {
   std::vector<bst_float> weight_drop_;
   // indexes of dropped trees
   std::vector<size_t> idx_drop_;
-  std::shared_ptr<void const> prediction_cache_id_{std::make_shared<int>(0)};
   common::Monitor monitor_;
 };
 

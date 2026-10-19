@@ -84,7 +84,6 @@ bool UpdatersMatched(std::vector<std::string> updater_seq,
 }  // namespace
 
 void GBTree::Configure(Args const& cfg) {
-  prediction_cache_id_ = std::make_shared<int>(0);
   tparam_.UpdateAllowUnknown(cfg);
   dparam_.UpdateAllowUnknown(cfg);
   tree_param_.UpdateAllowUnknown(cfg);
@@ -222,26 +221,17 @@ void GBTree::UpdateTreeLeaf(DMatrix const* p_fmat, HostDeviceVector<float> const
   }
 }
 
-void GPUAddTreePredictions(Context const*, common::Span<float>, common::Span<float const>)
-#if defined(XGBOOST_USE_CUDA)
-    ;  // NOLINT
-#else
-{
-  common::AssertGPUSupport();
-}
-#endif
-
 namespace {
-void AddTreePredictions(Context const* ctx, HostDeviceVector<float> const& trees,
+void AddTreePredictions(Context const* ctx, HostDeviceVector<float>* trees,
                         HostDeviceVector<float>* out) {
-  CHECK_EQ(out->Size(), trees.Size());
+  CHECK_EQ(out->Size(), trees->Size());
   if (ctx->IsCUDA()) {
     out->SetDevice(ctx->Device());
-    trees.SetDevice(ctx->Device());
-    GPUAddTreePredictions(ctx, out->DeviceSpan(), trees.ConstDeviceSpan());
+    trees->SetDevice(ctx->Device());
+    GPUDartPredictInc(out->DeviceSpan(), trees->DeviceSpan(), 1.0f, out->Size(), 1, 0);
   } else {
     auto h_out = out->HostSpan();
-    auto h_trees = trees.ConstHostSpan();
+    auto h_trees = trees->ConstHostSpan();
     common::ParallelFor(h_out.size(), ctx->Threads(), [&](auto i) { h_out[i] += h_trees[i]; });
   }
 }
@@ -505,7 +495,6 @@ void GBTree::SaveConfig(Json* p_out) const {
 }
 
 void GBTree::LoadModel(Json const& in) {
-  prediction_cache_id_ = std::make_shared<int>(0);
   auto name = get<String const>(in["name"]);
   CHECK(name == "gbtree" || name == "dart");
   auto const& model = name == "dart" ? in["gbtree"] : in;
@@ -636,7 +625,6 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 
   auto p_gbtree = dynamic_cast<GBTree*>(out);
   CHECK(p_gbtree);
-  p_gbtree->prediction_cache_id_ = std::make_shared<int>(0);
   GBTreeModel& out_model = p_gbtree->model_;
   CHECK(this->model_.learner_model_param->Initialized());
 
@@ -696,64 +684,50 @@ void GBTree::Slice(bst_layer_t begin, bst_layer_t end, bst_layer_t step, Gradien
 void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, bool is_training,
                               bst_layer_t layer_begin, bst_layer_t layer_end,
                               std::vector<float> const* tree_weights) const {
-  auto const* weights = tree_weights;
   auto full_model = layer_begin == 0 && (layer_end == 0 || layer_end == BoostedRounds());
-  if (weights && full_model && tparam_.process_type == TreeProcessType::kDefault &&
+  if (tree_weights && full_model && tparam_.process_type == TreeProcessType::kDefault &&
       !ctx_->IsSycl()) {
-    CHECK_EQ(weights->size(), model_.trees.size());
+    CHECK_EQ(tree_weights->size(), model_.trees.size());
     auto const& predictor = GetPredictor(is_training, &out_preds->predictions, p_fmat);
-    if (!out_preds->weighted) {
-      out_preds->weighted = std::make_unique<WeightedPredictionCache>();
-    }
-    auto& cache = *out_preds->weighted;
+    auto& previous = out_preds->tree_weights;
+    auto& cached = out_preds->tree_predictions;
     auto n_values = p_fmat->Info().num_row_ * model_.learner_model_param->OutputLength();
-    cache.predictions.SetDevice(ctx_->Device());
-    if (cache.model_id.lock() != prediction_cache_id_ || cache.predictions.Size() != n_values ||
-        cache.weights.size() > weights->size()) {
-      cache.predictions.Resize(n_values);
-      cache.predictions.Fill(0.0f);
-      cache.weights.clear();
-      cache.model_id = prediction_cache_id_;
+    cached.SetDevice(ctx_->Device());
+    if (cached.Size() != n_values || previous.size() > tree_weights->size()) {
+      previous.clear();
     }
-
-    // For any requested mask, C_new = C_old + sum_i (w_new[i] - w_old[i]) h_i.
-    // This handles normalization, new trees, skipped dropout, and calls that did
-    // not observe the immediately preceding boosting round. No RNG is used here.
-    std::vector<float> delta{*weights};
+    // C_new = C_old + sum_i (w_new[i] - w_old[i]) h_i.
+    std::vector<float> delta{*tree_weights};
     std::size_t changed{0}, active{0};
     for (std::size_t i = 0; i < delta.size(); ++i) {
-      active += ((*weights)[i] != 0.0f);
-      if (i < cache.weights.size()) {
-        delta[i] -= cache.weights[i];
+      active += ((*tree_weights)[i] != 0.0f);
+      if (i < previous.size()) {
+        delta[i] -= previous[i];
       }
       changed += (delta[i] != 0.0f);
     }
-    // Dense masks are cheaper and numerically safer to recompute directly.
-    if (changed >= active) {
-      cache.predictions.Fill(0.0f);
-      delta = *weights;
+    if (previous.empty() || changed >= active) {
+      cached.Resize(n_values);
+      cached.Fill(0.0f);
+      delta = *tree_weights;
       changed = active;
     }
     if (changed != 0) {
-      // Sum the correction from zero before adding it to the cache. In particular,
-      // multiclass prediction must not add thousands of tiny weight corrections
-      // individually to an already large margin and lose them to rounding.
+      // Sum corrections from zero to avoid losing small updates to rounding.
       out_preds->predictions.SetDevice(ctx_->Device());
       out_preds->predictions.Resize(n_values);
       out_preds->predictions.Fill(0.0f);
       predictor->PredictBatch(p_fmat, out_preds, model_, 0, model_.trees.size(), &delta);
-      AddTreePredictions(ctx_, out_preds->predictions, &cache.predictions);
+      AddTreePredictions(ctx_, &out_preds->predictions, &cached);
     }
-    cache.weights = *weights;
-
-    // Cache only tree contributions. Always read the current base margin/base
-    // score afresh, and never subtract or rescale it with the dropped trees.
+    previous = *tree_weights;
+    // Base margins are read afresh; only tree contributions are cached.
     predictor->InitOutPredictions(p_fmat->Info(), &out_preds->predictions, model_);
-    AddTreePredictions(ctx_, cache.predictions, &out_preds->predictions);
+    AddTreePredictions(ctx_, &cached, &out_preds->predictions);
     out_preds->version = 0;
     return;
   }
-  out_preds->weighted.reset();
+  out_preds->tree_weights.clear();
 
   // Unweighted prediction can reuse a cached prefix of the model output by tracking how many
   // boosting iterations have already been accumulated in `out_preds->version`.
@@ -832,7 +806,7 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
     auto proxy = std::dynamic_pointer_cast<data::DMatrixProxy>(p_m);
     CHECK(proxy) << error::InplacePredictProxy();
     auto p_fmat = data::CreateDMatrixFromProxy(ctx_, proxy, missing);
-    out_preds->weighted.reset();
+    out_preds->tree_weights.clear();
     this->PredictBatchImpl(p_fmat.get(), out_preds, false, layer_begin, layer_end, tree_weights);
     return;
   }

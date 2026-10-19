@@ -131,8 +131,7 @@ TEST(GBTree, WeightedPredictionCache) {
       weights[j] = i % 3 == 0 ? 0.0f : 0.25f;
     }
     tree.PredictBatchImpl(data.get(), &cached, true, 0, 0, &weights);
-    ASSERT_NE(cached.weighted, nullptr);
-    ASSERT_EQ(cached.weighted->weights, weights);
+    ASSERT_EQ(cached.tree_weights, weights);
     PredictionCacheEntry fresh;
     tree.PredictBatchImpl(data.get(), &fresh, true, 0, 0, &weights);
     auto const& expected = fresh.predictions.ConstHostVector();
@@ -143,7 +142,7 @@ TEST(GBTree, WeightedPredictionCache) {
     }
   }
   cached.Reset();
-  ASSERT_EQ(cached.weighted, nullptr);
+  ASSERT_TRUE(cached.tree_weights.empty());
 }
 
 TEST(GBTree, WeightedCacheSmallCorrections) {

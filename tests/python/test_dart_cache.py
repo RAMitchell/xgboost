@@ -73,6 +73,29 @@ def run_dart_cache_endpoints(device, rate, skip):
     np.testing.assert_allclose(resumed.predict(d), fresh.predict(d), rtol=2e-5, atol=2e-5)
 
 
+def run_dart_cache_reload(device):
+    rng = np.random.default_rng(24)
+    x = rng.normal(size=(80, 3)).astype(np.float32)
+    data = xgb.DMatrix(x, label=x[:, 0] - x[:, 1])
+    params = dict(device=device, tree_method="hist", rate_drop=.1,
+                  max_depth=2, nthread=2, seed=4)
+    model = xgb.train(params, data, 12)
+    replacement = xgb.train(dict(params, seed=9), data, 12)
+    expected = replacement.predict(data, output_margin=True)
+    # Populate a cache, then replace the model with another of the same size.
+    model.predict(data, output_margin=True)
+    model.load_model(replacement.save_raw())
+    model.set_param(dict(device=device, nthread=2))
+    np.testing.assert_allclose(model.predict(data, output_margin=True), expected,
+                               rtol=2e-5, atol=2e-5)
+    # A sliced model also has an independent learner prediction cache.
+    sliced = model[2:8]
+    fresh = xgb.Booster(model_file=sliced.save_raw())
+    fresh.set_param(dict(device=device, nthread=2))
+    np.testing.assert_allclose(sliced.predict(data), fresh.predict(data),
+                               rtol=2e-5, atol=2e-5)
+
+
 @pytest.mark.parametrize("normalization", ["tree", "forest"])
 @pytest.mark.parametrize("sample_type", ["uniform", "weighted"])
 @pytest.mark.parametrize("task", ["regression", "multiclass", "ranking", "vector", "categorical"])
@@ -83,3 +106,7 @@ def test_dart_cached_margins(normalization, sample_type, task):
 @pytest.mark.parametrize("rate,skip", [(0., 0.), (0., 1.), (1., 0.), (.8, .5)])
 def test_dart_cache_endpoints(rate, skip):
     run_dart_cache_endpoints("cpu", rate, skip)
+
+
+def test_dart_cache_reload():
+    run_dart_cache_reload("cpu")
