@@ -10,15 +10,16 @@
 
 #include "../../common/transform_iterator.h"  // for MakeIndexTransformIter
 #include "../tree_view.h"                     // for ScalarTreeView, MultiTargetTreeView
-#include "expand_entry.h"                     // for MultiExpandEntry, CPUExpandEntry
+#include "expand_entry.h"                     // for MultiExpandEntry
 #include "xgboost/logging.h"                  // for CHECK_EQ
 #include "xgboost/span.h"                     // for Span
 #include "xgboost/tree_model.h"               // for RegTree
 
 namespace xgboost::tree {
-void AssignNodes(MultiTargetTreeView const &tree,
-                 std::vector<MultiExpandEntry> const &valid_candidates,
-                 common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
+template <typename TreeView>
+void AssignMultiNodes(TreeView const &tree, std::vector<MultiExpandEntry> const &valid_candidates,
+                      common::Span<bst_node_t> nodes_to_build,
+                      common::Span<bst_node_t> nodes_to_sub) {
   CHECK_EQ(nodes_to_build.size(), valid_candidates.size());
 
   std::size_t n_idx = 0;
@@ -44,22 +45,14 @@ void AssignNodes(MultiTargetTreeView const &tree,
   }
 }
 
-void AssignNodes(ScalarTreeView const &tree, std::vector<CPUExpandEntry> const &candidates,
+void AssignNodes(MultiTargetTreeView const &tree, std::vector<MultiExpandEntry> const &candidates,
                  common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
-  std::size_t n_idx = 0;
-  for (auto const &c : candidates) {
-    auto left_nidx = tree.LeftChild(c.nid);
-    auto right_nidx = tree.RightChild(c.nid);
-    auto fewer_right = c.split.right_sum.GetHess() < c.split.left_sum.GetHess();
-
-    auto build_nidx = left_nidx;
-    auto subtract_nidx = right_nidx;
-    if (fewer_right) {
-      std::swap(build_nidx, subtract_nidx);
-    }
-    nodes_to_build[n_idx] = build_nidx;
-    nodes_to_sub[n_idx] = subtract_nidx;
-    ++n_idx;
-  }
+  AssignMultiNodes(tree, candidates, nodes_to_build, nodes_to_sub);
 }
+
+void AssignNodes(ScalarTreeView const &tree, std::vector<MultiExpandEntry> const &candidates,
+                 common::Span<bst_node_t> nodes_to_build, common::Span<bst_node_t> nodes_to_sub) {
+  AssignMultiNodes(tree, candidates, nodes_to_build, nodes_to_sub);
+}
+
 }  // namespace xgboost::tree

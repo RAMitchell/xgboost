@@ -287,7 +287,7 @@ class RegTree : public Model {
    * The optional right-child marker is used by the exact updater during construction.
    */
   void Expand(tree::ExpandData<float> const& node, bst_node_t leaf_right_child = kInvalidNodeId);
-  /** @brief Expand multiple vector leaves using unscaled weights. */
+  /** @brief Expand multiple leaves using vectors of unscaled weights. */
   void Expand(Context const* ctx, tree::ExpandBatch const& batch);
   /** @brief Initialize prediction leaves from base weights, applying the learning rate. */
   void FinalizeLeaves(float learning_rate);
@@ -350,14 +350,18 @@ class RegTree : public Model {
   /** @brief Set the unscaled weight and coverage for a scalar root. */
   void SetRoot(float weight, float sum_hess);
   /**
-   * @brief Set the root weight and statistics for a multi-target tree.
+   * @brief Set the root weight and statistics from a target vector.
    *
    * @param weight   Internal split weight, with size equals to reduced targets.
    * @param sum_hess The sum of hessians for the root node (coverage).
    */
   void SetRoot(linalg::VectorView<float const> weight, float sum_hess) {
-    CHECK(IsMultiTarget());
-    return this->p_mt_tree_->SetRoot(weight, sum_hess);
+    if (this->IsMultiTarget()) {
+      return this->p_mt_tree_->SetRoot(weight, sum_hess);
+    }
+    CHECK_EQ(weight.Size(), 1);
+    CHECK(weight.Device().IsCPU());
+    this->SetRoot(weight(0), sum_hess);
   }
   /**
    * @brief Get the maximum depth.

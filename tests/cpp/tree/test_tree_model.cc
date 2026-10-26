@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 
+#include <array>  // for array
 #include <stack>  // for stack
 
 #include "../../../src/common/bitfield.h"
@@ -12,6 +13,34 @@
 #include "xgboost/tree_model.h"
 
 namespace xgboost {
+TEST(Tree, ScalarVectorWeightInterface) {
+  Context ctx;
+  RegTree tree{1u, 2u};
+  std::array<float, 1> root_weight{2.0f};
+  std::array<float, 1> left_weight{-1.0f};
+  std::array<float, 1> right_weight{3.0f};
+  tree.SetRoot(linalg::MakeVec(root_weight.data(), 1), 10.0f);
+  tree.Expand(&ctx, tree::ExpandBatch{{{0, 0, 0.5f, true},
+                                       {root_weight, 10.0},
+                                       {left_weight, 4.0},
+                                       {right_weight, 6.0},
+                                       5.0f}});
+  tree.FinalizeLeaves(0.25f);
+
+  ASSERT_FALSE(tree.IsMultiTarget());
+  ASSERT_EQ(tree.Size(), 3);
+  EXPECT_EQ(tree[0].LeftChild(), 1);
+  EXPECT_EQ(tree[0].RightChild(), 2);
+  EXPECT_TRUE(tree[0].DefaultLeft());
+  EXPECT_EQ(tree[0].SplitCond(), 0.5f);
+  EXPECT_EQ(tree[1].LeafValue(), -0.25f);
+  EXPECT_EQ(tree[2].LeafValue(), 0.75f);
+  EXPECT_EQ(tree.Stat(0).base_weight, 2.0f);
+  EXPECT_EQ(tree.Stat(0).loss_chg, 5.0f);
+  EXPECT_EQ(tree.Stat(1).sum_hess, 4.0f);
+  EXPECT_EQ(tree.Stat(2).sum_hess, 6.0f);
+}
+
 TEST(Tree, ModelShape) {
   bst_feature_t n_features = std::numeric_limits<uint32_t>::max();
   RegTree tree{1u, n_features};

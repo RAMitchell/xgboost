@@ -10,20 +10,20 @@
 
 namespace xgboost::tree {
 namespace {
-CPUExpandEntry MakeCPUExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_chg) {
-  SplitEntry split;
-  split.loss_chg = loss_chg;
-  return CPUExpandEntry{nidx, depth, split};
+MultiExpandEntry MakeMultiExpandEntry(bst_node_t nidx, bst_node_t depth, float loss_chg) {
+  MultiExpandEntry entry{nidx, depth};
+  entry.split.loss_chg = loss_chg;
+  return entry;
 }
 }  // namespace
 
 TEST(QuantileHist, DriverEmptyPopSkipsInvalidGroup) {
-  TestDriverEmptyPop<CPUExpandEntry>(MakeCPUExpandEntry);
+  TestDriverEmptyPop<MultiExpandEntry>(MakeMultiExpandEntry);
 }
 
 TEST(QuantileHist, DriverRejectsZeroBatchSize) {
   TrainParam param;
   param.UpdateAllowUnknown(Args{});
-  EXPECT_THROW((Driver<CPUExpandEntry>{param, 0}), dmlc::Error);
+  EXPECT_THROW((Driver<MultiExpandEntry>{param, 0}), dmlc::Error);
 }
 }  // namespace xgboost::tree

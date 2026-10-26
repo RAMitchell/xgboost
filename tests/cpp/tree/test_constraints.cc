@@ -81,12 +81,14 @@ TEST(CPUMonoConstraint, Basic) {
   auto Xy = RandomDataGenerator{kRows, kCols, 0.0}.GenerateDMatrix(true);
   auto sampler = std::make_shared<common::ColumnSampler>();
 
-  HistEvaluator evalutor{&ctx, &param, Xy->Info(), sampler};
-  evalutor.InitRoot(GradStats{2.0, 2.0});
+  HistMultiEvaluator evalutor{&ctx, Xy->Info(), &param, 1, sampler};
+  GradientPairPrecise root_sum{2.0, 2.0};
+  evalutor.InitRoot(linalg::MakeVec(&root_sum, 1));
 
-  SplitEntry split;
-  split.Update(1.0f, 0, 3.0, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
-  CPUExpandEntry entry{0, 0, split};
+  MultiExpandEntry entry{0, 0};
+  GradientPairPrecise child_sum{1.0, 1.0};
+  entry.split.Update(1.0f, 0, 3.0, false, false, linalg::MakeVec(&child_sum, 1),
+                     linalg::MakeVec(&child_sum, 1));
   RegTree tree{1, static_cast<bst_feature_t>(kCols)};
   evalutor.ApplyTreeSplit(entry, &tree);
 

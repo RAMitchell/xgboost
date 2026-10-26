@@ -13,7 +13,7 @@
 #include "../../../src/common/row_set.h"       // for RowSetCollection
 #include "../../../src/data/gradient_index.h"  // for GHistIndexMatrix
 #include "../../../src/tree/common_row_partitioner.h"
-#include "../../../src/tree/hist/expand_entry.h"  // for CPUExpandEntry
+#include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry
 #include "../helpers.h"                           // for RandomDataGenerator
 #include "test_partitioner.h"                     // for GetSplit
 
@@ -26,7 +26,7 @@ void TestLeafPartition(size_t n_samples) {
   CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  std::vector<CPUExpandEntry> candidates{{0, 0}};
+  std::vector<MultiExpandEntry> candidates{{0, 0}};
   candidates.front().split.loss_chg = 0.4;
   RegTree tree;
   std::vector<float> hess(n_samples, 0);
@@ -93,7 +93,7 @@ void TestExternalMemory() {
   std::vector<CommonRowPartitioner> partitioners;
 
   RegTree tree;
-  std::vector<CPUExpandEntry> candidates{{0, 0}};
+  std::vector<MultiExpandEntry> candidates{{0, 0}};
 
   auto gpair = GenerateRandomGradients(p_fmat->Info().num_row_);
   auto t_gpair = linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), p_fmat->Info().num_row_, 1);

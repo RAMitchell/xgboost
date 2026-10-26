@@ -27,7 +27,7 @@
 #include "../../../../src/common/threading_utils.h"       // for BlockedSpace2d
 #include "../../../../src/data/gradient_index.h"          // for GHistIndexMatrix
 #include "../../../../src/tree/common_row_partitioner.h"  // for CommonRowPartitioner
-#include "../../../../src/tree/hist/expand_entry.h"       // for CPUExpandEntry
+#include "../../../../src/tree/hist/expand_entry.h"       // for MultiExpandEntry
 #include "../../../../src/tree/hist/hist_cache.h"         // for BoundedHistCollection
 #include "../../../../src/tree/hist/hist_param.h"         // for HistMakerTrainParam
 #include "../../../../src/tree/hist/histogram.h"          // for HistogramBuilder
@@ -300,7 +300,7 @@ void TestBuildHistogram(Context const *ctx, bool is_distributed, bool force_read
   std::iota(row_indices.begin(), row_indices.end(), 0);
   row_set_collection.Init();
 
-  CPUExpandEntry node{RegTree::kRoot, tree.GetDepth(0)};
+  MultiExpandEntry node{RegTree::kRoot, tree.GetDepth(0)};
   std::vector<bst_node_t> nodes_to_build{node.nid};
   std::vector<bst_node_t> dummy_sub;
 
@@ -375,7 +375,7 @@ void TestHistogramCategorical(size_t n_categories, bool force_read_by_column) {
   BatchParam batch_param{0, kBins};
 
   RegTree tree;
-  CPUExpandEntry node{RegTree::kRoot, tree.GetDepth(RegTree::kRoot)};
+  MultiExpandEntry node{RegTree::kRoot, tree.GetDepth(RegTree::kRoot)};
   std::vector<bst_node_t> nodes_to_build;
   nodes_to_build.push_back(node.nid);
 
@@ -580,19 +580,21 @@ class OverflowTest : public ::testing::TestWithParam<bool> {
 
     auto gpair = GenerateRandomGradients(Xy->Info().num_row_, 0.0, 1.0);
 
-    CPUExpandEntry best;
+    MultiExpandEntry best;
     hist_builder.BuildRootHist(Xy.get(), tree.HostScView(), partitioners,
                                linalg::MakeTensorView(&ctx, gpair.ConstHostSpan(), gpair.Size(), 1),
                                best, batch);
 
-    best.split.Update(1.0f, 1, split_cond, false, false, GradStats{1.0, 1.0}, GradStats{1.0, 1.0});
+    GradientPairPrecise child_sum{1.0, 1.0};
+    best.split.Update(1.0f, 1, split_cond, false, false, linalg::MakeVec(&child_sum, 1),
+                      linalg::MakeVec(&child_sum, 1));
     tree.Expand({{best.nid, best.split.SplitIndex(), best.split.split_value, false},
                  {2.0f, 2.0f},
-                 {1.0f, best.split.left_sum.GetHess()},
-                 {1.0f, best.split.right_sum.GetHess()},
+                 {1.0f, best.split.left_sum[0].GetHess()},
+                 {1.0f, best.split.right_sum[0].GetHess()},
                  best.GetLossChange()});
 
-    std::vector<CPUExpandEntry> valid_candidates{best};
+    std::vector<MultiExpandEntry> valid_candidates{best};
     for (auto const &page : Xy->GetBatches<GHistIndexMatrix>(&ctx, batch)) {
       partitioners.front().UpdatePosition(&ctx, page, valid_candidates, tree.HostScView());
     }

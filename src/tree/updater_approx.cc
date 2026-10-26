@@ -4,6 +4,7 @@
  * \brief Implementation for the approx tree method.
  */
 #include <algorithm>  // for max, transform, fill_n
+#include <array>      // for array
 #include <cstddef>    // for size_t
 #include <map>        // for map
 #include <memory>     // for allocator, unique_ptr, make_shared, make_unique
@@ -19,8 +20,8 @@
 #include "common_row_partitioner.h"          // for CommonRowPartitioner
 #include "dmlc/registry.h"                   // for DMLC_REGISTRY_FILE_TAG
 #include "driver.h"                          // for Driver
-#include "hist/evaluate_splits.h"            // for HistEvaluator
-#include "hist/expand_entry.h"               // for CPUExpandEntry
+#include "hist/evaluate_splits.h"            // for HistMultiEvaluator
+#include "hist/expand_entry.h"               // for MultiExpandEntry
 #include "hist/hist_param.h"                 // for HistMakerTrainParam
 #include "hist/histogram.h"                  // for MultiHistogramBuilder
 #include "hist/sampler.h"                    // for Sampler
@@ -58,14 +59,12 @@ class GlobalApproxBuilder {
   TrainParam const *param_;
   HistMakerTrainParam const *hist_param_{nullptr};
   std::shared_ptr<common::ColumnSampler> col_sampler_;
-  HistEvaluator evaluator_;
+  HistMultiEvaluator evaluator_;
   MultiHistogramBuilder histogram_builder_;
   Context const *ctx_;
   ObjInfo const *const task_;
 
   std::vector<CommonRowPartitioner> partitioner_;
-  // Pointer to last updated tree, used for update prediction cache.
-  RegTree *p_last_tree_{nullptr};
   common::Monitor *monitor_;
   size_t n_batches_{0};
   // Cache for histogram cuts.
@@ -96,29 +95,29 @@ class GlobalApproxBuilder {
     monitor_->Stop(__func__);
   }
 
-  CPUExpandEntry InitRoot(DMatrix *p_fmat, std::vector<GradientPair> const &gpair,
-                          common::Span<float> hess, RegTree *p_tree) {
+  MultiExpandEntry InitRoot(DMatrix *p_fmat, std::vector<GradientPair> const &gpair,
+                            common::Span<float> hess, RegTree *p_tree) {
     monitor_->Start(__func__);
-    CPUExpandEntry best;
+    MultiExpandEntry best;
     best.nid = RegTree::kRoot;
     best.depth = 0;
-    GradStats root_sum;
+    GradientPairPrecise root_sum;
     for (auto const &g : gpair) {
-      root_sum.Add(g);
+      root_sum += GradientPairPrecise{g};
     }
     auto rc =
         collective::GlobalSum(ctx_, linalg::MakeVec(reinterpret_cast<double *>(&root_sum), 2));
     collective::SafeColl(rc);
 
-    std::vector<CPUExpandEntry> nodes{best};
+    std::vector<MultiExpandEntry> nodes{best};
     this->histogram_builder_.BuildRootHist(p_fmat, p_tree->HostScView(), partitioner_,
                                            linalg::MakeTensorView(ctx_, gpair, gpair.size(), 1),
                                            best, BatchSpec(*param_, hess));
 
-    auto weight = evaluator_.InitRoot(root_sum);
-    p_tree->SetRoot(weight, root_sum.GetHess());
+    auto weight = evaluator_.InitRoot(linalg::MakeVec(&root_sum, 1));
+    p_tree->SetRoot(weight.HostView(), root_sum.GetHess());
 
-    auto const &histograms = histogram_builder_.Histogram(0);
+    std::array<BoundedHistCollection const *, 1> histograms{&histogram_builder_.Histogram(0)};
     auto ft = p_fmat->Info().feature_types.ConstHostSpan();
     evaluator_.EvaluateSplits(histograms, feature_values_, ft, &nodes);
     monitor_->Stop(__func__);
@@ -127,7 +126,7 @@ class GlobalApproxBuilder {
   }
 
   void BuildHistogram(DMatrix *p_fmat, RegTree *p_tree,
-                      std::vector<CPUExpandEntry> const &valid_candidates,
+                      std::vector<MultiExpandEntry> const &valid_candidates,
                       std::vector<GradientPair> const &gpair, common::Span<float> hess) {
     monitor_->Start(__func__);
     this->histogram_builder_.BuildHistLeftRight(
@@ -155,7 +154,7 @@ class GlobalApproxBuilder {
       : param_{param},
         hist_param_{hist_param},
         col_sampler_{std::move(column_sampler)},
-        evaluator_{ctx, param_, info, col_sampler_},
+        evaluator_{ctx, info, param_, 1, col_sampler_},
         ctx_{ctx},
         task_{task},
         monitor_{monitor} {}
@@ -163,10 +162,9 @@ class GlobalApproxBuilder {
   void UpdateTree(DMatrix *p_fmat, std::vector<GradientPair> const &gpair, common::Span<float> hess,
                   RegTree *p_tree, HostDeviceVector<bst_node_t> *p_out_position) {
     CHECK(!p_tree->IsMultiTarget()) << "approx" << MTNotImplemented();
-    p_last_tree_ = p_tree;
     this->InitData(p_fmat, p_tree, hess);
 
-    Driver<CPUExpandEntry> driver(*param_);
+    Driver<MultiExpandEntry> driver(*param_);
     auto &tree = *p_tree;
     driver.Push({this->InitRoot(p_fmat, gpair, hess, p_tree)});
     auto expand_set = driver.Pop();
@@ -183,9 +181,9 @@ class GlobalApproxBuilder {
 
     while (!expand_set.empty()) {
       // candidates that can be further splited.
-      std::vector<CPUExpandEntry> valid_candidates;
+      std::vector<MultiExpandEntry> valid_candidates;
       // candidates that can be applied.
-      std::vector<CPUExpandEntry> applied;
+      std::vector<MultiExpandEntry> applied;
       for (auto const &candidate : expand_set) {
         evaluator_.ApplyTreeSplit(candidate, p_tree);
         applied.push_back(candidate);
@@ -203,18 +201,18 @@ class GlobalApproxBuilder {
       }
       monitor_->Stop("UpdatePosition");
 
-      std::vector<CPUExpandEntry> best_splits;
+      std::vector<MultiExpandEntry> best_splits;
       if (!valid_candidates.empty()) {
         this->BuildHistogram(p_fmat, p_tree, valid_candidates, gpair, hess);
         for (auto const &candidate : valid_candidates) {
           int left_child_nidx = tree[candidate.nid].LeftChild();
           int right_child_nidx = tree[candidate.nid].RightChild();
-          CPUExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
-          CPUExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
+          MultiExpandEntry l_best{left_child_nidx, tree.GetDepth(left_child_nidx)};
+          MultiExpandEntry r_best{right_child_nidx, tree.GetDepth(right_child_nidx)};
           best_splits.push_back(l_best);
           best_splits.push_back(r_best);
         }
-        auto const &histograms = histogram_builder_.Histogram(0);
+        std::array<BoundedHistCollection const *, 1> histograms{&histogram_builder_.Histogram(0)};
         auto ft = p_fmat->Info().feature_types.ConstHostSpan();
         monitor_->Start("EvaluateSplits");
         evaluator_.EvaluateSplits(histograms, feature_values_, ft, &best_splits);
@@ -238,8 +236,6 @@ class GlobalApproxUpdater : public TreeUpdater {
   common::Monitor monitor_;
   // specializations for different histogram precision.
   std::unique_ptr<GlobalApproxBuilder> pimpl_;
-  // pointer to the last DMatrix, used for update prediction cache.
-  DMatrix *cached_{nullptr};
   std::shared_ptr<common::ColumnSampler> column_sampler_;
   ObjInfo const *task_;
   HistMakerTrainParam hist_param_;
@@ -288,8 +284,6 @@ class GlobalApproxUpdater : public TreeUpdater {
     auto const &s_gpair = h_gpair.Data()->ConstHostVector();
     std::transform(s_gpair.begin(), s_gpair.end(), hess.begin(),
                    [](auto g) { return g.GetHess(); });
-
-    cached_ = m;
 
     std::size_t t_idx = 0;
     for (auto p_tree : trees) {

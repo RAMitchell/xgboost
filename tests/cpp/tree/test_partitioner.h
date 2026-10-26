@@ -10,10 +10,10 @@
 
 #include <vector>  // for vector
 
-#include "../../../src/tree/hist/expand_entry.h"  // for CPUExpandEntry, MultiExpandEntry
+#include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry
 
 namespace xgboost::tree {
-inline void GetSplit(RegTree *tree, float split_value, std::vector<CPUExpandEntry> *candidates) {
+inline void GetSplit(RegTree *tree, float split_value, std::vector<MultiExpandEntry> *candidates) {
   CHECK(!tree->IsMultiTarget());
   tree->Expand(
       {{RegTree::kRoot, 0, split_value, true}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f});

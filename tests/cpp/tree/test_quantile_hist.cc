@@ -7,6 +7,7 @@
 #include <xgboost/linalg.h>
 #include <xgboost/tree_updater.h>
 
+#include <array>
 #include <cmath>
 #include <cstddef>  // for size_t
 #include <limits>
@@ -15,7 +16,7 @@
 #include <vector>
 
 #include "../../../src/tree/common_row_partitioner.h"
-#include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry, CPUExpandEntry
+#include "../../../src/tree/hist/expand_entry.h"  // for MultiExpandEntry
 #include "../collective/test_worker.h"            // for TestDistributedGlobal
 #include "../helpers.h"
 #include "test_partitioner.h"
@@ -24,7 +25,6 @@
 
 namespace xgboost::tree {
 namespace {
-template <typename ExpandEntry>
 void TestPartitioner(bst_target_t n_targets) {
   std::size_t n_samples = 1024, base_rowid = 0;
   bst_feature_t n_features = 1;
@@ -38,7 +38,7 @@ void TestPartitioner(bst_target_t n_targets) {
   ASSERT_EQ(partitioner.Partitions()[0].Size(), n_samples);
 
   auto Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
-  std::vector<ExpandEntry> candidates{{0, 0}};
+  std::vector<MultiExpandEntry> candidates{{0, 0}};
   candidates.front().split.loss_chg = 0.4;
 
   auto cuts = common::SketchOnDMatrix(&ctx, Xy.get(), 64);
@@ -52,7 +52,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto min_value = -std::numeric_limits<float>::infinity();
       RegTree tree{n_targets, n_features};
       CommonRowPartitioner partitioner{&ctx, n_samples, base_rowid};
-      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
+      if (n_targets == 1) {
         GetSplit(&tree, min_value, &candidates);
         partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
                                                 tree.HostScView());
@@ -70,7 +70,7 @@ void TestPartitioner(bst_target_t n_targets) {
       auto ptr = gmat.cut.Ptrs()[split_ind + 1];
       float split_value = gmat.cut.Values().at(ptr / 2);
       RegTree tree{n_targets, n_features};
-      if constexpr (std::is_same_v<ExpandEntry, CPUExpandEntry>) {
+      if (n_targets == 1) {
         GetSplit(&tree, split_value, &candidates);
         partitioner.UpdatePosition<false, true>(&ctx, gmat, column_indices, candidates,
                                                 tree.HostScView());
@@ -103,9 +103,9 @@ void TestPartitioner(bst_target_t n_targets) {
 }
 }  // anonymous namespace
 
-TEST(QuantileHist, Partitioner) { TestPartitioner<CPUExpandEntry>(1); }
+TEST(QuantileHist, Partitioner) { TestPartitioner(1); }
 
-TEST(QuantileHist, MultiPartitioner) { TestPartitioner<MultiExpandEntry>(3); }
+TEST(QuantileHist, MultiPartitioner) { TestPartitioner(3); }
 
 namespace {
 // Verify that partitioners from a previous multi-batch DMatrix are not reused.
@@ -169,4 +169,36 @@ void TestPartitionerOverrun(bst_target_t n_targets) {
 TEST(QuantileHist, HistUpdaterPartitionerOverrun) { TestPartitionerOverrun(1); }
 
 TEST(QuantileHist, MultiTargetHistBuilderPartitionerOverrun) { TestPartitionerOverrun(3); }
+TEST(QuantileHist, DistributedScalarTraining) {
+  // Workers disagree on local density, and one worker has no rows. Both methods
+  // must take matching collectives and produce the same scalar-format model.
+  for (auto const* name : {"grow_quantile_histmaker", "grow_histmaker"}) {
+    std::array<std::string, 3> models;
+    collective::TestDistributedGlobal(3, [&] {
+      auto rank = collective::GetRank();
+      auto rows = rank == 2 ? 0ul : 64ul;
+      auto data = RandomDataGenerator{rows, 4, rank == 1 ? 0.5f : 0.0f}.GenerateDMatrix();
+      Context ctx;
+      ctx.nthread = 1;
+      ObjInfo task{ObjInfo::kRegression, true};
+      std::unique_ptr<TreeUpdater> updater{TreeUpdater::Create(name, &ctx, &task)};
+      updater->Configure(Args{});
+      TrainParam param;
+      param.InitAllowUnknown(
+          Args{{"max_depth", "2"}, {"max_bin", "16"}, {"min_child_weight", "0"}});
+      auto gpair = GenerateRandomGradients(&ctx, rows, 1);
+      RegTree tree{1, 4};
+      std::vector<HostDeviceVector<bst_node_t>> position(1);
+      updater->Update(&param, &gpair, data.get(), position, {&tree});
+      EXPECT_FALSE(tree.IsMultiTarget());
+      EXPECT_GT(tree.Size(), 1);
+      EXPECT_EQ(position[0].Size(), rows);
+      Json model{Object{}};
+      tree.SaveModel(&model);
+      Json::Dump(model, &models[rank]);
+    });
+    EXPECT_EQ(models[0], models[1]);
+    EXPECT_EQ(models[0], models[2]);
+  }
+}
 }  // namespace xgboost::tree

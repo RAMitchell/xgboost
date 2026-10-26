@@ -26,24 +26,6 @@ struct ExpandEntryImpl {
   [[nodiscard]] bst_node_t GetNodeId() const { return nid; }
 };
 
-struct CPUExpandEntry : public ExpandEntryImpl<CPUExpandEntry> {
-  SplitEntry split;
-
-  CPUExpandEntry() = default;
-  CPUExpandEntry(bst_node_t nidx, bst_node_t depth, SplitEntry split)
-      : ExpandEntryImpl{nidx, depth}, split(std::move(split)) {}
-  CPUExpandEntry(bst_node_t nidx, bst_node_t depth) : ExpandEntryImpl{nidx, depth} {}
-
-  friend std::ostream& operator<<(std::ostream& os, CPUExpandEntry const& e) {
-    os << "ExpandEntry:\n";
-    os << "nidx: " << e.nid << "\n";
-    os << "depth: " << e.depth << "\n";
-    os << "loss: " << e.split.loss_chg << "\n";
-    os << "split:\n" << e.split << std::endl;
-    return os;
-  }
-};
-
 struct MultiExpandEntry : public ExpandEntryImpl<MultiExpandEntry> {
   SplitEntryContainer<std::vector<GradientPairPrecise>> split;
 

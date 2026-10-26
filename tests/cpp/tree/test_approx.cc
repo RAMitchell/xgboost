@@ -39,7 +39,7 @@ TEST(Approx, Partitioner) {
 
   auto const Xy = RandomDataGenerator{n_samples, n_features, 0}.GenerateDMatrix(true);
   auto hess = GenerateHess(n_samples);
-  std::vector<CPUExpandEntry> candidates{{0, 0}};
+  std::vector<MultiExpandEntry> candidates{{0, 0}};
   candidates.front().split.loss_chg = 0.4;
 
   for (auto const& page : Xy->GetBatches<GHistIndexMatrix>(&ctx, {64, hess, true})) {

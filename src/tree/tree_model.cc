@@ -908,7 +908,20 @@ void RegTree::Expand(tree::ExpandData<float> const& entry, bst_node_t leaf_right
 }
 
 void RegTree::Expand(Context const* ctx, tree::ExpandBatch const& batch) {
-  CHECK(IsMultiTarget());
+  if (!this->IsMultiTarget()) {
+    CHECK(ctx->IsCPU());
+    for (auto const& node : batch) {
+      CHECK_EQ(node.parent.weight.size(), 1);
+      CHECK_EQ(node.left.weight.size(), 1);
+      CHECK_EQ(node.right.weight.size(), 1);
+      this->Expand({node.split,
+                    {node.parent.weight[0], node.parent.sum_hess},
+                    {node.left.weight[0], node.left.sum_hess},
+                    {node.right.weight[0], node.right.sum_hess},
+                    node.loss_chg});
+    }
+    return;
+  }
 
   xgboost_NVTX_FN_RANGE();
 

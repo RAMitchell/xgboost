@@ -346,3 +346,24 @@ class TestTreeMethod:
     @pytest.mark.parametrize("tree_method", ["hist"])
     def test_get_quantile_cut(self, tree_method: str) -> None:
         check_get_quantile_cut(tree_method, "cpu")
+
+
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_categorical_zero_root_weight(tree_method: str) -> None:
+    # The optimal partition groups non-adjacent categories, even with a zero root gain.
+    X = np.tile(np.arange(4), 32).reshape(-1, 1)
+    y = np.where(X[:, 0] % 2, 1, -1).astype(np.float32)
+    data = xgb.DMatrix(X, label=y, feature_types=["c"])
+    booster = xgb.train(
+        {
+            "tree_method": tree_method,
+            "max_depth": 1,
+            "eta": 1,
+            "lambda": 0,
+            "base_score": 0,
+            "max_cat_to_onehot": 1,
+        },
+        data,
+        num_boost_round=1,
+    )
+    np.testing.assert_array_equal(booster.predict(data), y)
