@@ -419,18 +419,26 @@ class HistMultiEvaluator {
   Context const *ctx_;
 
  private:
-  template <bst_bin_t d_step>
-  bool EnumerateSplit(common::HistogramCuts const &cut, bst_feature_t fidx,
-                      common::Span<common::ConstGHistRow> hist,
-                      linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
-                      bst_node_t nidx, TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
-                      SplitEntryContainer<std::vector<GradientPairPrecise>> *p_best) const {
+  template <bst_bin_t d_step, bool kSingleTarget>
+  bool EnumerateSplitImpl(common::HistogramCuts const &cut, bst_feature_t fidx,
+                          common::Span<common::ConstGHistRow> hist,
+                          linalg::VectorView<GradientPairPrecise const> parent_sum,
+                          double parent_gain, bst_node_t nidx,
+                          TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
+                          SplitEntryContainer<std::vector<GradientPairPrecise>> *p_best) const {
     auto const &cut_ptr = cut.Ptrs();
     auto const &cut_val = cut.Values();
 
-    auto sum = linalg::Empty<GradientPairPrecise>(ctx_, 2, hist.size());
-    auto left_sum = sum.Slice(0, linalg::All());
-    auto right_sum = sum.Slice(1, linalg::All());
+    auto n_targets = kSingleTarget ? 1 : hist.size();
+    auto sum = linalg::Empty<GradientPairPrecise>(ctx_, 2, n_targets);
+    auto [left_sum, right_sum] = [&] {
+      if constexpr (kSingleTarget) {
+        auto data = sum.HostView().Values().data();
+        return std::make_pair(linalg::MakeVec(data, 1), linalg::MakeVec(data + 1, 1));
+      } else {
+        return std::make_pair(sum.Slice(0, linalg::All()), sum.Slice(1, linalg::All()));
+      }
+    }();
 
     bst_bin_t ibegin, iend;
     if (d_step > 0) {
@@ -440,8 +448,6 @@ class HistMultiEvaluator {
       ibegin = static_cast<bst_bin_t>(cut_ptr[fidx + 1]) - 1;
       iend = static_cast<bst_bin_t>(cut_ptr[fidx]) - 1;
     }
-    auto n_targets = hist.size();
-
     for (bst_bin_t i = ibegin; i != iend; i += d_step) {
       for (bst_target_t t = 0; t < n_targets; ++t) {
         auto t_hist = hist[t];
@@ -468,6 +474,20 @@ class HistMultiEvaluator {
                          linalg::cbegin(parent_sum));
     }
     return false;
+  }
+
+  template <bst_bin_t d_step>
+  bool EnumerateSplit(common::HistogramCuts const &cut, bst_feature_t fidx,
+                      common::Span<common::ConstGHistRow> hist,
+                      linalg::VectorView<GradientPairPrecise const> parent_sum, double parent_gain,
+                      bst_node_t nidx, TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator,
+                      SplitEntryContainer<std::vector<GradientPairPrecise>> *p_best) const {
+    if (hist.size() == 1) {
+      return this->EnumerateSplitImpl<d_step, true>(cut, fidx, hist, parent_sum, parent_gain, nidx,
+                                                    evaluator, p_best);
+    }
+    return this->EnumerateSplitImpl<d_step, false>(cut, fidx, hist, parent_sum, parent_gain, nidx,
+                                                   evaluator, p_best);
   }
 
   void EnumerateOneHot(common::HistogramCuts const &cut, bst_feature_t fidx,
