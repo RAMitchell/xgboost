@@ -658,6 +658,19 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Bool()),
     HistogramBuildName);
 
+// Exercise runtime group widths around the lane-count and partial-unrolling boundaries.
+// Odd widths also make the entry partition split rows, while child nodes include short tails.
+TEST(Histogram, BuildRuntimeGroupWidths) {
+  for (bst_feature_t n_features : {1, 2, 3, 7, 12, 13, 24, 25, 64}) {
+    for (bool root : {false, true}) {
+      SCOPED_TRACE(::testing::Message() << "features:" << n_features << " root:" << root);
+      ASSERT_NO_FATAL_FAILURE(TestBuildHistogram(1033, n_features, 16, /*n_targets=*/3,
+                                                 Layout::kDense, root, /*force_global=*/false,
+                                                 /*small_groups=*/false));
+    }
+  }
+}
+
 // Sub-segments spanning multiple tiles.
 TEST(Histogram, BuildLarge) {
   auto n_samples = std::max<bst_idx_t>(1 << 21, static_cast<bst_idx_t>(curt::GetMpCnt(0)) << 14);

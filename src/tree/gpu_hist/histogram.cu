@@ -166,10 +166,10 @@ __device__ GradientPairInt64 LoadGpair(GradientPairInt64 const* XGBOOST_RESTRICT
 
 // Accumulate sub-segment entries [begin, end) for one target.
 template <typename Policy, typename Accessor, typename RidxIterSpan>
-__device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& group,
-                                  RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
-                                  SharedHistogram smem_hist, GradientPairInt64* gmem_hist,
-                                  bst_idx_t begin, bst_idx_t end) {
+__device__ void HistKernelSegmentEntries(Accessor const& matrix, FeatureGroup const& group,
+                                         RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
+                                         SharedHistogram smem_hist, GradientPairInt64* gmem_hist,
+                                         bst_idx_t begin, bst_idx_t end) {
   bst_feature_t const feature_stride = Policy::kCompressed ? group.num_features : matrix.row_stride;
 
   using Idx = RowPartitioner::RowIndexT;
@@ -208,6 +208,90 @@ __device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& gr
       }
       atomic_add(compressed_bin, g);
     }
+  }
+}
+
+// Reuse a gradient pair and the row address across several features. All group widths are
+// handled at runtime, without another histogram-kernel instantiation for each width.
+template <typename Policy, typename Accessor, typename RidxIterSpan>
+__device__ void HistKernelSegmentRows(Accessor const& matrix, FeatureGroup const& group,
+                                      RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
+                                      SharedHistogram smem_hist, GradientPairInt64* gmem_hist,
+                                      bst_idx_t begin, bst_idx_t end) {
+  auto const width = group.num_features;
+  auto const first_row = (begin + width - 1) / width;
+  auto const last_row = end / width;
+  if (end - begin < Policy::kBlockThreads || first_row >= last_row) {
+    HistKernelSegmentEntries<Policy>(matrix, group, d_ridx_iter, gpair, smem_hist, gmem_hist, begin,
+                                     end);
+    return;
+  }
+  // Keep the original entry partition, including sub-segments that begin or end inside a row.
+  HistKernelSegmentEntries<Policy>(matrix, group, d_ridx_iter, gpair, smem_hist, gmem_hist, begin,
+                                   first_row * width);
+  HistKernelSegmentEntries<Policy>(matrix, group, d_ridx_iter, gpair, smem_hist, gmem_hist,
+                                   last_row * width, end);
+
+  // Four lanes cover the usual 12-feature group; eight cover 16/24 features. Narrow groups
+  // use fewer lanes so every lane has at least one feature to process.
+  unsigned lane_bits = width >= 16 ? 3 : (width >= 4 ? 2 : (width >= 2 ? 1 : 0));
+  unsigned lanes = 1u << lane_bits;
+  unsigned lane = threadIdx.x & (lanes - 1);
+  auto const d_ridx = d_ridx_iter.data();
+  if (width <= lanes * 3) {
+    // These offsets are invariant across rows. Partial unrolling retains them in registers,
+    // while runtime bounds handle the final, narrower feature group.
+    bst_bin_t offsets[3] = {};
+#pragma unroll
+    for (unsigned k = 0; k < 3; ++k) {
+      auto f = lane + k * lanes;
+      if (f < width) {
+        offsets[k] = matrix.feature_segments[group.start_feature + f] - group.start_bin;
+      }
+    }
+    for (bst_idx_t row = first_row + (threadIdx.x >> lane_bits); row < last_row;
+         row += Policy::kBlockThreads >> lane_bits) {
+      auto ridx = d_ridx[row];
+      auto g = LoadGpair(gpair + ridx);
+      auto address = IterIdx(matrix, ridx, group.start_feature);
+#pragma unroll
+      for (unsigned k = 0; k < 3; ++k) {
+        auto f = lane + k * lanes;
+        if (f < width) {
+          auto bin = matrix.gidx_iter[address + f] + offsets[k];
+          smem_hist.Add(bin, g);
+        }
+      }
+    }
+    return;
+  }
+
+  // Groups containing many low-bin-count features can be wider than the unrolled loop.
+  for (bst_idx_t row = first_row + (threadIdx.x >> lane_bits); row < last_row;
+       row += Policy::kBlockThreads >> lane_bits) {
+    auto ridx = d_ridx[row];
+    auto g = LoadGpair(gpair + ridx);
+    auto address = IterIdx(matrix, ridx, group.start_feature);
+#pragma unroll 1
+    for (bst_feature_t f = lane; f < width; f += lanes) {
+      auto bin = matrix.gidx_iter[address + f] + matrix.feature_segments[group.start_feature + f] -
+                 group.start_bin;
+      smem_hist.Add(bin, g);
+    }
+  }
+}
+
+template <typename Policy, typename Accessor, typename RidxIterSpan>
+__device__ void HistKernelSegment(Accessor const& matrix, FeatureGroup const& group,
+                                  RidxIterSpan d_ridx_iter, GradientPairInt64 const* gpair,
+                                  SharedHistogram smem_hist, GradientPairInt64* gmem_hist,
+                                  bst_idx_t begin, bst_idx_t end) {
+  if constexpr (Policy::kDense && Policy::kCompressed && Policy::kSharedMem) {
+    HistKernelSegmentRows<Policy>(matrix, group, d_ridx_iter, gpair, smem_hist, gmem_hist, begin,
+                                  end);
+  } else {
+    HistKernelSegmentEntries<Policy>(matrix, group, d_ridx_iter, gpair, smem_hist, gmem_hist, begin,
+                                     end);
   }
 }
 
