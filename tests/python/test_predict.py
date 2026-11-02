@@ -32,6 +32,38 @@ def test_inplace_predict_masked_array() -> None:
     )
 
 
+@pytest.mark.parametrize("container", ["arrow", "polars"])
+@pytest.mark.parametrize("change", ["reordered", "renamed"])
+def test_inplace_predict_feature_names(container: str, change: str) -> None:
+    pa = pytest.importorskip("pyarrow")
+    values = np.arange(16, dtype=np.float32).reshape(8, 2)
+    table = pa.table({"a": values[:, 0], "b": values[:, 1]})
+    booster = xgb.train(
+        {"tree_method": "hist", "max_depth": 1, "nthread": 1},
+        xgb.DMatrix(table, label=values[:, 0], nthread=1),
+        num_boost_round=1,
+    )
+    if change == "reordered":
+        mismatched = table.select(["b", "a"])
+        values = values[:, ::-1].copy()
+    else:
+        mismatched = table.rename_columns(["a", "other"])
+    data, bad_data = table, mismatched
+    if container == "polars":
+        pl = pytest.importorskip("polars")
+        data, bad_data = pl.from_arrow(table), pl.from_arrow(mismatched)
+
+    np.testing.assert_allclose(
+        booster.inplace_predict(data), booster.predict(xgb.DMatrix(table, nthread=1))
+    )
+    with pytest.raises(ValueError, match="feature_names mismatch"):
+        booster.inplace_predict(bad_data)
+    np.testing.assert_allclose(
+        booster.inplace_predict(bad_data, validate_features=False),
+        booster.inplace_predict(values, validate_features=False),
+    )
+
+
 def run_threaded_predict(X, rows, predict_func):
     results = []
     per_thread = 20
