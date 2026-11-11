@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import hashlib
 import json
 import multiprocessing as mp
 import os
@@ -33,6 +34,7 @@ import numpy as np
 import pandas as pd
 import xgboost as xgb
 from sklearn import datasets
+from sklearn.preprocessing import OneHotEncoder
 
 
 @dataclass(frozen=True)
@@ -110,9 +112,38 @@ class Model:
 
 @lru_cache(maxsize=1)
 def fetch_adult() -> tuple[object, np.ndarray]:
-    x, y = datasets.fetch_openml("adult", return_X_y=True)
-    y_binary = np.array([y_i != "<=50K" for y_i in y])
-    return x, y_binary
+    # Use one canonical Adult representation in every benchmark. The OpenML
+    # nominal vocabulary defines a fixed schema before any accuracy-study split.
+    x, y = datasets.fetch_openml(data_id=179, return_X_y=True)
+    categorical = list(x.select_dtypes(include=["category", "object", "str"]).columns)
+    numerical = [name for name in x.columns if name not in categorical]
+    encoder = OneHotEncoder(
+        handle_unknown="ignore", drop=None, sparse_output=False, dtype=np.float32
+    )
+    indicators = encoder.fit_transform(x[categorical])
+    encoded = np.concatenate(
+        [x[numerical].to_numpy(dtype=np.float32), indicators], axis=1
+    )
+    # Explicit zeros avoid the missing-value semantics of absent CSR entries.
+    expanded = pd.DataFrame(encoded, columns=[f"f{i}" for i in range(encoded.shape[1])])
+    labels = np.asarray(y != "<=50K")
+    schema = {
+        "openml_data_id": 179,
+        "representation": "one_hot",
+        "numerical_columns": numerical,
+        "categorical_columns": categorical,
+        "encoded_feature_names": numerical
+        + list(encoder.get_feature_names_out(categorical)),
+        "categories": {
+            name: [None if pd.isna(value) else str(value) for value in categories]
+            for name, categories in zip(categorical, encoder.categories_)
+        },
+        "storage": "dense float32 with explicit zeros",
+        "drop": None,
+        "signature": hashlib.sha256(encoded.tobytes() + labels.tobytes()).hexdigest(),
+    }
+    expanded.attrs["benchmark_encoding"] = schema
+    return expanded, labels
 
 
 @lru_cache(maxsize=1)
@@ -142,13 +173,17 @@ def train_model(dataset: TestDataset, spec: ModelSpec) -> xgb.Booster:
     dtrain = dataset.train_dmatrix()
     params = spec.training_params()
     params = dataset.set_params(params)
-    return xgb.train(
+    booster = xgb.train(
         params,
         dtrain,
         spec.num_rounds,
         evals=[(dtrain, "train")],
         verbose_eval=False,
     )
+    schema = getattr(dataset.X, "attrs", {}).get("benchmark_encoding")
+    if schema is not None:
+        booster.set_attr(benchmark_dataset_signature=schema["signature"])
+    return booster
 
 
 def train_or_load_model(
@@ -167,6 +202,15 @@ def train_or_load_model(
         print(f"Loading {model_name} from {model_path}")
         booster = xgb.Booster()
         booster.load_model(model_path)
+        schema = getattr(dataset.X, "attrs", {}).get("benchmark_encoding")
+        if booster.num_features() != dataset.X.shape[1] or (
+            schema is not None
+            and booster.attr("benchmark_dataset_signature") != schema["signature"]
+        ):
+            raise ValueError(
+                f"Cached {model_name} uses a different dataset representation. "
+                "Use --force-retrain to regenerate it."
+            )
         return booster
 
     print(f"Training {model_name}")
@@ -234,7 +278,10 @@ def get_models(
     for dataset in get_test_datasets():
         for spec in MODEL_SPECS.values():
             model_name = f"{dataset.name}-{spec.suffix}"
-            if model_filter not in {"all", spec.suffix} and model_filter != model_name:
+            if (
+                model_filter not in {"all", spec.suffix, dataset.name}
+                and model_filter != model_name
+            ):
                 continue
             booster = train_or_load_model(
                 dataset, spec, model_name, model_dir, force_retrain
@@ -577,7 +624,7 @@ def main() -> None:
         "--model",
         type=str,
         default="all",
-        help="Model filter: all, small, large, sparse, or a specific dataset-size name",
+        help="Model filter: all, small, large, sparse, a dataset name, or dataset-size name",
     )
     parser.add_argument(
         "--model-dir",
@@ -687,6 +734,12 @@ def main() -> None:
         },
         "interactions": args.interactions,
         "models_only": args.models_only,
+        "dataset_metadata": {
+            model.dataset.name: getattr(model.dataset.X, "attrs", {}).get(
+                "benchmark_encoding"
+            )
+            for model in models
+        },
         "model_filter": args.model,
         "model_dir": str(args.model_dir) if args.model_dir is not None else None,
         "model_specs": {
