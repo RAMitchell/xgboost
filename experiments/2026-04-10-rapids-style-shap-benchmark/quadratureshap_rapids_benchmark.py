@@ -12,7 +12,7 @@ It supports additive SHAP values and SHAP interactions and emits both a model-me
 and a timing table.
 """
 
-# pylint: disable=missing-class-docstring,missing-function-docstring,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,too-many-locals,broad-exception-caught,no-member
+# pylint: disable=missing-class-docstring,missing-function-docstring,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,too-many-locals,broad-exception-caught,no-member,too-many-statements,duplicate-code
 
 from __future__ import annotations
 
@@ -20,7 +20,10 @@ import argparse
 import gc
 import json
 import multiprocessing as mp
+import os
+import platform
 import statistics
+import sys
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -284,11 +287,15 @@ def _benchmark_case_worker(
     interactions: bool,
     niter: int,
     margin: np.ndarray | None,
+    warmup: int = 3,
+    nthread: int | None = None,
 ) -> None:
     try:
         booster = xgb.Booster()
         booster.load_model(bytearray(booster_raw))
-        dtest = xgb.DMatrix(x_test, enable_categorical=True)
+        if nthread is not None:
+            booster.set_param({"nthread": nthread})
+        dtest = xgb.DMatrix(x_test, enable_categorical=True, nthread=nthread)
         pred = predict_with_algorithm(booster, dtest, device, algorithm, interactions)
         if interactions:
             additive = predict_with_algorithm(
@@ -310,6 +317,9 @@ def _benchmark_case_worker(
                 "mean_additivity_err": float(np.mean(np.abs(summed - margin))),
             }
 
+        # Accuracy calls above and these explicit warm-ups are never timed.
+        for _ in range(warmup):
+            predict_with_algorithm(booster, dtest, device, algorithm, interactions)
         samples = []
         for _ in range(niter):
             t0 = time.perf_counter()
@@ -318,7 +328,14 @@ def _benchmark_case_worker(
         queue.put(
             {
                 "mean_time_s": float(np.mean(samples)),
-                "std_time_s": float(np.std(samples)),
+                "std_time_s": float(np.std(samples, ddof=1)) if niter > 1 else None,
+                "median_time_s": float(np.median(samples)),
+                "q25_time_s": float(np.quantile(samples, 0.25)),
+                "q75_time_s": float(np.quantile(samples, 0.75)),
+                "min_time_s": float(min(samples)),
+                "max_time_s": float(max(samples)),
+                "samples_s": samples,
+                "n_samples": len(samples),
                 "error": None,
                 **metrics,
             }
@@ -347,66 +364,42 @@ def run_case_with_timeout(
     niter: int,
     margin: np.ndarray | None,
     timeout_seconds: float | None,
+    warmup: int = 3,
+    nthread: int | None = None,
+    prediction_timeout_seconds: float | None = 600.0,
 ) -> dict[str, object]:
-    if timeout_seconds is None:
-        queue: mp.Queue = mp.Queue()
-        _benchmark_case_worker(
-            queue,
-            bytes(booster.save_raw()),
-            x_test,
-            device,
-            algorithm,
-            interactions,
-            niter,
-            margin,
-        )
-        result = queue.get()
-        queue.close()
-        return result
+    if prediction_timeout_seconds is not None or timeout_seconds is not None:
+        # Keep the two deadlines distinct: repeated in-limit predictions may take
+        # longer than the per-call limit in total.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from prediction_timeout import run_case
 
-    ctx = mp.get_context("spawn")
-    queue = ctx.Queue()
-    proc = ctx.Process(
-        target=_benchmark_case_worker,
-        args=(
-            queue,
-            bytes(booster.save_raw()),
+        return run_case(
+            booster,
             x_test,
             device,
             algorithm,
-            interactions,
             niter,
             margin,
-        ),
+            warmup=warmup,
+            nthread=nthread,
+            limit=prediction_timeout_seconds,
+            interactions=interactions,
+            aggregate_limit=timeout_seconds,
+        )
+    queue: mp.Queue = mp.Queue()
+    _benchmark_case_worker(
+        queue,
+        bytes(booster.save_raw()),
+        x_test,
+        device,
+        algorithm,
+        interactions,
+        niter,
+        margin,
+        warmup,
+        nthread,
     )
-    proc.start()
-    proc.join(timeout_seconds)
-    if proc.is_alive():
-        proc.terminate()
-        proc.join()
-        queue.close()
-        return {
-            "mean_time_s": None,
-            "std_time_s": None,
-            "max_additivity_err": None,
-            "mean_additivity_err": None,
-            "max_row_sum_err": None,
-            "mean_row_sum_err": None,
-            "max_asymmetry": None,
-            "error": f"DNF: exceeded {timeout_seconds:g}s",
-        }
-    if queue.empty():
-        queue.close()
-        return {
-            "mean_time_s": None,
-            "std_time_s": None,
-            "max_additivity_err": None,
-            "mean_additivity_err": None,
-            "max_row_sum_err": None,
-            "mean_row_sum_err": None,
-            "max_asymmetry": None,
-            "error": "DNF: worker exited without result",
-        }
     result = queue.get()
     queue.close()
     return result
@@ -446,6 +439,10 @@ def benchmark_model(
     niter: int,
     interactions: bool,
     timeout_seconds: float | None,
+    warmup: int = 3,
+    nthread: int | None = None,
+    devices: tuple[str, ...] = ("cpu", "cuda"),
+    prediction_timeout_seconds: float | None = 600.0,
 ) -> tuple[dict[str, object], list[dict[str, object]]]:
     margin = model.booster.predict(dtest, output_margin=True)
     details: list[dict[str, object]] = []
@@ -461,7 +458,7 @@ def benchmark_model(
     }
 
     for algorithm in ["treeshap", "quadratureshap"]:
-        for device in ["cpu", "cuda"]:
+        for device in devices:
             result = run_case_with_timeout(
                 model.booster,
                 x_test,
@@ -471,6 +468,9 @@ def benchmark_model(
                 niter,
                 margin if not interactions else None,
                 timeout_seconds,
+                warmup,
+                nthread,
+                prediction_timeout_seconds,
             )
             details.append(
                 {
@@ -544,13 +544,34 @@ def main() -> None:
         "--out-markdown", type=Path, default=None, help="Markdown table path"
     )
     parser.add_argument("--nrows", type=int, default=1000)
-    parser.add_argument("--niter", type=int, default=3)
+    parser.add_argument("--niter", type=int, default=10)
+    parser.add_argument("--warmup", type=int, default=3)
+    parser.add_argument("--nthread", type=int, default=None)
+    parser.add_argument(
+        "--devices", nargs="+", choices=["cpu", "cuda"], default=["cpu", "cuda"]
+    )
+    parser.add_argument(
+        "--out-details",
+        type=Path,
+        default=None,
+        help="CSV with timing spread and raw samples",
+    )
     parser.add_argument("--seed", type=int, default=432)
+    parser.add_argument(
+        "--prediction-timeout-seconds",
+        type=float,
+        default=600.0,
+        help="Limit for each accuracy, warm-up or timed prediction (default: 600s). "
+        "One over-limit call invalidates the whole entry. Use 0 to disable.",
+    )
     parser.add_argument(
         "--case-timeout-seconds",
         type=float,
         default=None,
-        help="Optional per algorithm/device/model timeout. Timed-out cases are marked DNF.",
+        help=(
+            "Optional aggregate case budget including all repeats; "
+            "independent of the per-call limit."
+        ),
     )
     parser.add_argument(
         "--model",
@@ -576,6 +597,19 @@ def main() -> None:
     )
     parser.add_argument("--interactions", action="store_true")
     args = parser.parse_args()
+    if args.prediction_timeout_seconds < 0 or not np.isfinite(
+        args.prediction_timeout_seconds
+    ):
+        parser.error("prediction timeout must be finite and nonnegative")
+    if args.case_timeout_seconds is not None and (
+        args.case_timeout_seconds <= 0 or not np.isfinite(args.case_timeout_seconds)
+    ):
+        parser.error("aggregate case timeout must be finite and positive")
+    args.prediction_timeout_seconds = args.prediction_timeout_seconds or None
+    if args.niter < 1 or args.warmup < 0 or args.nrows < 1:
+        parser.error("niter and nrows must be positive; warmup must be nonnegative")
+    if args.nthread is not None and args.nthread < 1:
+        parser.error("nthread must be positive")
 
     models = get_models(args.model, args.model_dir, args.force_retrain)
     model_rows = [
@@ -600,6 +634,8 @@ def main() -> None:
     details_rows: list[dict[str, object]] = []
     if not args.models_only:
         for model in models:
+            if args.nthread is not None:
+                model.booster.set_param({"nthread": args.nthread})
             x_test = model.dataset.test_input(args.nrows, args.seed)
             dtest = xgb.DMatrix(x_test, enable_categorical=True)
             result_row, details = benchmark_model(
@@ -609,6 +645,10 @@ def main() -> None:
                 args.niter,
                 args.interactions,
                 args.case_timeout_seconds,
+                args.warmup,
+                args.nthread,
+                tuple(dict.fromkeys(args.devices)),
+                args.prediction_timeout_seconds,
             )
             results_rows.append(result_row)
             details_rows.extend(details)
@@ -623,6 +663,28 @@ def main() -> None:
     payload = {
         "nrows": args.nrows,
         "niter": args.niter,
+        "warmup": args.warmup,
+        "nthread": args.nthread,
+        "devices": args.devices,
+        "std_ddof": 1,
+        "prediction_timeout_seconds": args.prediction_timeout_seconds,
+        "case_timeout_seconds": args.case_timeout_seconds,
+        "timeout_scope": "each prediction call; any over-limit call voids the entire entry",
+        "quadrature_rule": "standard_gauss_legendre",
+        "seed": args.seed,
+        "timing_scope": (
+            "wall-clock predict call including parameter setting and host output; "
+            "excludes model/DMatrix construction and accuracy calls"
+        ),
+        "speedup_statistic": "ratio of arithmetic mean runtimes",
+        "environment": {
+            "platform": platform.platform(),
+            "python": sys.version,
+            "xgboost": xgb.__version__,
+            "build_info": xgb.build_info(),
+            "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+            "omp_num_threads": os.environ.get("OMP_NUM_THREADS"),
+        },
         "interactions": args.interactions,
         "models_only": args.models_only,
         "model_filter": args.model,
@@ -648,11 +710,42 @@ def main() -> None:
     if args.out_results is not None:
         args.out_results.parent.mkdir(parents=True, exist_ok=True)
         results_df.to_csv(args.out_results, index=False)
+    if args.out_details is not None:
+        args.out_details.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(details_rows).to_csv(args.out_details, index=False)
     if args.out_markdown is not None:
         args.out_markdown.parent.mkdir(parents=True, exist_ok=True)
         text = "## Models\n\n" + markdown_table(models_df, ".3f") + "\n"
         if not args.models_only:
             text += "\n## Results\n\n" + markdown_table(results_df, ".6f") + "\n"
+            spread = pd.DataFrame(
+                [
+                    {
+                        key: row.get(key)
+                        for key in (
+                            "model",
+                            "device",
+                            "algorithm",
+                            "n_samples",
+                            "mean_time_s",
+                            "std_time_s",
+                            "median_time_s",
+                            "q25_time_s",
+                            "q75_time_s",
+                            "error",
+                        )
+                    }
+                    for row in details_rows
+                ]
+            )
+            text += (
+                "\n## Runtime variability\n\n"
+                "Times are seconds. SD is sample standard deviation (ddof=1), "
+                "not a confidence interval. Repetitions reuse the same model and rows. "
+                "Speedups are ratios of means.\n\n"
+                + markdown_table(spread, ".6g")
+                + "\n"
+            )
         args.out_markdown.write_text(text)
 
     print("Models:")
