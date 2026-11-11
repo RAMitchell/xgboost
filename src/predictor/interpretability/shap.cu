@@ -65,7 +65,7 @@ constexpr std::size_t kGpuQuadratureRowsPerWarp = 4;
 constexpr std::size_t kGpuQuadratureTreeBlockThreads = 64;
 constexpr std::array<std::size_t, 3> kGpuQuadratureDepthBuckets{{16, 32, 64}};
 constexpr double kQuadratureShapQeps = 1e-15;
-using QuadratureRule = detail::EndpointQuadratureRule<kGpuQuadraturePoints>;
+using QuadratureRule = detail::GaussLegendreRule<kGpuQuadraturePoints>;
 
 std::vector<float> MakeGroupRootMeanSums(gbm::GBTreeModel const& model, bst_tree_t tree_end,
                                          std::vector<float> const* tree_weights) {
@@ -1453,7 +1453,7 @@ void QuadratureShapValues(Context const* ctx, DMatrix* p_fmat,
       << (kMaxGpuQuadratureDepth - 1) << ".";
   auto h_group_root_mean_sums = MakeGroupRootMeanSums(model, tree_end, tree_weights);
 
-  auto rule = detail::MakeEndpointQuadrature<kGpuQuadraturePoints>(kQuadratureShapQeps);
+  auto rule = detail::MakeGaussLegendreQuadrature<kGpuQuadraturePoints>(kQuadratureShapQeps);
   std::array<float, kGpuQuadraturePoints> h_quad_nodes{};
   std::array<float, kGpuQuadraturePoints> h_quad_weights{};
   for (std::size_t i = 0; i < kGpuQuadraturePoints; ++i) {
@@ -1544,7 +1544,7 @@ void QuadratureShapInteractionValues(Context const* ctx, DMatrix* p_fmat,
       << (kMaxGpuQuadratureDepth - 1) << ".";
 
   auto h_group_root_mean_sums = MakeGroupRootMeanSums(model, tree_end, tree_weights);
-  auto rule = detail::MakeEndpointQuadrature<kGpuQuadraturePoints>(kQuadratureShapQeps);
+  auto rule = detail::MakeGaussLegendreQuadrature<kGpuQuadraturePoints>(kQuadratureShapQeps);
   std::array<float, kGpuQuadraturePoints> h_quad_nodes{};
   std::array<float, kGpuQuadraturePoints> h_quad_weights{};
   for (std::size_t i = 0; i < kGpuQuadraturePoints; ++i) {

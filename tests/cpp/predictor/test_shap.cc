@@ -13,17 +13,43 @@
 #include <xgboost/objective.h>           // for ObjFunction
 
 #include <algorithm>
+#include <cmath>
 #include <memory>  // for unique_ptr
 #include <sstream>
 #include <string>  // for to_string
 
 #include "../../../src/common/param_array.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/predictor/interpretability/quadrature.h"
 #include "../../../src/predictor/interpretability/shap.h"
 #include "../../../src/tree/tree_view.h"
 #include "../helpers.h"
 
 namespace xgboost {
+// An n-point rule must integrate every polynomial of degree <= 2n-1 on [0, 1].
+// In particular, t^15 distinguishes standard eight-point GL from the old t=s^2 rule.
+TEST(Predictor, GaussLegendreQuadraturePolynomialExactness) {
+  for (std::size_t points : {2U, 4U, 6U, 8U, 16U}) {
+    auto rule = interpretability::detail::MakeGaussLegendreQuadrature<16>(points, 1e-15);
+    ASSERT_EQ(rule.points, points);
+    for (std::size_t i = 0; i < points; ++i) {
+      EXPECT_GT(rule.nodes[i], 0.0);
+      EXPECT_LT(rule.nodes[i], 1.0);
+      EXPECT_GT(rule.weights[i], 0.0);
+      EXPECT_NEAR(rule.nodes[i] + rule.nodes[points - 1 - i], 1.0, 1e-14);
+      EXPECT_NEAR(rule.weights[i], rule.weights[points - 1 - i], 1e-14);
+    }
+    for (std::size_t degree = 0; degree < 2 * points; ++degree) {
+      double integral = 0.0;
+      for (std::size_t i = 0; i < points; ++i) {
+        integral += rule.weights[i] * std::pow(rule.nodes[i], degree);
+      }
+      EXPECT_NEAR(integral, 1.0 / static_cast<double>(degree + 1), 1e-14)
+          << "points=" << points << ", degree=" << degree;
+    }
+  }
+}
+
 namespace {
 struct CoverStats {
   double min_child_weight{1.0};

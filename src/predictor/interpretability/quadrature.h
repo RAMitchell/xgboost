@@ -16,7 +16,7 @@
 namespace xgboost::interpretability::detail {
 
 template <std::size_t MaxPoints>
-struct EndpointQuadratureRule {
+struct GaussLegendreRule {
   std::size_t points{0};
   std::array<double, MaxPoints> nodes{};
   std::array<double, MaxPoints> weights{};
@@ -47,12 +47,12 @@ inline double LegendreDerivative(std::size_t n, double x, double pn) {
 }
 
 template <std::size_t MaxPoints>
-inline EndpointQuadratureRule<MaxPoints> MakeEndpointQuadrature(std::size_t n,
+inline GaussLegendreRule<MaxPoints> MakeGaussLegendreQuadrature(std::size_t n,
                                                                 double convergence_eps) {
   CHECK_GE(n, 2);
   CHECK_LE(n, MaxPoints);
 
-  EndpointQuadratureRule<MaxPoints> rule;
+  GaussLegendreRule<MaxPoints> rule;
   rule.points = n;
   std::vector<std::pair<double, double>> nodes_weights;
   nodes_weights.reserve(n);
@@ -75,7 +75,8 @@ inline EndpointQuadratureRule<MaxPoints> MakeEndpointQuadrature(std::size_t n,
     auto w = 2.0 / ((1.0 - x * x) * dpn * dpn);
     double s = 0.5 * (x + 1.0);
     double ws = 0.5 * w;
-    nodes_weights.emplace_back(s * s, 2.0 * s * ws);
+    // Standard Gauss–Legendre mapped linearly from [-1, 1] to [0, 1].
+    nodes_weights.emplace_back(s, ws);
   }
 
   std::sort(nodes_weights.begin(), nodes_weights.end(),
@@ -88,8 +89,8 @@ inline EndpointQuadratureRule<MaxPoints> MakeEndpointQuadrature(std::size_t n,
 }
 
 template <std::size_t Points>
-inline EndpointQuadratureRule<Points> MakeEndpointQuadrature(double convergence_eps) {
-  return MakeEndpointQuadrature<Points>(Points, convergence_eps);
+inline GaussLegendreRule<Points> MakeGaussLegendreQuadrature(double convergence_eps) {
+  return MakeGaussLegendreQuadrature<Points>(Points, convergence_eps);
 }
 
 }  // namespace xgboost::interpretability::detail

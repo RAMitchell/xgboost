@@ -255,7 +255,7 @@ using QuadratureBuffer = std::array<float, Points>;
 template <std::size_t Points>
 QuadratureRule<Points> const &GetQuadratureRule() {
   static QuadratureRule<Points> const rule = [] {
-    auto const rule_d = detail::MakeEndpointQuadrature<Points>(kQuadratureShapBuildQeps);
+    auto const rule_d = detail::MakeGaussLegendreQuadrature<Points>(kQuadratureShapBuildQeps);
     QuadratureRule<Points> out;
     for (std::size_t i = 0; i < Points; ++i) {
       out.nodes[i] = static_cast<float>(rule_d.nodes[i]);
