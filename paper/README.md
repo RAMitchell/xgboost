@@ -18,7 +18,7 @@ git submodule update --init --recursive
 cmake -S . -B build -DUSE_CUDA=ON -DUSE_NCCL=OFF -DGPU_COMPUTE_VER=70 -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 python -m pip install -r paper/requirements.txt
-python -m pip install -e ./python-package --no-build-isolation
+python -m pip install -e ./python-package
 export PYTHONPATH="$PWD/python-package:$PWD"
 export OPENBLAS_NUM_THREADS=1
 ```
@@ -84,8 +84,8 @@ points per tree; E uses eight. There is no separate eight-point NumPy variant.
 
 ```bash
 export OMP_NUM_THREADS=1 NUMBA_NUM_THREADS=1 NUMBA_SLP_VECTORIZE=0
-python -m paper.higher_order --model-dir paper/models --out-dir paper/results/order 3
-python -m paper.render_python --input paper/results/order 3 --out-dir paper/results/order 3_tables
+python -m paper.higher_order --model-dir paper/models --out-dir paper/results/order3
+python -m paper.render_python --input paper/results/order3 --out-dir paper/results/order3_tables
 for order in 2 3 4 5 6; do
   python -m paper.higher_order --model-dir paper/models --models covtype-sparse --order "$order" --niter 1 --warmup 0 --limit 43200 --setup-limit 43200 --out-dir "paper/results/scaling$order"
 done
