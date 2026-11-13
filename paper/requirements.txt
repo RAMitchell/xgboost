@@ -1,0 +1,10 @@
+numpy==2.4.1
+numba==0.64.0
+llvmlite==0.46.0
+pandas==3.0.0
+scipy==1.16.3
+scikit-learn==1.8.0
+matplotlib==3.10.8
+shapiq==1.4.1
+joblib==1.5.3
+pytest>=8

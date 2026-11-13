@@ -1,3 +1,11 @@
+# Paper reproduction
+
+This checkout contains the paper's XGBoost implementation and reproduction code.
+Start with [paper/README.md](paper/README.md) for the current experiment commands,
+model definitions, A–E ablation variants and source-only submission bundle.
+
+---
+
 <img src="https://xgboost.ai/images/logo/xgboost-logo-trimmed.png" width=200/> eXtreme Gradient Boosting
 ===========
 
